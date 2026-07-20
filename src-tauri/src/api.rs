@@ -75,19 +75,26 @@ impl ApiClient {
     pub async fn search(&self, q: &SearchQuery) -> AppResult<SearchPage> {
         let s = self.settings();
         let base = self.api_url("search?query=");
-        let mut query = url_encoded(&q.query);
+
+        // Collect non-empty query tokens, then join with `+`. nhentai rejects a
+        // leading `+` (HTTP 400 "query should have at least 1 character"), so we
+        // must not prefix the first token — especially when there is no text
+        // query and the only filter is a language tag.
+        let mut parts: Vec<String> = Vec::new();
+        let text = url_encoded(&q.query);
+        if !text.is_empty() {
+            parts.push(text);
+        }
 
         // Accepted tags (status ACCEPTED): add as `tag:"name"`.
         for t in &q.tags {
             if t.status != TagStatus::Avoided {
-                query.push('+');
-                query.push_str(&percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
+                parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
             }
         }
         for t in &q.tags {
             if t.status == TagStatus::Avoided {
-                query.push('+');
-                query.push_str(&percent_encode(&t.to_query_tag_with(TagStatus::Avoided)));
+                parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Avoided)));
             }
         }
         // Tag IDs from the local DB.
@@ -103,38 +110,35 @@ impl ApiClient {
             .unwrap_or_default();
             for t in &all {
                 let accepted = q.accepted_tag_ids.contains(&t.id);
-                query.push('+');
-                query.push_str(&percent_encode(
-                    &t.to_query_tag_with(if accepted {
-                        TagStatus::Accepted
-                    } else {
-                        TagStatus::Avoided
-                    }),
-                ));
+                parts.push(percent_encode(&t.to_query_tag_with(if accepted {
+                    TagStatus::Accepted
+                } else {
+                    TagStatus::Avoided
+                })));
             }
         }
         // Language filter.
         if let Some(id) = language_tag_id(q.only_language.or_all(s.only_language)) {
             if let Ok(tags) = self.fetch_tags_by_ids(&[id]).await {
                 if let Some(t) = tags.into_iter().next() {
-                    query.push('+');
-                    query.push_str(&percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
+                    parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
                 }
             }
         }
         // Page range filter (mirrors `Ranges`).
         match (q.from_page, q.to_page) {
             (Some(a), Some(b)) if a == b => {
-                query.push_str(&format!("+pages%3A{}", a));
+                parts.push(format!("pages%3A{}", a));
             }
             (Some(a), Some(b)) => {
-                query.push_str(&format!("+pages%3A%3E%3D{}+pages%3A%3C%3D{}", a, b));
+                parts.push(format!("pages%3A%3E%3D{}+pages%3A%3C%3D{}", a, b));
             }
-            (Some(a), None) => query.push_str(&format!("+pages%3A%3E%3D{}", a)),
-            (None, Some(b)) => query.push_str(&format!("+pages%3A%3C%3D{}", b)),
+            (Some(a), None) => parts.push(format!("pages%3A%3E%3D{}", a)),
+            (None, Some(b)) => parts.push(format!("pages%3A%3C%3D{}", b)),
             (None, None) => {}
         }
 
+        let query = parts.join("+");
         let mut url = format!("{}{}&page={}", base, query, q.page);
         if let Some(srt) = q.sort.url_addition() {
             url.push_str(&format!("&sort={}", srt));

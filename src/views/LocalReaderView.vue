@@ -12,12 +12,21 @@ const local = ref<LocalGallery | null>(null);
 const index = ref(0);
 const fitMode = ref<"width" | "height" | "original">("height");
 
+// Cache-busting key forces the <img> to reload the current page from the proxy.
+const imgReloadKey = ref(0);
+
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
 const src = computed(() => {
   const p = pages.value[index.value];
-  return p ? imageProxyUrl(p) : "";
+  if (!p) return "";
+  const base = imageProxyUrl(p);
+  return imgReloadKey.value ? `${base}${base.includes("?") ? "&" : "?"}_r=${imgReloadKey.value}` : base;
 });
+
+function refreshImage() {
+  imgReloadKey.value++;
+}
 
 function prev() {
   if (index.value > 0) index.value--;
@@ -63,6 +72,7 @@ async function remove() {
         <button class="btn small" :class="{ primary: fitMode === 'height' }" @click="fitMode = 'height'">Fit H</button>
         <button class="btn small" :class="{ primary: fitMode === 'width' }" @click="fitMode = 'width'">Fit W</button>
         <button class="btn small" :class="{ primary: fitMode === 'original' }" @click="fitMode = 'original'">1:1</button>
+        <button class="btn small" title="Reload current page" @click="refreshImage">🔄</button>
       </div>
       <button class="btn danger" @click="remove">Delete</button>
     </header>
@@ -84,7 +94,8 @@ async function remove() {
 .reader {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: #000;
 }
 .bar {
@@ -100,6 +111,7 @@ async function remove() {
   font-size: 0.85rem;
 }
 .fit {
+  margin-left: auto;
   display: flex;
   gap: 4px;
 }
@@ -109,11 +121,18 @@ async function remove() {
 }
 .page-area {
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: auto;
   cursor: pointer;
+}
+.page-area img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 .fit-height .page-area img {
   height: 100%;
@@ -124,6 +143,7 @@ async function remove() {
 .fit-width .page-area img {
   width: 100%;
   height: auto;
+  max-height: 100%;
   object-fit: contain;
 }
 .loading {

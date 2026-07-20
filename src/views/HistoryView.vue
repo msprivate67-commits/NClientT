@@ -30,7 +30,10 @@ onMounted(load);
   <div class="view">
     <div class="view-header">
       <div class="view-title">History</div>
-      <button v-if="items.length" class="btn danger" @click="clear">Clear</button>
+      <div class="toolbar">
+        <button class="btn" @click="load" title="Reload history">🔄 Refresh</button>
+        <button v-if="items.length" class="btn danger" @click="clear">Clear</button>
+      </div>
     </div>
     <div v-if="items.length" class="list">
       <div v-for="h in items" :key="h.gallery_id" class="row" @click="open(h.gallery_id)">

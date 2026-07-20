@@ -26,7 +26,10 @@ const total = computed(() => pages.value.length);
 const current = computed(() => pages.value[index.value]);
 const src = computed(() => {
   const p = current.value?.path;
-  return p ? imageProxyUrl(p) : "";
+  if (!p) return "";
+  const base = imageProxyUrl(p);
+  // Append a cache-buster so the <img> refetches when refreshImage() bumps the key.
+  return imgReloadKey.value ? `${base}${base.includes("?") ? "&" : "?"}_r=${imgReloadKey.value}` : base;
 });
 
 const rtl = computed(() => settings.settings.use_rtl);
@@ -56,6 +59,12 @@ async function load() {
   index.value = 0;
 }
 
+// Cache-busting key forces the <img> to reload the current page from the proxy.
+const imgReloadKey = ref(0);
+function refreshImage() {
+  imgReloadKey.value++;
+}
+
 onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
@@ -73,6 +82,7 @@ watch(id, load);
         <button class="btn small" :class="{ primary: fitMode === 'height' }" @click="fitMode = 'height'">Fit H</button>
         <button class="btn small" :class="{ primary: fitMode === 'width' }" @click="fitMode = 'width'">Fit W</button>
         <button class="btn small" :class="{ primary: fitMode === 'original' }" @click="fitMode = 'original'">1:1</button>
+        <button class="btn small" title="Reload current page" @click="refreshImage">🔄</button>
       </div>
     </header>
 
@@ -98,7 +108,8 @@ watch(id, load);
 .reader {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: #000;
 }
 .bar {
@@ -124,11 +135,18 @@ watch(id, load);
 }
 .page-area {
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: auto;
   cursor: pointer;
+}
+.page-area img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 .fit-height .page-area img {
   height: 100%;
@@ -139,6 +157,7 @@ watch(id, load);
 .fit-width .page-area img {
   width: 100%;
   height: auto;
+  max-height: 100%;
   object-fit: contain;
 }
 .fit-original .page-area img {

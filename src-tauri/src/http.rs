@@ -266,8 +266,14 @@ fn build_client(
         .brotli(true)
         .deflate(true);
 
-    // Apply proxy if configured.
+    // Apply proxy if configured explicitly by the user.
     if let Some(proxy) = build_proxy(settings) {
+        builder = builder.proxy(proxy);
+    } else if let Some(proxy) = detect_system_proxy() {
+        // No explicit proxy in settings: fall back to the OS-level proxy
+        // (Windows Internet Settings / `HTTP_PROXY` env). Without this,
+        // reqwest only consults env vars and ignores the Windows registry,
+        // so users behind a system-wide VPN/proxy silently fail to connect.
         builder = builder.proxy(proxy);
     }
 
@@ -329,6 +335,95 @@ fn build_proxy(settings: &crate::config::Settings) -> Option<reqwest::Proxy> {
             None
         }
     }
+}
+
+/// Detect an OS-level proxy when the user has not configured one in Settings.
+///
+/// reqwest only honours the `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` env
+/// vars by default; on Windows most proxy tools (V2Ray, Xray, Clash, ...)
+/// expose themselves via the IE/WinINET registry settings instead. Users in
+/// regions where the target site is blocked rely on those tools, so we read
+/// the registry ourselves and fall back to env vars on non-Windows platforms.
+fn detect_system_proxy() -> Option<reqwest::Proxy> {
+    if let Some(url) = read_windows_system_proxy() {
+        return build_sys_proxy(&url, "Windows Internet Settings");
+    }
+    // Non-Windows / registry unavailable: reqwest already wires up env-var
+    // proxies via its default `with_system_proxy` behaviour, so we have nothing
+    // to add here.
+    None
+}
+
+/// Build a `reqwest::Proxy` from a raw system proxy URL, logging the source.
+fn build_sys_proxy(raw: &str, source: &str) -> Option<reqwest::Proxy> {
+    let url = raw.trim();
+    if url.is_empty() {
+        return None;
+    }
+    match reqwest::Proxy::all(url) {
+        Ok(p) => {
+            log::info!("using system proxy ({}): {}", source, url);
+            Some(p)
+        }
+        Err(e) => {
+            log::warn!("invalid system proxy '{}' ({}): {}", url, source, e);
+            None
+        }
+    }
+}
+
+/// Read the Windows WinINET proxy setting from the registry.
+///
+/// Returns `http://host:port` when `ProxyEnable == 1` and `ProxyServer` is set.
+/// Mirrors what `WinINET` itself does, and what Chrome/Edge/Firefox read as the
+/// "system proxy". On non-Windows targets this is a compile-time no-op.
+#[cfg(windows)]
+fn read_windows_system_proxy() -> Option<String> {
+    use windows_registry::CURRENT_USER;
+
+    let key = CURRENT_USER
+        .open("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
+        .ok()?;
+
+    // ProxyEnable (DWORD): 1 => a manual proxy is configured.
+    let enabled: u32 = key.get_value("ProxyEnable").ok().and_then(|v| v.try_into().ok()).unwrap_or(0);
+    if enabled != 1 {
+        return None;
+    }
+
+    // ProxyServer (REG_SZ): "host:port" or "http=host:port;https=host:port".
+    let raw: String = key.get_value("ProxyServer").ok().and_then(|v| v.try_into().ok())?;
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    // WinINET lets users specify per-scheme proxies as "http=h:port;https=h:port".
+    // Pick the `http=`/`https=` entry if present, otherwise treat the whole
+    // value as a single "host:port" string.
+    let chosen = raw
+        .split(';')
+        .map(str::trim)
+        .find(|entry| entry.starts_with("http=") || entry.starts_with("https="))
+        .map(|entry| entry.split('=').nth(1).unwrap_or("").trim())
+        .unwrap_or(raw);
+
+    if chosen.is_empty() {
+        return None;
+    }
+    // Normalise to a full URL. The registry rarely stores the scheme, so add
+    // `http://` when only `host:port` is present. `socks=` entries are skipped
+    // because reqwest needs an explicit scheme we cannot reliably guess.
+    if chosen.contains("://") {
+        Some(chosen.to_string())
+    } else {
+        Some(format!("http://{}", chosen))
+    }
+}
+
+#[cfg(not(windows))]
+fn read_windows_system_proxy() -> Option<String> {
+    None
 }
 
 impl ClientFingerprint {

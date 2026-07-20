@@ -202,6 +202,15 @@ watch(() => route.query, () => {
         >{{ s.label }}</button>
       </div>
       <button type="submit" class="btn primary">Search</button>
+      <button
+        type="button"
+        class="btn"
+        :disabled="loading || !hasQuery"
+        @click="load"
+        title="Reload results"
+      >
+        {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+      </button>
     </form>
 
     <div class="field tag-input">

@@ -68,6 +68,13 @@ mime_guess = "2.0"
 # Archives / PDF (PDF writer is hand-rolled in export.rs — no lopdf dependency)
 zip = { version = "2.2", default-features = false, features = ["deflate", "time"] }
 
+# Platform-specific
+[target.'cfg(windows)'.dependencies]
+# Used to read the Windows WinINET system proxy (HKCU\...\Internet Settings)
+# so reqwest can transparently use a system-wide VPN/proxy when the user has
+# not configured one in Settings.
+windows-registry = "0.4"
+
 [features]
 # This feature is used for production builds or when a dev server is not specified, the default
 # value is false.

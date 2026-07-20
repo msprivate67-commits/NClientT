@@ -5,7 +5,7 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
-import type { SimpleGallery, SortType } from "@/types";
+import type { Language, SimpleGallery, SortType } from "@/types";
 
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
@@ -22,6 +22,13 @@ const sorts: { value: SortType; label: string }[] = [
   { value: "popular_week", label: "Popular (week)" },
   { value: "popular_day", label: "Popular (day)" },
   { value: "popular_month", label: "Popular (month)" },
+];
+
+const langs: { value: Language; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "english", label: "EN" },
+  { value: "japanese", label: "JP" },
+  { value: "chinese", label: "CN" },
 ];
 
 async function load() {
@@ -50,6 +57,13 @@ function changeSort(s: SortType) {
   settings.save({ sort_type: s }).then(load);
 }
 
+function changeLanguage(l: Language) {
+  if (settings.settings.only_language === l) return;
+  // Reset to the first page so we don't land beyond the filtered total.
+  page.value = 1;
+  settings.save({ only_language: l }).then(load);
+}
+
 onMounted(load);
 watch(page, load);
 </script>
@@ -71,6 +85,22 @@ watch(page, load);
         <button class="btn" @click="gallery.random().then((g) => $router.push(`/gallery/${g.id}`))">
           🎲 Random
         </button>
+        <button class="btn" :disabled="loading" @click="load" title="Reload galleries">
+          {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+        </button>
+        <div class="lang-group">
+          <span class="lang-label">Lang:</span>
+          <button
+            v-for="l in langs"
+            :key="l.value"
+            class="btn small"
+            :class="{ primary: settings.settings.only_language === l.value }"
+            :title="l.value === 'all' ? 'All languages' : l.label"
+            @click="changeLanguage(l.value)"
+          >
+            {{ l.label }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -96,5 +126,22 @@ watch(page, load);
   color: #ff9e9e;
   margin-bottom: 14px;
   font-size: 0.85rem;
+}
+.lang-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  margin-left: 4px;
+  border-left: 1px solid var(--border);
+}
+.lang-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+.btn.small {
+  padding: 2px 8px;
+  font-size: 0.72rem;
 }
 </style>

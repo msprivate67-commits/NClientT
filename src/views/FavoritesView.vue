@@ -53,6 +53,14 @@ function switchMode(m: "local" | "online") {
   mode.value = m;
   if (m === "online" && onlineItems.value.length === 0) loadOnline();
 }
+
+async function refresh() {
+  if (mode.value === "online") {
+    await loadOnline();
+  } else {
+    await favorites.load();
+  }
+}
 </script>
 
 <template>
@@ -62,6 +70,9 @@ function switchMode(m: "local" | "online") {
       <div class="toolbar">
         <button class="btn" :class="{ primary: mode === 'local' }" @click="switchMode('local')">Local</button>
         <button class="btn" :class="{ primary: mode === 'online' }" @click="switchMode('online')">Online</button>
+        <button class="btn" :disabled="loading" @click="refresh" title="Reload favorites">
+          {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+        </button>
       </div>
     </div>
 

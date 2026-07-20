@@ -26,6 +26,7 @@ const settings = useSettingsStore();
 const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
 const commentsOpen = ref(false);
+const loading = ref(false);
 
 const g = computed(() => gallery.current);
 
@@ -57,10 +58,13 @@ const tagsByType = computed(() => {
 
 async function load() {
   error.value = null;
+  loading.value = true;
   try {
     await gallery.load(id.value);
   } catch (e: any) {
     error.value = String(e?.message ?? e);
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -124,7 +128,12 @@ async function onTagClick(t: any) {
         <img v-if="coverSrc" :src="coverSrc" :alt="title" />
       </div>
       <div class="info">
-        <h1 class="title">{{ title }}</h1>
+        <div class="title-row">
+          <h1 class="title">{{ title }}</h1>
+          <button class="btn" :disabled="loading" @click="load" title="Reload gallery">
+            {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+          </button>
+        </div>
         <div class="meta">
           <span>#{{ g.id }}</span>
           <span>·</span>
@@ -229,6 +238,16 @@ async function onTagClick(t: any) {
   margin: 0 0 8px;
   font-size: 1.3rem;
   line-height: 1.3;
+}
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  justify-content: space-between;
+}
+.title-row .title {
+  flex: 1;
+  min-width: 0;
 }
 .meta {
   color: var(--text-dim);
