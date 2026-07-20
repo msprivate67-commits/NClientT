@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
 
 use crate::api::ApiClient;
@@ -91,7 +91,7 @@ struct DownloadTask {
     folder: PathBuf,
     thumbnail: Option<String>,
     pages: Vec<(usize, String)>, // (page_index, url)
-    done: Vec<bool>,
+    done: Mutex<Vec<bool>>,
     status: RwLock<DownloadStatus>,
     pause_flag: Mutex<bool>,
     cancel_flag: Mutex<bool>,
@@ -99,7 +99,17 @@ struct DownloadTask {
 
 impl DownloadTask {
     fn done_count(&self) -> usize {
-        self.done.iter().filter(|b| **b).count()
+        self.done.lock().iter().filter(|b| **b).count()
+    }
+    fn mark_done(&self, idx: usize) {
+        let mut g = self.done.lock();
+        if idx < g.len() {
+            g[idx] = true;
+        }
+    }
+    fn next_pending(&self) -> Option<usize> {
+        let g = self.done.lock();
+        g.iter().position(|b| !b)
     }
 }
 
@@ -241,7 +251,7 @@ impl DownloadManager {
             folder: folder.clone(),
             thumbnail: gallery.thumbnail.thumbnail_or_path().map(String::from),
             pages,
-            done: vec![false; total],
+            done: Mutex::new(vec![false; total]),
             status: RwLock::new(DownloadStatus::Pending),
             pause_flag: Mutex::new(false),
             cancel_flag: Mutex::new(false),
@@ -254,7 +264,7 @@ impl DownloadManager {
             thumbnail: task.thumbnail.clone(),
             status: DownloadStatus::Pending,
             done_pages: 0,
-            total_pages,
+            total_pages: total,
         };
 
         self.tasks.write().insert(task.id, task.clone());
@@ -293,13 +303,7 @@ impl DownloadManager {
         let mut failed = false;
         loop {
             // Find the next pending page index.
-            let next = task
-                .pages
-                .iter()
-                .enumerate()
-                .find(|(i, _)| !task.done[*i])
-                .map(|(i, _)| i);
-            let idx = match next {
+            let idx = match task.next_pending() {
                 Some(i) => i,
                 None => break,
             };
@@ -322,7 +326,7 @@ impl DownloadManager {
 
             // Skip if already present and not corrupted.
             if file_path.exists() && !is_corrupted(&file_path, &page_name) {
-                task.done[idx] = true;
+                task.mark_done(idx);
                 self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
                 continue;
             }
@@ -338,7 +342,7 @@ impl DownloadManager {
 
             match res {
                 Ok(()) => {
-                    task.done[idx] = true;
+                    task.mark_done(idx);
                     self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
                 }
                 Err(e) => {
@@ -352,7 +356,7 @@ impl DownloadManager {
                     let retry = download_one_async(&http, &settings, &url2, &file_path2).await;
                     match retry {
                         Ok(()) => {
-                            task.done[idx] = true;
+                            task.mark_done(idx);
                             self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
                         }
                         Err(_) => {

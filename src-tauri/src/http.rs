@@ -216,7 +216,7 @@ impl HttpClient {
             None => body,
         };
         let mut store = self.cookie_store.lock().unwrap();
-        if let Err(e) = store.parse(&request_url, pair) {
+        if let Err(e) = store.parse(pair, &request_url) {
             log::warn!("failed to parse cookie '{}': {}", pair, e);
         }
         drop(store);
@@ -230,10 +230,13 @@ impl HttpClient {
             return String::new();
         };
         let store = self.cookie_store.lock().unwrap();
-        match store.cookies(&u) {
-            Ok(c) => c.to_string(),
-            Err(_) => String::new(),
-        }
+        // `CookieStore::get_request_values` returns `Vec<(name, value)>` which
+        // we join into a Cookie header-style string.
+        store
+            .get_request_values(&u)
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 }
 
@@ -291,10 +294,14 @@ fn load_or_create_cookie_store(path: &Path) -> Arc<CookieStoreMutex> {
         std::fs::create_dir_all(parent).ok();
     }
     let store = match std::fs::File::open(path) {
-        Ok(mut f) => CookieStore::load_json(&mut f).unwrap_or_else(|e| {
-            log::warn!("failed to load cookies.json ({e}); starting fresh");
-            CookieStore::default()
-        }),
+        Ok(f) => {
+            let reader = std::io::BufReader::new(f);
+            #[allow(deprecated)]
+            CookieStore::load_json(reader).unwrap_or_else(|e| {
+                log::warn!("failed to load cookies.json ({e}); starting fresh");
+                CookieStore::default()
+            })
+        }
         Err(_) => CookieStore::default(),
     };
     Arc::new(CookieStoreMutex::new(store))
@@ -303,6 +310,7 @@ fn load_or_create_cookie_store(path: &Path) -> Arc<CookieStoreMutex> {
 /// Persist the cookie jar to disk as JSON.
 fn save_cookie_store(store: &CookieStore, path: &Path) {
     let mut buf = Vec::new();
+    #[allow(deprecated)]
     if let Err(e) = store.save_json(&mut std::io::BufWriter::new(&mut buf)) {
         log::warn!("failed to serialize cookies: {e}");
         return;

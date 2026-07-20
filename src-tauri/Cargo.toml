@@ -65,9 +65,8 @@ bytes = "1.8"
 futures-util = "0.3"
 mime_guess = "2.0"
 
-# Archives / PDF
+# Archives / PDF (PDF writer is hand-rolled in export.rs — no lopdf dependency)
 zip = { version = "2.2", default-features = false, features = ["deflate", "time"] }
-lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, the default

@@ -292,7 +292,7 @@ impl ApiClient {
         let (body, _) = self.http.get_text(&url, true, &s).await?;
         let v: Value = serde_json::from_str(&body)?;
         let arr = v.as_array().cloned().unwrap_or_default();
-        let comments = arr.into_iter().map(parse_comment).collect::<Vec<_>>();
+        let comments = arr.iter().map(parse_comment).collect::<Vec<_>>();
         Ok(CommentsPage {
             comments,
             gallery_id,
@@ -320,7 +320,7 @@ impl ApiClient {
             Value::Object(_) => vec![v],
             _ => vec![],
         };
-        Ok(arr.into_iter().map(parse_tag).collect())
+        Ok(arr.iter().map(parse_tag).collect())
     }
 
     /// Fetch full tag objects for a list of IDs. The list endpoint does not
@@ -516,7 +516,7 @@ pub fn parse_gallery(body: &str, host: &str) -> AppResult<Gallery> {
     let upload_date = v
         .get("upload_date")
         .and_then(|x| x.as_i64())
-        .map(|s| chrono::Utc.timestamp_opt(s, 0).single());
+        .and_then(|s| chrono::Utc.timestamp_opt(s, 0).single());
     let num_favorites = v
         .get("num_favorites")
         .and_then(|x| x.as_i64())

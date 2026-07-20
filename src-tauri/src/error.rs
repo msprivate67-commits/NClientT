@@ -50,6 +50,18 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
+impl From<tauri::Error> for AppError {
+    fn from(e: tauri::Error) -> Self {
+        AppError::Other(e.to_string())
+    }
+}
+
+impl From<zip::result::ZipError> for AppError {
+    fn from(e: zip::result::ZipError) -> Self {
+        AppError::Other(e.to_string())
+    }
+}
+
 impl Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

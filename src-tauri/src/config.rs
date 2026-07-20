@@ -10,7 +10,7 @@ use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 
 /// App version, used for the User-Agent header (mirrors NClientV3's
 /// `ApiAuthInterceptor` which sends `NClient/<version>`).
@@ -270,7 +270,7 @@ impl ConfigStore {
             sanitized.download_dir = self.get().download_dir;
         }
         fs::create_dir_all(&sanitized.download_dir).ok();
-        self.persist(&sanitized)?;
+        self.persist(&sanitized);
         *self.settings.write().unwrap() = sanitized.clone();
         Ok(sanitized)
     }

@@ -1,15 +1,23 @@
 # NClientT
 
-A cross-platform **desktop** port of [NClientV3](https://github.com/maxwai/NClientV3),
-built with **Tauri 2** (Rust backend) + **Vue 3** (TypeScript frontend).
+> A **full rewrite** of [NClientV3](https://github.com/maxwai/NClientV3) —
+> an unofficial NHentai Android client (originally built with OkHttp, JSoup,
+> Glide, etc.) — **refactored with GLM 5.2** from a native Android app into a
+> **cross-platform desktop application**, no longer limited to Android.
+
+Refactored with GLM 5.2 and built with **Tauri 2** (Rust backend) +
+**Vue 3** (TypeScript frontend) for **Windows / macOS / Linux**.
 
 > ⚠️ This is an unofficial, hobbyist client and is for personal, lawful use only.
 > Respect the source site's Terms of Service and your local laws. The project
 > focuses purely on the technical port (networking, downloads, auth, etc.).
 
-## What's ported from NClientV3
+## GLM 5.2 refactoring map
 
-| NClientV3 (Android)                       | NClientT (desktop)                                |
+The table below shows how each module of NClientV3 (native Android) was
+refactored with GLM 5.2 into its cross-platform counterpart:
+
+| NClientV3 (Android)                       | NClientT (cross-platform desktop)                  |
 |-------------------------------------------|---------------------------------------------------|
 | `OkHttpClient` + `CustomCookieJar`        | `reqwest` + `reqwest_cookie_store` (JSON jar)     |
 | `ApiAuthInterceptor` (UA + `Key <api>`)   | `http.rs` — same UA + `Authorization: Key <key>`  |
@@ -19,7 +27,7 @@ built with **Tauri 2** (Rust backend) + **Vue 3** (TypeScript frontend).
 | `async/database/Queries` (SQLite)         | `db.rs` — favorites/history/tags/local/downloads  |
 | `ApiAuthInterceptor` + `AuthStore`        | `config.rs::AuthCredentials` + `auth_*` cmds      |
 | PDF / ZIP export                          | `export.rs` (`lopdf` + `zip`)                     |
-| Activities / fragments                    | Vue 3 views + Pinia stores                        |
+| Activity / Fragment                       | Vue 3 views + Pinia stores                        |
 
 ### Features
 
@@ -37,7 +45,8 @@ built with **Tauri 2** (Rust backend) + **Vue 3** (TypeScript frontend).
 - 🍪 **Persistent cookies** — survive restarts (so do CF tokens)
 - ⚙ **Settings** — mirror, User-Agent, timeouts, columns, zoom, RTL, download dir, ...
 - 📦 **Export** — convert a downloaded gallery to PDF or ZIP
-- 🖥 **Cross-platform** — Windows first; macOS / Linux ready (Tauri 2)
+- 🖥 **Cross-platform** — refactored with GLM 5.2, no longer limited to Android;
+  natively runs on **Windows / macOS / Linux** (Tauri 2)
 
 ## Project layout
 

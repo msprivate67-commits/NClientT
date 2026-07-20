@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
-use tauri::{AppHandle, Manager, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Emitter, Listener, Manager, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::oneshot;
 
 use crate::error::{AppError, AppResult};
@@ -93,27 +93,27 @@ pub fn open_challenge(
     // Listen for cookies reported by the probe script.
     let app_clone = app.clone();
     let _id = app.listen_any("cf-cookie", move |event| {
-        if let Some(payload) = event.payload() {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(payload) {
-                if let Some(name) = json.get("name").and_then(|v| v.as_str()) {
-                    let value = json
-                        .get("value")
+        // `Event::payload()` returns `&str` in Tauri 2.
+        let payload: &str = event.payload();
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(payload) {
+            if let Some(name) = json.get("name").and_then(|v| v.as_str()) {
+                let value = json
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let pair = format!("{}={}", name, value);
+                let url = format!(
+                    "https://{}/",
+                    json.get("host")
                         .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    let pair = format!("{}={}", name, value);
-                    let url = format!(
-                        "https://{}/",
-                        json.get("host")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("nhentai.net")
-                    );
-                    let _ = http.set_cookie_str(&url, &pair);
-                    if name == "cf_clearance" {
-                        set_state(CfState::Solved);
-                        let _ = app_clone.emit("cf-state", CfState::Solved);
-                        if let Some(window) = app_clone.get_webview_window(CF_WINDOW_LABEL) {
-                            let _ = window.close();
-                        }
+                        .unwrap_or("nhentai.net")
+                );
+                let _ = http.set_cookie_str(&url, &pair);
+                if name == "cf_clearance" {
+                    set_state(CfState::Solved);
+                    let _ = app_clone.emit("cf-state", CfState::Solved);
+                    if let Some(window) = app_clone.get_webview_window(CF_WINDOW_LABEL) {
+                        let _ = window.close();
                     }
                 }
             }

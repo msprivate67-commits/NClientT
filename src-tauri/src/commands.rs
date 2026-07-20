@@ -3,7 +3,6 @@
 //! Every function here is exposed to JS via `invoke('name', { ... })`.
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -12,7 +11,7 @@ use crate::api::ApiClient;
 use crate::cloudflare;
 use crate::config::{AuthCredentials, Settings, TitleType};
 use crate::db::{DownloadRow, FavoriteRow};
-use crate::downloader::{DownloadManager, DownloadRequest, DownloadStatus};
+use crate::downloader::{DownloadRequest, DownloadStatus};
 use crate::error::{AppError, AppResult};
 use crate::http::HttpClient;
 use crate::models::*;
@@ -645,9 +644,16 @@ pub fn read_local_image(path: String) -> AppResult<Option<String>> {
     }
     let bytes = std::fs::read(&p)?;
     let mime = mime_guess::from_path(&p)
-        .first_or("image/jpeg")
+        .first_or_octet_stream()
         .essence_str()
         .to_string();
+    // Default to image/jpeg for known image extensions that mime_guess reports
+    // as application/octet-stream (e.g. some .webp / .gif variants).
+    let mime = if mime == "application/octet-stream" {
+        "image/jpeg".to_string()
+    } else {
+        mime
+    };
     let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
     Ok(Some(format!("data:{};base64,{}", mime, b64)))
 }

@@ -16,7 +16,7 @@ use parking_lot::Mutex;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::models::{HistoryEntry, LocalGallery, Tag, TagStatus, TagType};
 
 /// Thread-safe SQLite handle. All access goes through a single `Mutex`; given
