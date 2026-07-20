@@ -19,9 +19,11 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Default mirror (the original nhentai host, like `Utility.ORIGINAL_URL`).
 pub const DEFAULT_MIRROR: &str = "nhentai.net";
 
-/// Default User-Agent. Matches NClientV3's format.
+/// Default User-Agent. Uses the exact same format as NClientV3's
+/// `ApiAuthInterceptor` so the server sees the same client identity.
+/// NClientV3 sends: `NClient/<version> (https://github.com/maxwai/NClientV3)`
 pub const DEFAULT_UA: &str = concat!(
-    "NClientT/",
+    "NClient/",
     env!("CARGO_PKG_VERSION"),
     " (https://github.com/maxwai/NClientV3)"
 );
@@ -72,6 +74,16 @@ pub enum Language {
     English,
     Japanese,
     Chinese,
+}
+
+/// Proxy type for HTTP requests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ProxyType {
+    #[default]
+    None,
+    Http,
+    Socks5,
 }
 
 /// Data usage policy, mirrors `Global#DataUsageType`.
@@ -135,6 +147,13 @@ pub struct Settings {
     /// API key auth (sent as `Authorization: Key <key>`).
     pub auth: AuthCredentials,
 
+    // --- proxy ---------------------------------------------------------------
+    pub proxy_type: ProxyType,
+    pub proxy_host: String,
+    pub proxy_port: u16,
+    pub proxy_username: String,
+    pub proxy_password: String,
+
     // --- browsing -----------------------------------------------------------
     pub sort_type: SortType,
     pub only_language: Language,
@@ -175,6 +194,11 @@ impl Default for Settings {
             user_agent: String::new(),
             request_timeout_secs: 30,
             auth: AuthCredentials::default(),
+            proxy_type: ProxyType::None,
+            proxy_host: String::new(),
+            proxy_port: 1080,
+            proxy_username: String::new(),
+            proxy_password: String::new(),
             sort_type: SortType::RecentAllTime,
             only_language: Language::All,
             title_type: TitleType::Auto,

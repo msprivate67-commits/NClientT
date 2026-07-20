@@ -14,7 +14,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, REFERER};
 use reqwest::{Client, ClientBuilder, StatusCode};
 use reqwest_cookie_store::{CookieStore, CookieStoreMutex};
 
-use crate::config::ConfigStore;
+use crate::config::{ConfigStore, ProxyType};
 use crate::error::{AppError, AppResult};
 
 /// Headers returned alongside a response body, useful for diagnostics.
@@ -31,8 +31,21 @@ pub struct HttpClient {
     inner: RwLock<Client>,
     cookie_store: Arc<CookieStoreMutex>,
     cookie_path: PathBuf,
-    /// Most recent mirror / UA, so we know when to rebuild the client.
-    fingerprint: RwLock<(String, String, u64)>,
+    /// Most recent mirror / UA / timeout / proxy, so we know when to rebuild the client.
+    fingerprint: RwLock<ClientFingerprint>,
+}
+
+/// Fields that, when changed, require the HTTP client to be rebuilt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClientFingerprint {
+    mirror: String,
+    user_agent: String,
+    timeout_secs: u64,
+    proxy_type: ProxyType,
+    proxy_host: String,
+    proxy_port: u16,
+    proxy_username: String,
+    proxy_password: String,
 }
 
 impl HttpClient {
@@ -47,30 +60,21 @@ impl HttpClient {
 
         let cookie_store = load_or_create_cookie_store(&cookie_path);
         let s = config.get();
-        let client = build_client(&cookie_store, &s.user_agent, s.request_timeout_secs);
+        let ua = effective_ua(&s.user_agent);
+        let client = build_client(&cookie_store, &ua, s.request_timeout_secs, &s);
 
-        let ua = if s.user_agent.trim().is_empty() {
-            crate::config::DEFAULT_UA.to_string()
-        } else {
-            s.user_agent.trim().to_string()
-        };
         Self {
             inner: RwLock::new(client),
             cookie_store,
             cookie_path,
-            fingerprint: RwLock::new((s.mirror.clone(), ua, s.request_timeout_secs)),
+            fingerprint: RwLock::new(ClientFingerprint::from_settings(&s)),
         }
     }
 
-    /// Rebuild the underlying client (mirror / UA / timeout changed).
+    /// Rebuild the underlying client (mirror / UA / timeout / proxy changed).
     /// The cookie jar is preserved so cf_clearance survives.
     pub fn rebuild(&self, settings: &crate::config::Settings) {
-        let ua = if settings.user_agent.trim().is_empty() {
-            crate::config::DEFAULT_UA.to_string()
-        } else {
-            settings.user_agent.trim().to_string()
-        };
-        let new_fp = (settings.mirror.clone(), ua.clone(), settings.request_timeout_secs);
+        let new_fp = ClientFingerprint::from_settings(settings);
         {
             let mut fp = self.fingerprint.write().unwrap();
             if *fp == new_fp {
@@ -78,7 +82,8 @@ impl HttpClient {
             }
             *fp = new_fp;
         }
-        let client = build_client(&self.cookie_store, &ua, settings.request_timeout_secs);
+        let ua = effective_ua(&settings.user_agent);
+        let client = build_client(&self.cookie_store, &ua, settings.request_timeout_secs, settings);
         *self.inner.write().unwrap() = client;
         log::info!("http client rebuilt for host={}", settings.mirror);
     }
@@ -245,13 +250,10 @@ fn build_client(
     cookie_store: &Arc<CookieStoreMutex>,
     user_agent: &str,
     timeout_secs: u64,
+    settings: &crate::config::Settings,
 ) -> Client {
-    let ua = if user_agent.trim().is_empty() {
-        crate::config::DEFAULT_UA.to_string()
-    } else {
-        user_agent.trim().to_string()
-    };
-    ClientBuilder::new()
+    let ua = effective_ua(user_agent);
+    let mut builder = ClientBuilder::new()
         .cookie_provider(cookie_store.clone())
         // The persistent store handles cookie persistence; do not also use the
         // in-memory-only `cookies(true)` shortcut.
@@ -262,10 +264,86 @@ fn build_client(
         .pool_max_idle_per_host(32)
         .gzip(true)
         .brotli(true)
-        .deflate(true)
-        // We embed rustls so the app does not depend on platform OpenSSL.
+        .deflate(true);
+
+    // Apply proxy if configured.
+    if let Some(proxy) = build_proxy(settings) {
+        builder = builder.proxy(proxy);
+    }
+
+    // We embed rustls so the app does not depend on platform OpenSSL.
+    builder
         .build()
         .expect("failed to build reqwest client")
+}
+
+/// Resolve the effective User-Agent: override if non-empty, otherwise default.
+fn effective_ua(raw: &str) -> String {
+    if raw.trim().is_empty() {
+        crate::config::DEFAULT_UA.to_string()
+    } else {
+        raw.trim().to_string()
+    }
+}
+
+/// Build a `reqwest::Proxy` from settings, returning `None` when proxy is disabled.
+fn build_proxy(settings: &crate::config::Settings) -> Option<reqwest::Proxy> {
+    use crate::config::ProxyType;
+
+    if matches!(settings.proxy_type, ProxyType::None) {
+        return None;
+    }
+    let host = settings.proxy_host.trim();
+    if host.is_empty() {
+        return None;
+    }
+    let port = settings.proxy_port;
+
+    // Build proxy URL: scheme://[user:pass@]host:port
+    let scheme = match settings.proxy_type {
+        ProxyType::Http => "http",
+        ProxyType::Socks5 => "socks5h",
+        ProxyType::None => unreachable!(),
+    };
+
+    let user = settings.proxy_username.trim();
+    let pass = settings.proxy_password.trim();
+    let authority = if !user.is_empty() {
+        if !pass.is_empty() {
+            format!("{}:{}@{}:{}", user, pass, host, port)
+        } else {
+            format!("{}@{}:{}", user, host, port)
+        }
+    } else {
+        format!("{}:{}", host, port)
+    };
+
+    let proxy_url = format!("{}://{}", scheme, authority);
+    match reqwest::Proxy::all(&proxy_url) {
+        Ok(p) => {
+            log::info!("using proxy: {}://{}:{}", scheme, host, port);
+            Some(p)
+        }
+        Err(e) => {
+            log::warn!("invalid proxy URL '{}': {}", proxy_url, e);
+            None
+        }
+    }
+}
+
+impl ClientFingerprint {
+    fn from_settings(s: &crate::config::Settings) -> Self {
+        Self {
+            mirror: s.mirror.clone(),
+            user_agent: effective_ua(&s.user_agent),
+            timeout_secs: s.request_timeout_secs,
+            proxy_type: s.proxy_type,
+            proxy_host: s.proxy_host.clone(),
+            proxy_port: s.proxy_port,
+            proxy_username: s.proxy_username.clone(),
+            proxy_password: s.proxy_password.clone(),
+        }
+    }
 }
 
 /// Detect a Cloudflare interstitial. Mirrors NClientV3's behaviour, which

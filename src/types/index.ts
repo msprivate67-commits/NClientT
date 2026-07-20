@@ -158,6 +158,8 @@ export interface HistoryEntry {
   visited_at: string;
 }
 
+export type ProxyType = "none" | "http" | "socks5";
+
 export interface AuthCredentials {
   api_key: string;
   valid: boolean;
@@ -168,6 +170,12 @@ export interface Settings {
   user_agent: string;
   request_timeout_secs: number;
   auth: AuthCredentials;
+
+  proxy_type: ProxyType;
+  proxy_host: string;
+  proxy_port: number;
+  proxy_username: string;
+  proxy_password: string;
 
   sort_type: SortType;
   only_language: Language;

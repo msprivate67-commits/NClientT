@@ -126,6 +126,38 @@ onMounted(async () => {
     </section>
 
     <section>
+      <div class="section-title">Proxy</div>
+      <div class="fields">
+        <div class="field">
+          <label>Proxy type</label>
+          <select v-model="draft.proxy_type">
+            <option value="none">None</option>
+            <option value="http">HTTP</option>
+            <option value="socks5">SOCKS5</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Host</label>
+          <input v-model="draft.proxy_host" type="text" placeholder="127.0.0.1" :disabled="draft.proxy_type === 'none'" />
+        </div>
+        <div class="field">
+          <label>Port</label>
+          <input v-model.number="draft.proxy_port" type="number" min="1" max="65535" :disabled="draft.proxy_type === 'none'" />
+        </div>
+      </div>
+      <div class="fields" style="margin-top: 8px;">
+        <div class="field">
+          <label>Username (optional)</label>
+          <input v-model="draft.proxy_username" type="text" placeholder="optional" :disabled="draft.proxy_type === 'none'" />
+        </div>
+        <div class="field">
+          <label>Password (optional)</label>
+          <input v-model="draft.proxy_password" type="password" placeholder="optional" :disabled="draft.proxy_type === 'none'" />
+        </div>
+      </div>
+    </section>
+
+    <section>
       <div class="section-title">Cloudflare</div>
       <div class="row">
         <span>Status:</span>
