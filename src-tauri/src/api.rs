@@ -119,9 +119,12 @@ impl ApiClient {
         }
         // Language filter.
         if let Some(id) = language_tag_id(q.only_language.or_all(s.only_language)) {
-            if let Ok(tags) = self.fetch_tags_by_ids(&[id]).await {
-                if let Some(t) = tags.into_iter().next() {
-                    parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
+            // Skip if already covered by accepted_tag_ids (e.g. via browse()).
+            if !q.accepted_tag_ids.contains(&id) {
+                if let Ok(tags) = self.fetch_tags_by_ids(&[id]).await {
+                    if let Some(t) = tags.into_iter().next() {
+                        parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
+                    }
                 }
             }
         }
@@ -138,7 +141,15 @@ impl ApiClient {
             (None, None) => {}
         }
 
-        let query = parts.join("+");
+        let mut query = parts.join("+");
+        // If the query is empty (no text, no tags, no language filter, no page
+        // range), nhentai rejects the request with HTTP 400 "query should have
+        // at least 1 character".  Use a dummy negative tag that matches every
+        // gallery — exactly what NClientV3 does in `tryByAllPopular()`.
+        // See InspectorV3.java:267-272.
+        if query.is_empty() {
+            query = "-nclientv3".to_string();
+        }
         let mut url = format!("{}{}&page={}", base, query, q.page);
         if let Some(srt) = q.sort.url_addition() {
             url.push_str(&format!("&sort={}", srt));
