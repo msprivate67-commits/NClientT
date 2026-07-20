@@ -1,0 +1,155 @@
+//! NClientT - cross-platform Tauri port of NClientV3.
+//!
+//! Module layout:
+//! - [`config`]    : persistent user settings (mirror, UA, auth, paths, ...)
+//! - [`error`]     : shared error / result types
+//! - [`http`]      : HTTP client with UA + persistent cookie jar + Cloudflare detection
+//! - [`api`]       : nhentai API v2 client (browse / search / detail / favorites / comments)
+//! - [`models`]    : serializable data structures mirrored from NClientV3 (Gallery, Tag, Page, ...)
+//! - [`cloudflare`] : Cloudflare challenge detection + cf_clearance capture via webview
+//! - [`db`]        : SQLite store for favorites, history, tags, local library, blacklists
+//! - [`downloader`]: gallery download manager (queue, progress, pause / cancel)
+//! - [`export`]    : PDF / ZIP export
+//! - [`commands`]  : Tauri command handlers exposed to the frontend
+
+pub mod api;
+pub mod cloudflare;
+pub mod commands;
+pub mod config;
+pub mod db;
+pub mod downloader;
+pub mod error;
+pub mod export;
+pub mod http;
+pub mod models;
+
+use commands::*;
+use std::sync::Arc;
+use tauri::Manager;
+
+use crate::config::ConfigStore;
+use crate::db::Database;
+use crate::downloader::DownloadManager;
+use crate::http::HttpClient;
+
+/// Shared application state, reachable from every Tauri command.
+pub struct AppState {
+    pub config: Arc<ConfigStore>,
+    pub http: Arc<HttpClient>,
+    pub db: Database,
+    pub downloads: Arc<DownloadManager>,
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_secs()
+        .try_init()
+        .ok();
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let app_data = app
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app_data dir");
+            std::fs::create_dir_all(&app_data).ok();
+
+            let config = Arc::new(ConfigStore::load_or_init(&app_data));
+            let db = Database::open(&app_data).expect("failed to open database");
+            crate::db::register_global(&db);
+            let http = Arc::new(HttpClient::new(&config));
+            let downloads = Arc::new(DownloadManager::new(
+                config.download_dir().to_path_buf(),
+                http.clone(),
+                db.clone(),
+            ));
+
+            // Wire the app handle so the downloader can emit progress events.
+            let downloads_for_handle = downloads.clone();
+            let app_handle = app.handle().clone();
+            downloads_for_handle.set_app_handle(app_handle);
+
+            app.manage(AppState {
+                config,
+                http,
+                db,
+                downloads,
+            });
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            // config / settings
+            settings_get,
+            settings_set,
+            settings_get_paths,
+            settings_pick_directory,
+            settings_clear_cookies,
+            // auth / cloudflare
+            auth_get,
+            auth_set_api_key,
+            auth_clear,
+            auth_status,
+            cloudflare_check,
+            cloudflare_open_challenge,
+            cloudflare_is_solved,
+            // api
+            api_browse,
+            api_search,
+            api_random,
+            api_get_gallery,
+            api_get_user,
+            api_get_comments,
+            api_get_favorites_page,
+            api_get_tags,
+            api_get_popular_tags,
+            // favorites / tags (local DB)
+            fav_add,
+            fav_remove,
+            fav_list,
+            fav_is_favorite,
+            tags_get_all,
+            tags_get_by_type,
+            tags_set_status,
+            tags_add_blacklist,
+            tags_remove_blacklist,
+            tags_search,
+            tags_get_popular,
+            // history
+            history_add,
+            history_list,
+            history_clear,
+            // local library
+            local_scan,
+            local_list,
+            local_delete,
+            local_import_folder,
+            // downloader
+            download_gallery,
+            download_range,
+            download_list,
+            download_cancel,
+            download_pause,
+            download_resume,
+            download_clear,
+            download_rows,
+            // export
+            export_pdf,
+            export_zip,
+            // misc
+            open_in_browser,
+            open_path,
+            resolve_asset,
+            image_proxy_url,
+            read_local_image,
+            register_app,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

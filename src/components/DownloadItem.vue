@@ -1,0 +1,141 @@
+<script setup lang="ts">
+import { computed } from "vue";
+
+import type { DownloadEntry } from "@/types";
+
+const props = defineProps<{ entry: DownloadEntry }>();
+const emit = defineEmits<{
+  (e: "pause", id: number): void;
+  (e: "resume", id: number): void;
+  (e: "cancel", id: number): void;
+  (e: "open", folder: string): void;
+}>();
+
+const pct = computed(() => {
+  if (props.entry.total_pages <= 0) return 0;
+  return Math.round((props.entry.done_pages / props.entry.total_pages) * 100);
+});
+
+const statusLabel = computed(() => {
+  switch (props.entry.status) {
+    case "downloading":
+      return "Downloading";
+    case "paused":
+      return "Paused";
+    case "finished":
+      return "Finished";
+    case "canceled":
+      return "Canceled";
+    case "failed":
+      return "Failed";
+    default:
+      return "Queued";
+  }
+});
+</script>
+
+<template>
+  <div class="item">
+    <div class="info">
+      <div class="title" :title="entry.title">{{ entry.title }}</div>
+      <div class="sub">
+        <span class="status" :data-status="entry.status">{{ statusLabel }}</span>
+        <span class="pages">{{ entry.done_pages }}/{{ entry.total_pages }}</span>
+      </div>
+      <div class="bar">
+        <div class="fill" :style="{ width: pct + '%' }" :data-status="entry.status"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button
+        v-if="entry.status === 'downloading' || entry.status === 'pending'"
+        title="Pause"
+        @click="emit('pause', entry.id)"
+      >⏸</button>
+      <button
+        v-if="entry.status === 'paused' || entry.status === 'failed'"
+        title="Resume"
+        @click="emit('resume', entry.id)"
+      >▶</button>
+      <button
+        v-if="entry.status !== 'finished' && entry.status !== 'canceled'"
+        title="Cancel"
+        @click="emit('cancel', entry.id)"
+      >✕</button>
+      <button
+        v-if="entry.status === 'finished'"
+        title="Open folder"
+        @click="emit('open', entry.folder)"
+      >📁</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.info {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub {
+  display: flex;
+  gap: 10px;
+  margin: 2px 0 6px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.status[data-status="finished"] {
+  color: #6ec16e;
+}
+.status[data-status="failed"] {
+  color: #ff8e8e;
+}
+.bar {
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.fill[data-status="finished"] {
+  background: #6ec16e;
+}
+.fill[data-status="failed"] {
+  background: #ff8e8e;
+}
+.actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.actions button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}
+.actions button:hover {
+  background: var(--surface-3);
+}
+</style>

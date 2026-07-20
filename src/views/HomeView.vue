@@ -1,0 +1,100 @@
+<script setup lang="ts">
+import { onMounted, ref, watch } from "vue";
+
+import GalleryGrid from "@/components/GalleryGrid.vue";
+import Pagination from "@/components/Pagination.vue";
+import { useGalleryStore } from "@/stores/gallery";
+import { useSettingsStore } from "@/stores/settings";
+import type { SimpleGallery, SortType } from "@/types";
+
+const gallery = useGalleryStore();
+const settings = useSettingsStore();
+
+const page = ref(1);
+const numPages = ref(0);
+const items = ref<SimpleGallery[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+const sorts: { value: SortType; label: string }[] = [
+  { value: "recent_all_time", label: "Recent" },
+  { value: "popular_all_time", label: "Popular (all)" },
+  { value: "popular_week", label: "Popular (week)" },
+  { value: "popular_day", label: "Popular (day)" },
+  { value: "popular_month", label: "Popular (month)" },
+];
+
+async function load() {
+  loading.value = true;
+  error.value = null;
+  try {
+    const sort = settings.settings.sort_type;
+    const result = await gallery.browse(page.value, sort);
+    items.value = result.galleries;
+    numPages.value = result.num_pages;
+  } catch (e: any) {
+    error.value = humanizeError(e);
+  } finally {
+    loading.value = false;
+  }
+}
+
+function humanizeError(e: any): string {
+  const s = String(e?.message ?? e);
+  if (/cloudflare/i.test(s)) return "Cloudflare challenge required. Open Settings → Cloudflare to solve.";
+  if (/401|403|unauthorized/i.test(s)) return "Authentication failed. Check your API key in Settings.";
+  return s;
+}
+
+function changeSort(s: SortType) {
+  settings.save({ sort_type: s }).then(load);
+}
+
+onMounted(load);
+watch(page, load);
+</script>
+
+<template>
+  <div class="view">
+    <div class="view-header">
+      <div class="view-title">Home</div>
+      <div class="toolbar">
+        <button
+          v-for="s in sorts"
+          :key="s.value"
+          class="btn"
+          :class="{ primary: settings.settings.sort_type === s.value }"
+          @click="changeSort(s.value)"
+        >
+          {{ s.label }}
+        </button>
+        <button class="btn" @click="gallery.random().then((g) => $router.push(`/gallery/${g.id}`))">
+          🎲 Random
+        </button>
+      </div>
+    </div>
+
+    <div v-if="error" class="error">{{ error }}</div>
+
+    <GalleryGrid
+      :galleries="items"
+      :loading="loading"
+      empty-title="No galleries"
+      empty-hint="Try a different sort or check your mirror in Settings."
+    />
+
+    <Pagination :page="page" :num-pages="numPages" @change="page = $event" />
+  </div>
+</template>
+
+<style scoped>
+.error {
+  padding: 12px 14px;
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  border-radius: 8px;
+  color: #ff9e9e;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+}
+</style>

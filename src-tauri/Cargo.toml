@@ -1,0 +1,82 @@
+[package]
+name = "nclientt"
+version = "0.1.0"
+description = "NClientT - cross-platform Tauri port of NClientV3"
+authors = ["NClientT"]
+license = "Apache-2.0"
+repository = ""
+default-run = "nclientt"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2.0.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.1.1", features = ["protocol-asset"] }
+tauri-plugin-fs = "2.0.3"
+tauri-plugin-dialog = "2.0.1"
+tauri-plugin-opener = "2.0.0"
+tauri-plugin-os = "2.0.0"
+tauri-plugin-shell = "2.0.2"
+
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12.9", default-features = false, features = ["rustls-tls", "json", "stream", "gzip", "brotli", "deflate", "cookies"] }
+reqwest_cookie_store = "0.8.0"
+url = "2.5"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Errors
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Time / dates
+chrono = { version = "0.4.38", features = ["serde"] }
+
+# IDs
+uuid = { version = "1.11", features = ["v4"] }
+
+# Database
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.25"
+
+# File system utilities
+walkdir = "2.5"
+dirs = "5.0"
+regex = "1.11"
+
+# Misc
+once_cell = "1.20"
+parking_lot = "0.12"
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1.8"
+futures-util = "0.3"
+mime_guess = "2.0"
+
+# Archives / PDF
+zip = { version = "2.2", default-features = false, features = ["deflate", "time"] }
+lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, the default
+# value is false.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
