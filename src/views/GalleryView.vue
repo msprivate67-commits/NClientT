@@ -15,14 +15,17 @@ import { useGalleryStore } from "@/stores/gallery";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
+import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 
-const props = defineProps<{ id: number | string }>();
+const props = defineProps<{ id: number | string; overlay?: boolean }>();
+const emit = defineEmits<{ back: [] }>();
 const router = useRouter();
 const gallery = useGalleryStore();
 const favorites = useFavoritesStore();
 const downloads = useDownloadsStore();
 const settings = useSettingsStore();
+const overlay = useOverlayStore();
 
 const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
@@ -104,7 +107,11 @@ async function findLocalFolder(_gid: number): Promise<string | null> {
 }
 
 function read() {
-  router.push({ name: "reader", params: { id: id.value } });
+  if (props.overlay) {
+    overlay.openReader(id.value);
+  } else {
+    router.push({ name: "reader", params: { id: id.value } });
+  }
 }
 
 onMounted(load);
@@ -118,12 +125,20 @@ async function toggleComments() {
 }
 
 async function onTagClick(t: any) {
+  if (props.overlay) {
+    overlay.closeAll();
+  }
   router.push({ name: "search", query: { tags: `${t.id}:accepted` } });
 }
 </script>
 
 <template>
-  <div ref="viewRef" class="view gallery-view">
+  <div ref="viewRef" class="view gallery-view" :class="{ 'overlay-mode': overlay }">
+    <div v-if="overlay" class="overlay-bar">
+      <button class="btn" @click="emit('back')">← Back</button>
+      <span class="overlay-title">{{ title }}</span>
+    </div>
+
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="g" class="header">
@@ -409,5 +424,36 @@ async function onTagClick(t: any) {
 @keyframes fadein {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.overlay-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  margin: -14px -14px 14px;
+}
+.overlay-bar .btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.overlay-bar .btn:hover {
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
+.overlay-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

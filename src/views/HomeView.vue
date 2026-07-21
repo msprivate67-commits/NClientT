@@ -5,11 +5,13 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
+import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType } from "@/types";
 
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
+const overlay = useOverlayStore();
 
 const page = ref(1);
 const numPages = ref(0);
@@ -85,7 +87,7 @@ watch(page, load);
         >
           {{ s.label }}
         </button>
-        <button class="btn" @click="gallery.random().then((g) => $router.push(`/gallery/${g.id}`))">
+        <button class="btn" @click="gallery.random().then((g) => overlay.openGallery(g.id))">
           🎲 Random
         </button>
         <button class="btn" :disabled="loading" @click="load" title="Reload galleries">

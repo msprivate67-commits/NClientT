@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
 import { historyClear, historyList, imageProxyUrl } from "@/api";
+import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { HistoryEntry } from "@/types";
 
-const router = useRouter();
+const overlay = useOverlayStore();
 const items = ref<HistoryEntry[]>([]);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
@@ -17,7 +17,7 @@ async function load() {
 }
 
 function open(id: number) {
-  router.push({ name: "gallery", params: { id } });
+  overlay.openGallery(id);
 }
 
 async function clear() {

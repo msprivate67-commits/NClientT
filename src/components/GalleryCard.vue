@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 
 import { imageProxyUrl } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
+import { useOverlayStore } from "@/stores/overlay";
 import type { SimpleGallery } from "@/types";
 
 const props = defineProps<{
@@ -16,6 +17,7 @@ const props = defineProps<{
 
 const router = useRouter();
 const favorites = useFavoritesStore();
+const overlay = useOverlayStore();
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
@@ -43,7 +45,7 @@ function open() {
   if (props.local) {
     router.push({ name: "reader-local", params: { folder: encodeURIComponent(props.gallery.id.toString()) } });
   } else {
-    router.push({ name: "gallery", params: { id: props.gallery.id } });
+    overlay.openGallery(props.gallery.id);
   }
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch, defineAsyncComponent } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 
 import AppSidebar from "@/components/AppSidebar.vue";
@@ -8,11 +8,16 @@ import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useTagsStore } from "@/stores/tags";
+import { useOverlayStore } from "@/stores/overlay";
+
+const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
+const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
 
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
 const favorites = useFavoritesStore();
 const tags = useTagsStore();
+const overlay = useOverlayStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -20,8 +25,13 @@ const sidebarOpen = ref(true);
 const cloudflareBanner = ref(false);
 
 const canGoBack = computed(() => {
+  if (overlay.hasAny()) return true;
   const detailRoutes = ["gallery", "reader", "reader-local"];
   return detailRoutes.includes(String(route.name));
+});
+
+watch(() => route.fullPath, () => {
+  overlay.closeAll();
 });
 
 onMounted(async () => {
@@ -53,7 +63,11 @@ function go(route: string) {
 }
 
 function goBack() {
-  router.back();
+  if (overlay.hasAny()) {
+    overlay.pop();
+  } else {
+    router.back();
+  }
 }
 </script>
 
@@ -83,6 +97,17 @@ function goBack() {
         </KeepAlive>
       </RouterView>
     </main>
+
+    <Transition name="slide-in">
+      <div v-if="overlay.galleryId !== null" :key="'gallery-' + overlay.galleryId" class="overlay-panel">
+        <GalleryView :id="overlay.galleryId" overlay @back="overlay.pop()" />
+      </div>
+    </Transition>
+    <Transition name="slide-in">
+      <div v-if="overlay.readerId !== null" :key="'reader-' + overlay.readerId" class="overlay-panel overlay-panel--full">
+        <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -160,5 +185,30 @@ function goBack() {
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.overlay-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.overlay-panel--full {
+  z-index: 1001;
+  background: #000;
+}
+
+.slide-in-enter-active,
+.slide-in-leave-active {
+  transition: transform 0.28s ease;
+}
+.slide-in-enter-from {
+  transform: translateX(100%);
+}
+.slide-in-leave-to {
+  transform: translateX(100%);
 }
 </style>

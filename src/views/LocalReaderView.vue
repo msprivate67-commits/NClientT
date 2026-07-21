@@ -227,7 +227,7 @@ async function remove() {
 
 .scroll-strip img {
   display: block;
-  margin: 0 auto;
+  margin: 0 auto 2px;
   min-height: 1px;
 }
 

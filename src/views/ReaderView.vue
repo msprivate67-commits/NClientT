@@ -6,7 +6,8 @@ import { imageProxyUrl } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 
-const props = defineProps<{ id: number | string }>();
+const props = defineProps<{ id: number | string; overlay?: boolean }>();
+const emit = defineEmits<{ back: [] }>();
 const router = useRouter();
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
@@ -109,7 +110,11 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault();
     rtl.value ? next() : prev();
   } else if (e.key === "Escape") {
-    router.back();
+    if (props.overlay) {
+      emit("back");
+    } else {
+      router.back();
+    }
   }
 }
 
@@ -144,7 +149,7 @@ watch(fitMode, () => {
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, { rtl }]">
     <header class="bar">
-      <button class="btn" @click="router.back()">✕ Close</button>
+      <button class="btn" @click="props.overlay ? emit('back') : router.back()">✕ Close</button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <div class="fit">
         <button
@@ -257,7 +262,7 @@ watch(fitMode, () => {
 
 .scroll-strip img {
   display: block;
-  margin: 0 auto;
+  margin: 0 auto 2px;
   min-height: 1px;
 }
 
