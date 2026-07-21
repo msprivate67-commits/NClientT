@@ -4,13 +4,20 @@ import { useRouter } from "vue-router";
 
 import { imageProxyUrl, localList, localDelete } from "@/api";
 import { useReadProgressStore } from "@/stores/readProgress";
+import { useSettingsStore } from "@/stores/settings";
 import type { LocalGallery } from "@/types";
 
 const props = defineProps<{ folder: number | string }>();
 const router = useRouter();
 
 const local = ref<LocalGallery | null>(null);
-const fitMode = ref<"width" | "height" | "original">("height");
+const settings = useSettingsStore();
+const fitMode = ref<"width" | "height" | "original">(
+  (settings.settings.reader_fit_mode as "width" | "height" | "original") || "height",
+);
+const scrollMode = ref<"vertical" | "horizontal">(
+  (settings.settings.reader_direction as "vertical" | "horizontal") || "vertical",
+);
 const readProgress = useReadProgressStore();
 
 const pages = computed(() => local.value?.page_files ?? []);
@@ -49,15 +56,19 @@ function reloadPage(i: number) {
 function computeCurrentPage() {
   if (!scrollRef.value || !total.value) return;
   const container = scrollRef.value;
-  const viewCenter = container.scrollTop + container.clientHeight / 2;
+  const isH = scrollMode.value === "horizontal";
+  const viewCenter = isH
+    ? container.scrollLeft + container.clientWidth / 2
+    : container.scrollTop + container.clientHeight / 2;
 
   let best = 0;
   let bestDist = Infinity;
   const wraps = container.querySelectorAll<HTMLElement>(".page-wrap");
   for (let i = 0; i < wraps.length; i++) {
     const el = wraps[i];
-    const top = el.offsetTop;
-    const center = top + el.offsetHeight / 2;
+    const pos = isH ? el.offsetLeft : el.offsetTop;
+    const size = isH ? el.offsetWidth : el.offsetHeight;
+    const center = pos + size / 2;
     const dist = Math.abs(viewCenter - center);
     if (dist < bestDist) {
       bestDist = dist;
@@ -98,7 +109,12 @@ function scrollToPage(idx: number, smooth = true) {
   if (!scrollRef.value || idx < 0 || idx >= total.value) return;
   const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-wrap")[idx];
   if (!el) return;
-  el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+  const container = scrollRef.value;
+  if (scrollMode.value === "horizontal") {
+    container.scrollTo({ left: el.offsetLeft, behavior: smooth ? "smooth" : "auto" });
+  } else {
+    container.scrollTo({ top: el.offsetTop, behavior: smooth ? "smooth" : "auto" });
+  }
 }
 
 function prev() {
@@ -137,6 +153,7 @@ async function load() {
 onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
+  window.addEventListener("popstate", onPop);
 });
 
 watch(() => props.folder, () => {
@@ -144,6 +161,7 @@ watch(() => props.folder, () => {
 });
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
+  window.removeEventListener("popstate", onPop);
   reportProgress();
 });
 
@@ -153,7 +171,16 @@ watch(fitMode, () => {
       scrollToPage(currentPage.value - 1, false);
     }
   });
+  settings.save({ reader_fit_mode: fitMode.value });
 });
+watch(scrollMode, () => {
+  settings.save({ reader_direction: scrollMode.value });
+});
+
+function onPop() {
+  history.pushState(null, "", window.location.href);
+  router.back();
+}
 
 async function remove() {
   if (!local.value) return;
@@ -164,10 +191,16 @@ async function remove() {
 </script>
 
 <template>
-  <div class="reader" :class="[`fit-${fitMode}`]">
+  <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`]">
     <header class="bar">
       <button class="btn" @click="router.back()">✕ Close</button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
+      <button
+        class="btn small"
+        @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
+      >
+        {{ scrollMode === 'vertical' ? '⇔ H' : '⇕ V' }}
+      </button>
       <div class="fit">
         <button
           class="btn small"
@@ -365,6 +398,18 @@ async function remove() {
 .fit-original .page-img {
   max-width: none;
   max-height: none;
+}
+
+.direction-horizontal .scroll-strip {
+  display: flex;
+  flex-direction: row;
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+.direction-horizontal .page-wrap {
+  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .loading {

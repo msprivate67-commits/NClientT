@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS: Settings = {
   page_thumbnail_columns: 0,
   use_rtl: false,
   default_zoom_pct: 100,
+  reader_fit_mode: "height",
+  reader_direction: "vertical",
   button_change_page: true,
   usage_wifi: "full",
   usage_mobile: "thumbnail",

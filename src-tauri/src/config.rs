@@ -169,6 +169,8 @@ pub struct Settings {
     pub page_thumbnail_columns: u32,
     pub use_rtl: bool,
     pub default_zoom_pct: u32,
+    pub reader_fit_mode: String,
+    pub reader_direction: String,
     pub button_change_page: bool,
 
     // --- data usage ---------------------------------------------------------
@@ -212,6 +214,8 @@ impl Default for Settings {
             page_thumbnail_columns: 0,
             use_rtl: false,
             default_zoom_pct: 100,
+            reader_fit_mode: "height".into(),
+            reader_direction: "vertical".into(),
             button_change_page: true,
             usage_wifi: DataUsageType::Full,
             usage_mobile: DataUsageType::Thumbnail,

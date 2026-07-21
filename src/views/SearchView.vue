@@ -222,8 +222,10 @@ watch(() => route.query, () => {
       <div class="view-title">Search</div>
     </div>
 
-    <form class="form" @submit.prevent="submit">
-      <input v-model="query" type="text" placeholder="Title or keyword…" />
+    <div v-if="query.trim()" class="current-query">
+      Searching: <strong>{{ query }}</strong>
+    </div>
+    <div class="form">
       <div class="toolbar">
         <button
           v-for="l in langs"
@@ -244,7 +246,6 @@ watch(() => route.query, () => {
           @click="sort = s.value; submit()"
         >{{ s.label }}</button>
       </div>
-      <button type="submit" class="btn primary">Search</button>
       <button
         type="button"
         class="btn"
@@ -254,7 +255,7 @@ watch(() => route.query, () => {
       >
         {{ loading ? "Refreshing…" : "🔄 Refresh" }}
       </button>
-    </form>
+    </div>
 
     <div class="field tag-input">
       <div class="tag-input-row">
@@ -340,6 +341,11 @@ watch(() => route.query, () => {
 </template>
 
 <style scoped>
+.current-query {
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
 .form {
   display: flex;
   gap: 8px;

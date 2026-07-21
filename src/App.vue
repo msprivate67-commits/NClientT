@@ -80,9 +80,6 @@ async function solveCloudflare() {
   await cloudflareOpenChallenge();
 }
 
-function go(route: string) {
-  router.push({ name: route });
-}
 
 function goBack() {
   if (overlay.hasAny()) {
@@ -128,6 +125,25 @@ const globalSpeedLabel = computed(() => {
   if (bps >= 1024) return `↓ ${(bps / 1024).toFixed(0)} KB/s`;
   return `↓ ${bps.toFixed(0)} B/s`;
 });
+
+const searchQuery = computed({
+  get: () => String(route.query.q ?? ""),
+  set: (val: string) => {
+    if (route.name === "search") {
+      router.replace({ query: { ...route.query, q: val.trim() || undefined } });
+    }
+  },
+});
+
+function doSearch() {
+  const q = searchQuery.value.trim();
+  if (!q) return;
+  if (route.name === "search") {
+    router.replace({ query: { ...route.query, q } });
+  } else {
+    router.push({ name: "search", query: { q } });
+  }
+}
 </script>
 
 <template>
@@ -160,9 +176,15 @@ const globalSpeedLabel = computed(() => {
         >
           ☰
         </button>
-        <div class="search" @click="go('search')">
+        <div class="search">
           <span>🔍</span>
-          <span class="placeholder">Search galleries, tags...</span>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="Search galleries, tags..."
+            @keydown.enter="doSearch"
+          />
         </div>
       </header>
 
@@ -239,11 +261,20 @@ const globalSpeedLabel = computed(() => {
   border-radius: 8px;
   padding: 6px 12px;
   color: var(--text-dim);
-  cursor: pointer;
   max-width: 540px;
 }
-.search .placeholder {
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
   font-size: 0.85rem;
+  outline: none;
+  min-width: 0;
+}
+.search-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.7;
 }
 .banner {
   margin: 10px 14px 0;

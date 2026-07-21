@@ -188,6 +188,8 @@ export interface Settings {
   page_thumbnail_columns: number;
   use_rtl: boolean;
   default_zoom_pct: number;
+  reader_fit_mode: string;
+  reader_direction: string;
   button_change_page: boolean;
 
   usage_wifi: DataUsageType;

@@ -5,10 +5,7 @@ import { useRouter } from "vue-router";
 import TagChip from "@/components/TagChip.vue";
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import {
-  exportPdf,
-  exportZip,
   imageProxyUrl,
-  localList,
   openInBrowser,
 } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
@@ -38,6 +35,7 @@ const overlay = useOverlayStore();
 const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
 const commentsOpen = ref(false);
+const tagsExpanded = ref(false);
 const loading = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
@@ -129,23 +127,6 @@ async function toggleFavorite() {
 async function download() {
   if (!g.value) return;
   await downloads.enqueue({ gallery_id: g.value.id });
-}
-
-async function exportAs(kind: "pdf" | "zip") {
-  if (!g.value) return;
-  const folder = await findLocalFolder(g.value.id);
-  if (!folder) {
-    error.value = "Gallery must be downloaded first.";
-    return;
-  }
-  const out = kind === "pdf" ? await exportPdf(folder) : await exportZip(folder);
-  error.value = `Exported: ${out}`;
-}
-
-async function findLocalFolder(_gid: number): Promise<string | null> {
-  const all = await localList();
-  const match = all.find((l) => l.id === _gid);
-  return match?.folder ?? null;
 }
 
 function read() {
@@ -252,25 +233,30 @@ async function onTagClick(t: any) {
             ★ Favorite
           </button>
           <button class="btn" @click="openInBrowser(String(g.id))">🌐 Open</button>
-          <button class="btn" @click="exportAs('zip')">📦 ZIP</button>
-          <button class="btn" @click="exportAs('pdf')">📄 PDF</button>
         </div>
       </div>
     </div>
 
     <div v-if="g" class="body">
-      <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
-        <div class="section-title">{{ type }}</div>
-        <div class="chips">
-          <TagChip
-            v-for="t in tags"
-            :key="t.id"
-            :tag="t"
-            show-type
-            @click="onTagClick(t)"
-          />
-        </div>
-      </section>
+      <div class="tag-toggle-bar">
+        <button class="btn small" @click="tagsExpanded = !tagsExpanded">
+          {{ tagsExpanded ? '▲ Collapse tags' : '▼ Expand tags' }}
+        </button>
+      </div>
+      <div v-show="tagsExpanded">
+        <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
+          <div class="section-title">{{ type }}</div>
+          <div class="chips">
+            <TagChip
+              v-for="t in tags"
+              :key="t.id"
+              :tag="t"
+              show-type
+              @click="onTagClick(t)"
+            />
+          </div>
+        </section>
+      </div>
 
       <section v-if="g.pages.length" class="page-thumbs">
         <div class="section-title">Pages</div>
@@ -468,6 +454,9 @@ async function onTagClick(t: any) {
 }
 .body {
   margin-top: 8px;
+}
+.tag-toggle-bar {
+  margin-bottom: 10px;
 }
 .tag-group {
   margin-bottom: 14px;
