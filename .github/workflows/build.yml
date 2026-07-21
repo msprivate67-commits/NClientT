@@ -198,31 +198,54 @@ jobs:
 
       - name: Stage release assets
         run: |
+          set -euo pipefail
           mkdir -p release
           # Flatten every installable file into release/ and give it a clean
           # <product>-<version>-<platform>.<ext> name so users can tell them
           # apart at a glance.
+          #
+          # NOTE: we use `find` instead of bash `**` globs. Recursive globs
+          # need `shopt -s globstar` (off by default) and, more importantly,
+          # only match fixed path depths per pattern — so a `.deb` two dirs
+          # deep (NClientT-linux/.../x.deb) silently didn't match the
+          # one-deep `**` and got dropped from the release. `find` is
+          # depth-agnostic and always catches the file regardless of how the
+          # upload-artifact action nested it.
           VERSION="0.1.0"
-          # Windows
-          for f in artifacts/NClientT-windows/**/*.msi; do
-            [ -f "$f" ] && cp "$f" "release/NClientT-${VERSION}-windows.msi"
-          done
-          for f in artifacts/NClientT-windows/**/*.exe; do
-            [ -f "$f" ] && cp "$f" "release/NClientT-${VERSION}-windows-setup.exe"
-          done
-          # Linux
-          for f in artifacts/NClientT-linux/**/*.deb; do
-            [ -f "$f" ] && cp "$f" "release/NClientT-${VERSION}-linux.deb"
-          done
-          # Android (split-per-abi → one APK per ABI, name includes the ABI)
-          for f in artifacts/NClientT-android/**/*.apk; do
-            [ -f "$f" ] || continue
-            base=$(basename "$f")
+
+          cp_windows () {
+            local ext="$1" out="$2"
+            # `head -n1` + explicit error: if there is more than one candidate
+            # we want to know, and if there are zero we fail loudly below.
+            local f
+            f=$(find artifacts/NClientT-windows -type f -name "*.${ext}" | head -n1 || true)
+            [ -n "$f" ] || { echo "ERROR: no .${ext} found for Windows"; exit 1; }
+            cp "$f" "release/${out}"
+          }
+          cp_windows msi "NClientT-${VERSION}-windows.msi"
+          cp_windows exe "NClientT-${VERSION}-windows-setup.exe"
+
+          # Linux (.deb)
+          deb=$(find artifacts/NClientT-linux -type f -name "*.deb" | head -n1 || true)
+          [ -n "$deb" ] || { echo "ERROR: no .deb found for Linux"; exit 1; }
+          cp "$deb" "release/NClientT-${VERSION}-linux.deb"
+
+          # Android (split-per-abi → one APK per ABI, name includes the ABI).
+          # Unlike the desktop bundles there can legitimately be several APKs,
+          # so we loop and name each by its ABI.
+          shopt -s nullglob
+          apks=( $(find artifacts/NClientT-android -type f -name "*.apk") )
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "ERROR: no .apk found for Android"; exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            base=$(basename "$apk")
             if [[ "$base" == *arm64* ]]; then abi="arm64-v8a"
             elif [[ "$base" == *armv7* ]] || [[ "$base" == *armeabi* ]]; then abi="armeabi-v7a"
             else abi="universal"; fi
-            cp "$f" "release/NClientT-${VERSION}-android-${abi}.apk"
+            cp "$apk" "release/NClientT-${VERSION}-android-${abi}.apk"
           done
+
           echo "=== staged release assets ===" && ls -la release/
 
       - name: Create or update GitHub pre-release
