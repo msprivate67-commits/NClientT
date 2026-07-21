@@ -64,13 +64,21 @@ pub fn settings_get_paths(app: AppHandle) -> AppResult<serde_json::Value> {
 
 #[tauri::command]
 pub async fn settings_pick_directory(app: AppHandle) -> AppResult<Option<String>> {
-    let folder = app
-        .dialog()
-        .file()
-        .pick_folder()
-        .await
-        .map(|p| p.to_string_lossy().to_string());
-    Ok(folder)
+    #[cfg(not(target_os = "android"))]
+    {
+        let folder = app
+            .dialog()
+            .file()
+            .pick_folder()
+            .await
+            .map(|p| p.to_string_lossy().to_string());
+        return Ok(folder);
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        Ok(None)
+    }
 }
 
 #[tauri::command]
