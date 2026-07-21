@@ -9,6 +9,10 @@ default-run = "nclientt"
 edition = "2021"
 rust-version = "1.77"
 
+[lib]
+name = "nclientt"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2.0.3", features = [] }
 
