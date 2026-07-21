@@ -164,6 +164,17 @@ function readPage(pageNum: number) {
   }
 }
 
+function goBack() {
+  // Non-overlay galleries are reached via router navigation; the app's global
+  // top bar also exposes a back button, but we keep one here for when the
+  // detail view is the active route.
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push({ name: "home" });
+  }
+}
+
 onMounted(load);
 watch(id, load);
 onUnmounted(() => preloadCancel?.());
@@ -190,6 +201,13 @@ async function onTagClick(t: any) {
     <div v-if="overlay" class="overlay-bar">
       <button class="btn" @click="emit('back')">← Back</button>
       <span class="overlay-title">{{ title }}</span>
+    </div>
+
+    <!-- Sticky title bar: stays pinned to the top while the page scrolls,
+         so the back button + title are always reachable on long pages. -->
+    <div v-else class="sticky-title-bar">
+      <button class="btn ghost back" @click="goBack" title="Back">←</button>
+      <span class="sticky-title">{{ title }}</span>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -353,6 +371,36 @@ async function onTagClick(t: any) {
   color: #ff9e9e;
   margin-bottom: 14px;
   font-size: 0.85rem;
+}
+/* Pinned back + title row. Stays visible while the detail page scrolls so
+   the user can always navigate away, even deep in a long comments/thread. */
+.sticky-title-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  margin: -14px -14px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.sticky-title-bar .back {
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 2px 10px;
+}
+.sticky-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
 }
 .header {
   display: flex;
@@ -583,6 +631,10 @@ async function onTagClick(t: any) {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   margin: -14px -14px 14px;
+  /* Keep the back + title visible while the overlay detail scrolls. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 .overlay-bar .btn {
   background: transparent;
@@ -603,5 +655,46 @@ async function onTagClick(t: any) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive: on small screens (phones / narrow windows) stack the cover
+   above the info block instead of side-by-side, so nothing overflows. The
+   meta + action rows are already flex-wrap, so they reflow naturally.
+   --------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .gallery-view {
+    /* Let the detail page use the full width rather than being centred in a
+       1000px column with huge side margins on a phone. */
+    max-width: 100%;
+  }
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .cover {
+    /* Cover becomes a banner-ish strip on top instead of a tall left rail. */
+    width: 100%;
+    max-width: 220px;
+    align-self: center;
+    aspect-ratio: 3 / 4;
+  }
+  .title-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .title-row .title {
+    font-size: 1.15rem;
+  }
+  .actions {
+    /* Each action gets enough room to be tappable; wraps to new rows. */
+    gap: 6px;
+  }
+  .actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
 }
 </style>

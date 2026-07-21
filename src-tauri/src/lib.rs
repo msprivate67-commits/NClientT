@@ -126,6 +126,11 @@ pub fn run() {
             history_add,
             history_list,
             history_clear,
+            // read progress
+            read_progress_set,
+            read_progress_reset,
+            read_progress_get,
+            read_progress_ids,
             // local library
             local_scan,
             local_list,

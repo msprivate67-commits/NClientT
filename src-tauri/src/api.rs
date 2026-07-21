@@ -465,12 +465,24 @@ pub fn simple_gallery_from_v2_list(j: &Value, host: &str) -> SimpleGallery {
     // Tags: detail/related items may carry full tag objects; list items only
     // carry `tag_ids`. We resolve names lazily.
     let mut tags = Vec::new();
+    let mut tag_ids: Vec<i64> = Vec::new();
     if let Some(arr) = j.get("tags").and_then(|x| x.as_array()) {
         for t in arr {
             tags.push(parse_tag(t));
         }
     }
-    let language = infer_language_from_tags(&tags);
+    if let Some(arr) = j.get("tag_ids").and_then(|x| x.as_array()) {
+        for t in arr {
+            if let Some(id) = t.as_i64() {
+                tag_ids.push(id);
+            }
+        }
+    }
+    // Language: prefer full tag objects (related/detail items); fall back to
+    // the special language tag IDs that list items carry. Without this the
+    // language badge never shows for plain browse/search results.
+    let language = infer_language_from_tags(&tags)
+        .or_else_from_ids(&tag_ids);
 
     SimpleGallery {
         id,
@@ -745,6 +757,9 @@ fn url_encoded(s: &str) -> String {
 /// Local helper trait to make language fallback read nicely.
 trait LanguageExt {
     fn or_all(self, other: Language) -> Language;
+    /// If this is `Language::All`, try to derive a language from a list of tag
+    /// IDs by matching the well-known nhentai language tag IDs.
+    fn or_else_from_ids(self, ids: &[i64]) -> Language;
 }
 impl LanguageExt for Language {
     fn or_all(self, other: Language) -> Language {
@@ -753,5 +768,19 @@ impl LanguageExt for Language {
         } else {
             self
         }
+    }
+    fn or_else_from_ids(self, ids: &[i64]) -> Language {
+        if self != Language::All {
+            return self;
+        }
+        for id in ids {
+            match *id {
+                special_tag_ids::LANGUAGE_JAPANESE => return Language::Japanese,
+                special_tag_ids::LANGUAGE_ENGLISH => return Language::English,
+                special_tag_ids::LANGUAGE_CHINESE => return Language::Chinese,
+                _ => {}
+            }
+        }
+        Language::All
     }
 }

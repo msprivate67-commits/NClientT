@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
 
-defineProps<{ open: boolean }>();
-defineEmits<{ (e: "toggle"): void }>();
+defineProps<{
+  open: boolean;
+  /** When true the sidebar renders as a slide-over drawer (small screens)
+   *  that fully hides when closed, instead of leaving an icon rail. */
+  mobile?: boolean;
+}>();
+defineEmits<{ (e: "toggle"): void; (e: "navigate"): void }>();
 
 const items = [
   { to: { name: "home" }, icon: "🏠", label: "Home" },
@@ -17,10 +22,21 @@ const items = [
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed: !open }">
+  <!--
+    Two modes share the same markup:
+      • desktop (`!mobile`): an in-flow column that collapses to a 56px icon
+        rail — the icons stay visible as a quick jump bar.
+      • mobile (`mobile`): a fixed slide-over drawer that is entirely off
+        screen when closed, so it steals no horizontal space on a phone. A
+        backdrop (rendered by App.vue) handles dismiss-on-outside-tap.
+  -->
+  <aside
+    class="sidebar"
+    :class="{ collapsed: !open && !mobile, 'is-mobile': mobile, 'is-open': mobile && open }"
+  >
     <div class="brand">
       <span class="logo">N</span>
-      <span v-if="open" class="name">NClientT</span>
+      <span v-if="open || mobile" class="name">NClientT</span>
     </div>
     <nav>
       <RouterLink
@@ -29,14 +45,16 @@ const items = [
         :to="item.to"
         class="nav-item"
         :title="item.label"
+        @click="$emit('navigate')"
       >
         <span class="icon">{{ item.icon }}</span>
-        <span v-if="open" class="label">{{ item.label }}</span>
+        <span v-if="open || mobile" class="label">{{ item.label }}</span>
       </RouterLink>
     </nav>
-    <button class="collapse" @click="$emit('toggle')">
+    <button v-if="!mobile" class="collapse" @click="$emit('toggle')">
       {{ open ? "‹" : "›" }}
     </button>
+    <button v-else class="collapse" @click="$emit('toggle')">✕</button>
   </aside>
 </template>
 
@@ -115,5 +133,24 @@ nav {
   color: var(--text);
   border-radius: 6px;
   cursor: pointer;
+}
+
+/* ---- Mobile slide-over drawer ----
+   Taken out of flow so it overlays content and hides completely when closed
+   (no leftover icon rail eating horizontal space on a phone). */
+.sidebar.is-mobile {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 240px;
+  max-width: 80vw;
+  z-index: 1200;
+  transform: translateX(-100%);
+  transition: transform 0.22s ease;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+}
+.sidebar.is-mobile.is-open {
+  transform: translateX(0);
 }
 </style>

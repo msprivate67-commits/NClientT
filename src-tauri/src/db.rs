@@ -112,6 +112,101 @@ impl Database {
             Ok(rows)
         })
     }
+
+    // ---------------------------------------------------------------------
+    // Read progress
+    // ---------------------------------------------------------------------
+
+    /// Record (or advance) the furthest page the user has reached in a gallery.
+    /// Only moves the marker forward; re-reading earlier pages never regresses
+    /// it. `read` flips to true once `last_page` crosses 50% of `total_pages`.
+    pub fn read_progress_upsert(
+        &self,
+        gallery_id: i64,
+        last_page: usize,
+        total_pages: usize,
+    ) -> AppResult<()> {
+        self.with_conn(|c| {
+            let now = Utc::now().to_rfc3339();
+            let total = total_pages as i64;
+            let page = last_page as i64;
+            // A gallery counts as "read" once >= 50% of its pages have been
+            // viewed. We recompute rather than trust the caller so partial /
+            // out-of-order reports still resolve to the right state.
+            let read = if total > 0 && page * 2 >= total { 1 } else { 0 };
+            c.execute(
+                "INSERT INTO read_progress (gallery_id, last_page, total_pages, read, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(gallery_id) DO UPDATE SET
+                    last_page   = MAX(excluded.last_page, read_progress.last_page),
+                    total_pages = excluded.total_pages,
+                    read        = MAX(excluded.read, read_progress.read),
+                    updated_at  = excluded.updated_at",
+                params![gallery_id, page, total, read, now],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Reset (or remove) a gallery's read progress. Used when the user wants
+    /// to mark something as unread again.
+    pub fn read_progress_reset(&self, gallery_id: i64) -> AppResult<()> {
+        self.with_conn(|c| {
+            c.execute(
+                "DELETE FROM read_progress WHERE gallery_id = ?1",
+                params![gallery_id],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lookup a single gallery's progress.
+    pub fn read_progress_get(&self, gallery_id: i64) -> AppResult<Option<ReadProgressRow>> {
+        self.with_conn(|c| {
+            let mut stmt = c.prepare(
+                "SELECT gallery_id, last_page, total_pages, read, updated_at
+                 FROM read_progress WHERE gallery_id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![gallery_id], row_to_read_progress)?;
+            match rows.next().transpose()? {
+                Some(row) => Ok(Some(row)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    /// Return the set of gallery IDs the user has finished (>= 50%). Used by
+    /// the frontend to badge covers in the online gallery + local library.
+    pub fn read_progress_ids(&self) -> AppResult<Vec<i64>> {
+        self.with_conn(|c| {
+            let mut stmt = c.prepare("SELECT gallery_id FROM read_progress WHERE read = 1")?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, i64>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+    }
+}
+
+/// One row of read-progress state. `read` mirrors the SQL boolean (0/1).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadProgressRow {
+    pub gallery_id: i64,
+    pub last_page: i64,
+    pub total_pages: i64,
+    pub read: bool,
+    pub updated_at: String,
+}
+
+fn row_to_read_progress(row: &rusqlite::Row<'_>) -> rusqlite::Result<ReadProgressRow> {
+    let read_int: i64 = row.get(3)?;
+    Ok(ReadProgressRow {
+        gallery_id: row.get(0)?,
+        last_page: row.get(1)?,
+        total_pages: row.get(2)?,
+        read: read_int != 0,
+        updated_at: row.get(4)?,
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,6 +326,16 @@ const MIGRATIONS: &[&str] = &[
         page_files   TEXT NOT NULL DEFAULT '[]',
         scanned_at   TEXT NOT NULL
     );",
+    // Read progress: per-gallery furthest page reached + total pages known at
+    // the time. `read` is 1 when the user has seen >= 50% of the gallery.
+    "CREATE TABLE IF NOT EXISTS read_progress (
+        gallery_id   INTEGER PRIMARY KEY,
+        last_page    INTEGER NOT NULL DEFAULT 0,
+        total_pages  INTEGER NOT NULL DEFAULT 0,
+        read         INTEGER NOT NULL DEFAULT 0,
+        updated_at   TEXT NOT NULL
+    );",
+    "CREATE INDEX IF NOT EXISTS idx_read_progress_read ON read_progress(read);",
 ];
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import { imageProxyUrl, localList, localDelete } from "@/api";
+import { useReadProgressStore } from "@/stores/readProgress";
 import type { LocalGallery } from "@/types";
 
 const props = defineProps<{ folder: number | string }>();
@@ -10,6 +11,7 @@ const router = useRouter();
 
 const local = ref<LocalGallery | null>(null);
 const fitMode = ref<"width" | "height" | "original">("height");
+const readProgress = useReadProgressStore();
 
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
@@ -68,7 +70,28 @@ function computeCurrentPage() {
 let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 function onScroll() {
   if (scrollTimer) clearTimeout(scrollTimer);
-  scrollTimer = setTimeout(computeCurrentPage, 150);
+  scrollTimer = setTimeout(() => {
+    computeCurrentPage();
+    reportProgress();
+  }, 150);
+}
+
+/**
+ * Persist the furthest page viewed (high-water mark), mirroring the online
+ * reader. Local galleries are keyed by their numeric gallery id, so the read
+ * badge shows up on the Local Library cover too. Falls back to 0 silently if
+ * the folder has no parseable id.
+ */
+let reportedMax = 0;
+function reportProgress() {
+  const totalVal = total.value;
+  if (!totalVal || !local.value) return;
+  const page = currentPage.value;
+  if (page > reportedMax) reportedMax = page;
+  const gid = local.value.id;
+  if (gid > 0 && reportedMax > 0) {
+    void readProgress.report(gid, reportedMax, totalVal);
+  }
 }
 
 function scrollToPage(idx: number, smooth = true) {
@@ -103,6 +126,7 @@ async function load() {
     all.find((l) => String(l.id) === String(props.folder)) ?? null;
   failedPages.value.clear();
   retries.value.clear();
+  reportedMax = 0;
   await nextTick();
   currentPage.value = 1;
   if (scrollRef.value) {
@@ -114,7 +138,10 @@ onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
 });
-onUnmounted(() => window.removeEventListener("keydown", onKey));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKey);
+  reportProgress();
+});
 
 watch(fitMode, () => {
   nextTick(() => {

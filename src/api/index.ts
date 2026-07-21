@@ -130,6 +130,33 @@ export const historyList = (limit?: number): Promise<HistoryEntry[]> =>
 export const historyClear = (): Promise<void> => invoke("history_clear");
 
 // ---------------------------------------------------------------------------
+// Read progress
+// ---------------------------------------------------------------------------
+
+export interface ReadProgressRow {
+  gallery_id: number;
+  last_page: number;
+  total_pages: number;
+  read: boolean;
+  updated_at: string;
+}
+
+export const readProgressSet = (
+  galleryId: number,
+  lastPage: number,
+  totalPages: number,
+): Promise<void> =>
+  invoke("read_progress_set", { galleryId, lastPage, totalPages });
+export const readProgressReset = (galleryId: number): Promise<void> =>
+  invoke("read_progress_reset", { galleryId });
+export const readProgressGet = (
+  galleryId: number,
+): Promise<ReadProgressRow | null> =>
+  invoke("read_progress_get", { galleryId });
+export const readProgressIds = (): Promise<number[]> =>
+  invoke("read_progress_ids");
+
+// ---------------------------------------------------------------------------
 // Local library
 // ---------------------------------------------------------------------------
 

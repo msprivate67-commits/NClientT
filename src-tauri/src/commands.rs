@@ -10,7 +10,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::api::ApiClient;
 use crate::cloudflare;
 use crate::config::{AuthCredentials, Settings, TitleType};
-use crate::db::{DownloadRow, FavoriteRow};
+use crate::db::{DownloadRow, FavoriteRow, ReadProgressRow};
 use crate::downloader::{DownloadRequest, DownloadStatus};
 use crate::error::{AppError, AppResult};
 use crate::http::HttpClient;
@@ -385,6 +385,42 @@ pub fn history_list(state: State<'_, AppState>, limit: Option<u32>) -> AppResult
 #[tauri::command]
 pub fn history_clear(state: State<'_, AppState>) -> AppResult<()> {
     state.db.history_clear()
+}
+
+// ===========================================================================
+// Read progress
+// ===========================================================================
+
+#[tauri::command]
+pub fn read_progress_set(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+    last_page: usize,
+    total_pages: usize,
+) -> AppResult<()> {
+    state
+        .db
+        .read_progress_upsert(gallery_id, last_page, total_pages)
+}
+
+#[tauri::command]
+pub fn read_progress_reset(state: State<'_, AppState>, gallery_id: i64) -> AppResult<()> {
+    state.db.read_progress_reset(gallery_id)
+}
+
+#[tauri::command]
+pub fn read_progress_get(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+) -> AppResult<Option<ReadProgressRow>> {
+    state.db.read_progress_get(gallery_id)
+}
+
+/// IDs of galleries the user has read >= 50% of. The frontend uses this to
+/// badge covers in the gallery grid and local library.
+#[tauri::command]
+pub fn read_progress_ids(state: State<'_, AppState>) -> AppResult<Vec<i64>> {
+    state.db.read_progress_ids()
 }
 
 // ===========================================================================

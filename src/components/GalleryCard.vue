@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 import { imageProxyUrl } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useOverlayStore } from "@/stores/overlay";
+import { useReadProgressStore } from "@/stores/readProgress";
 import type { SimpleGallery } from "@/types";
 
 const props = defineProps<{
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 const router = useRouter();
 const favorites = useFavoritesStore();
 const overlay = useOverlayStore();
+const readProgress = useReadProgressStore();
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
@@ -37,10 +39,13 @@ const src = computed(() => {
   return imageProxyUrl(thumb.value);
 });
 
+// Language -> flag shown in the top-left corner of the cover. English maps
+// to the US flag per the product spec (the dominant English-language audience
+// for the source site is US-based).
 const languageFlag = computed(() => {
   switch (props.gallery.language) {
     case "english":
-      return "🇬🇧";
+      return "🇺🇸";
     case "japanese":
       return "🇯🇵";
     case "chinese":
@@ -49,6 +54,9 @@ const languageFlag = computed(() => {
       return "";
   }
 });
+
+// Has the user read >= 50% of this gallery? Badged in the bottom-left corner.
+const isRead = computed(() => readProgress.has(props.gallery.id));
 
 function open() {
   if (props.selectable) {
@@ -91,6 +99,13 @@ async function toggleFav(e: MouseEvent) {
       </div>
       <span v-if="languageFlag && !selectable" class="flag">{{ languageFlag }}</span>
       <span v-if="gallery.num_pages" class="pages">{{ gallery.num_pages }}p</span>
+      <!-- "Read" badge: shown once the user has viewed >= 50% of the pages.
+           Lives bottom-left (the favorite star is bottom-right). -->
+      <span
+        v-if="isRead && !selectable"
+        class="read-mark"
+        title="You’ve read this"
+      >✓ read</span>
       <button
         class="fav"
         :class="{ active: favorites.ids.has(gallery.id) }"
@@ -154,6 +169,19 @@ async function toggleFav(e: MouseEvent) {
 }
 .pages {
   right: 6px;
+}
+.read-mark {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(40, 170, 90, 0.92);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 .fav {
   position: absolute;

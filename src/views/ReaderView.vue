@@ -6,6 +6,7 @@ import { imageProxyUrl } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
+import { useReadProgressStore } from "@/stores/readProgress";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -14,6 +15,7 @@ const router = useRouter();
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
 const overlay = useOverlayStore();
+const readProgress = useReadProgressStore();
 
 const id = computed(() => Number(props.id));
 const fitMode = ref<"width" | "height" | "original">(
@@ -133,7 +135,27 @@ function onScroll() {
   scrollTimer = setTimeout(() => {
     computeCurrentPage();
     preloadNearby();
+    reportProgress();
   }, 150);
+}
+
+/**
+ * Persist how far the user has read. We report the furthest page *viewed*
+ * (high-water mark), not the page currently on screen, so scrolling back to
+ * re-read earlier pages never marks the gallery as less-read. The backend
+ * derives the "read" flag (>= 50%) from this.
+ */
+let reportedMax = 0;
+function reportProgress() {
+  const totalVal = total.value;
+  if (!totalVal || !gallery.current) return;
+  const page = currentPage.value;
+  if (page > reportedMax) reportedMax = page;
+  // Only write when the high-water mark actually advances, to avoid a DB
+  // round-trip on every scroll tick.
+  if (reportedMax > 0) {
+    void readProgress.report(gallery.current.id, reportedMax, totalVal);
+  }
 }
 
 function scrollToPage(idx: number, smooth = true) {
@@ -183,6 +205,7 @@ async function load() {
   preloadedFull.clear();
   failedPages.value.clear();
   retries.value.clear();
+  reportedMax = 0;
   await nextTick();
   if (start && start > 0 && start <= total.value) {
     currentPage.value = start;
@@ -201,7 +224,11 @@ onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
 });
-onUnmounted(() => window.removeEventListener("keydown", onKey));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKey);
+  // Make sure the final position is recorded when leaving the reader.
+  reportProgress();
+});
 watch(id, load);
 watch(fitMode, () => {
   nextTick(() => {

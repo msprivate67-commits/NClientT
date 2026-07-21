@@ -9,6 +9,7 @@ import { useDownloadsStore } from "@/stores/downloads";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useTagsStore } from "@/stores/tags";
 import { useOverlayStore } from "@/stores/overlay";
+import { useReadProgressStore } from "@/stores/readProgress";
 
 const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
 const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
@@ -18,11 +19,25 @@ const downloads = useDownloadsStore();
 const favorites = useFavoritesStore();
 const tags = useTagsStore();
 const overlay = useOverlayStore();
+const readProgress = useReadProgressStore();
 const router = useRouter();
 const route = useRoute();
 
 const sidebarOpen = ref(true);
 const cloudflareBanner = ref(false);
+
+// Responsive layout: below this breakpoint the sidebar becomes a slide-over
+// drawer and the content takes the full width. We track it live so rotating
+// the device / resizing the window switches modes cleanly.
+const COMPACT_QUERY = "(max-width: 760px)";
+const isCompact = ref(false);
+function syncCompact() {
+  isCompact.value = window.matchMedia(COMPACT_QUERY).matches;
+  // On compact screens the sidebar starts closed (drawer hidden). On desktop
+  // it starts expanded so frequent nav items are visible.
+  sidebarOpen.value = !isCompact.value;
+}
+let compactMql: MediaQueryList | null = null;
 
 const canGoBack = computed(() => {
   if (overlay.hasAny()) return true;
@@ -32,15 +47,22 @@ const canGoBack = computed(() => {
 
 watch(() => route.fullPath, () => {
   overlay.closeAll();
+  // Auto-close the mobile drawer on navigation so the new view is fully
+  // visible after picking a destination.
+  if (isCompact.value) sidebarOpen.value = false;
 });
 
 onMounted(async () => {
+  syncCompact();
+  compactMql = window.matchMedia(COMPACT_QUERY);
+  compactMql.addEventListener("change", syncCompact);
   try {
     await settings.load();
     await Promise.allSettled([
       downloads.init(),
       favorites.load(),
       tags.load(),
+      readProgress.load(),
     ]);
     // Soft CF check on launch (best effort).
     const needed = await settings.checkCloudflare();
@@ -92,6 +114,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("popstate", onPopstate);
+  compactMql?.removeEventListener("change", syncCompact);
 });
 
 const globalSpeedLabel = computed(() => {
@@ -104,14 +127,35 @@ const globalSpeedLabel = computed(() => {
 </script>
 
 <template>
-  <div class="app" :class="{ 'sidebar-collapsed': !sidebarOpen }">
-    <AppSidebar :open="sidebarOpen" @toggle="toggleSidebar" />
+  <div class="app" :class="{ 'sidebar-collapsed': !sidebarOpen, compact: isCompact }">
+    <!-- Desktop: inline collapsible sidebar (collapses to an icon rail).
+         Mobile: slide-over drawer + tap-to-dismiss backdrop, rendered via v-if
+         so it occupies no layout space at all when closed. -->
+    <AppSidebar v-if="!isCompact" :open="sidebarOpen" @toggle="toggleSidebar" />
+    <template v-else>
+      <Transition name="fade">
+        <div v-if="sidebarOpen" class="drawer-backdrop" @click="toggleSidebar" />
+      </Transition>
+      <AppSidebar
+        mobile
+        :open="sidebarOpen"
+        @toggle="toggleSidebar"
+        @navigate="sidebarOpen = false"
+      />
+    </template>
+
     <main class="content">
       <header class="topbar">
         <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" title="Back">
           ←
         </button>
-        <button class="icon-btn" @click="toggleSidebar">☰</button>
+        <button
+          class="icon-btn"
+          :title="isCompact ? 'Menu' : 'Toggle sidebar'"
+          @click="toggleSidebar"
+        >
+          ☰
+        </button>
         <div class="search" @click="go('search')">
           <span>🔍</span>
           <span class="placeholder">Search galleries, tags...</span>
@@ -258,5 +302,22 @@ const globalSpeedLabel = computed(() => {
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+}
+
+/* Dimmed backdrop behind the mobile drawer; tap to close. Sits above content
+   but below the drawer itself (z-index 1200 in AppSidebar). */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.5);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
