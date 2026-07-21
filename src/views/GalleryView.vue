@@ -15,6 +15,7 @@ import { useGalleryStore } from "@/stores/gallery";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
+import { useScrollCache } from "@/composables/useScrollCache";
 
 const props = defineProps<{ id: number | string }>();
 const router = useRouter();
@@ -27,6 +28,8 @@ const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
 const commentsOpen = ref(false);
 const loading = ref(false);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 const g = computed(() => gallery.current);
 
@@ -120,7 +123,7 @@ async function onTagClick(t: any) {
 </script>
 
 <template>
-  <div class="view gallery-view">
+  <div ref="viewRef" class="view gallery-view">
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="g" class="header">

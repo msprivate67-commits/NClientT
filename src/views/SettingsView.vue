@@ -12,12 +12,15 @@ import {
   settingsGetPaths,
 } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SortType, TitleType } from "@/types";
 
 const settings = useSettingsStore();
 const draft = ref(JSON.parse(JSON.stringify(settings.settings)));
 const saved = ref(false);
 const appData = ref<string>("");
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 const apiKeyInput = ref("");
 const cfNeeded = ref(false);
 const cfSolved = ref(false);
@@ -97,7 +100,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="view settings">
+  <div ref="viewRef" class="view settings">
     <div class="view-header">
       <div class="view-title">Settings</div>
       <div class="toolbar">

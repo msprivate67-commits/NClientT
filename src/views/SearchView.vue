@@ -9,6 +9,7 @@ import { tagsSearch } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useTagsStore } from "@/stores/tags";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType, Tag } from "@/types";
 
 const route = useRoute();
@@ -27,6 +28,8 @@ const numPages = ref(0);
 const items = ref<SimpleGallery[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 const tagQuery = ref("");
 const suggestions = ref<Tag[]>([]);
@@ -174,7 +177,7 @@ watch(() => route.query, () => {
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Search</div>
     </div>

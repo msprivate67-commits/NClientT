@@ -7,6 +7,7 @@ import Pagination from "@/components/Pagination.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { apiGetFavoritesPage } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { SimpleGallery } from "@/types";
 
 const favorites = useFavoritesStore();
@@ -17,6 +18,8 @@ const numPages = ref(0);
 const onlineItems = ref<SimpleGallery[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 const localItems = computed<SimpleGallery[]>(
   () =>
@@ -64,7 +67,7 @@ async function refresh() {
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Favorites</div>
       <div class="toolbar">

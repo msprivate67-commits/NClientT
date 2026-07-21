@@ -4,10 +4,13 @@ import { onMounted, ref } from "vue";
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { localList, localScan } from "@/api";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { LocalGallery, SimpleGallery } from "@/types";
 
 const items = ref<LocalGallery[]>([]);
 const scanning = ref(false);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 function toSimple(l: LocalGallery): SimpleGallery {
   return {
@@ -38,7 +41,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Local Library</div>
       <div class="toolbar">

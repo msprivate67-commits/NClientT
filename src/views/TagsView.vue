@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 import TagChip from "@/components/TagChip.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { useTagsStore } from "@/stores/tags";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { TagType } from "@/types";
 
 const router = useRouter();
@@ -12,6 +13,8 @@ const tags = useTagsStore();
 
 const filter = ref<TagType | "all">("all");
 const query = ref("");
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 const filtered = computed(() => {
   let list = tags.tags;
@@ -46,7 +49,7 @@ onMounted(() => tags.load());
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Tags</div>
       <div class="toolbar">

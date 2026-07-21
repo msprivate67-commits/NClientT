@@ -66,7 +66,6 @@ export const router = createRouter({
   routes,
   scrollBehavior(_to, _from, saved) {
     if (saved) return saved;
-    // Don't force scroll-to-top for programmatic navigation;
-    // KeepAlive preserves the scroll position of cached components.
+    return false;
   },
 });

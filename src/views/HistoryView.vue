@@ -4,10 +4,13 @@ import { useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
 import { historyClear, historyList, imageProxyUrl } from "@/api";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { HistoryEntry } from "@/types";
 
 const router = useRouter();
 const items = ref<HistoryEntry[]>([]);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 async function load() {
   items.value = await historyList(200);
@@ -27,7 +30,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">History</div>
       <div class="toolbar">

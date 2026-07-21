@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 
 import DownloadItem from "@/components/DownloadItem.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { openPath } from "@/api";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useScrollCache } from "@/composables/useScrollCache";
 
 const downloads = useDownloadsStore();
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 onMounted(() => downloads.init());
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Downloads</div>
       <div class="toolbar">

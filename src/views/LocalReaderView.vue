@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import { imageProxyUrl, localList, localDelete } from "@/api";
@@ -9,44 +9,80 @@ const props = defineProps<{ folder: number | string }>();
 const router = useRouter();
 
 const local = ref<LocalGallery | null>(null);
-const index = ref(0);
 const fitMode = ref<"width" | "height" | "original">("height");
-
-// Cache-busting key forces the <img> to reload the current page from the proxy.
-const imgReloadKey = ref(0);
 
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
-const src = computed(() => {
-  const p = pages.value[index.value];
-  if (!p) return "";
-  const base = imageProxyUrl(p);
-  return imgReloadKey.value ? `${base}${base.includes("?") ? "&" : "?"}_r=${imgReloadKey.value}` : base;
-});
 
-function refreshImage() {
-  imgReloadKey.value++;
+const scrollRef = ref<HTMLElement | null>(null);
+const currentPage = ref(1);
+
+function pageSrc(i: number): string {
+  return imageProxyUrl(pages.value[i] ?? "");
+}
+
+function computeCurrentPage() {
+  if (!scrollRef.value || !total.value) return;
+  const container = scrollRef.value;
+  const viewCenter = container.scrollTop + container.clientHeight / 2;
+
+  let best = 0;
+  let bestDist = Infinity;
+  const imgs = container.querySelectorAll<HTMLElement>(".page-img");
+  for (let i = 0; i < imgs.length; i++) {
+    const el = imgs[i];
+    const top = el.offsetTop;
+    const center = top + el.offsetHeight / 2;
+    const dist = Math.abs(viewCenter - center);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  currentPage.value = best + 1;
+}
+
+let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+function onScroll() {
+  if (scrollTimer) clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(computeCurrentPage, 150);
+}
+
+function scrollToPage(idx: number, smooth = true) {
+  if (!scrollRef.value || idx < 0 || idx >= total.value) return;
+  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-img")[idx];
+  if (!el) return;
+  el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
 
 function prev() {
-  if (index.value > 0) index.value--;
+  scrollToPage(currentPage.value - 2);
 }
 function next() {
-  if (index.value < total.value - 1) index.value++;
+  scrollToPage(currentPage.value);
 }
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === "ArrowRight") next();
-  else if (e.key === "ArrowLeft") prev();
-  else if (e.key === "Escape") router.back();
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    e.preventDefault();
+    next();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    e.preventDefault();
+    prev();
+  } else if (e.key === "Escape") {
+    router.back();
+  }
 }
 
 async function load() {
   const all = await localList();
-  // `folder` route param is the gallery id for local galleries.
   local.value =
     all.find((l) => String(l.id) === String(props.folder)) ?? null;
-  index.value = 0;
+  await nextTick();
+  currentPage.value = 1;
+  if (scrollRef.value) {
+    scrollRef.value.scrollTop = 0;
+  }
 }
 
 onMounted(() => {
@@ -54,6 +90,14 @@ onMounted(() => {
   window.addEventListener("keydown", onKey);
 });
 onUnmounted(() => window.removeEventListener("keydown", onKey));
+
+watch(fitMode, () => {
+  nextTick(() => {
+    if (scrollRef.value && currentPage.value > 1) {
+      scrollToPage(currentPage.value - 1, false);
+    }
+  });
+});
 
 async function remove() {
   if (!local.value) return;
@@ -64,27 +108,58 @@ async function remove() {
 </script>
 
 <template>
-  <div class="reader" :class="['fit-' + fitMode]">
+  <div class="reader" :class="[`fit-${fitMode}`]">
     <header class="bar">
       <button class="btn" @click="router.back()">✕ Close</button>
-      <span class="counter">{{ index + 1 }} / {{ total || "?" }}</span>
+      <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <div class="fit">
-        <button class="btn small" :class="{ primary: fitMode === 'height' }" @click="fitMode = 'height'">Fit H</button>
-        <button class="btn small" :class="{ primary: fitMode === 'width' }" @click="fitMode = 'width'">Fit W</button>
-        <button class="btn small" :class="{ primary: fitMode === 'original' }" @click="fitMode = 'original'">1:1</button>
-        <button class="btn small" title="Reload current page" @click="refreshImage">🔄</button>
+        <button
+          class="btn small"
+          :class="{ primary: fitMode === 'height' }"
+          @click="fitMode = 'height'"
+        >
+          Fit H
+        </button>
+        <button
+          class="btn small"
+          :class="{ primary: fitMode === 'width' }"
+          @click="fitMode = 'width'"
+        >
+          Fit W
+        </button>
+        <button
+          class="btn small"
+          :class="{ primary: fitMode === 'original' }"
+          @click="fitMode = 'original'"
+        >
+          1:1
+        </button>
       </div>
       <button class="btn danger" @click="remove">Delete</button>
     </header>
 
-    <div class="page-area" @click="next">
-      <img v-if="src" :src="src" :alt="`page ${index + 1}`" />
-      <div v-else class="loading">No pages found.</div>
+    <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
+      <div v-if="!total" class="loading">No pages found.</div>
+      <img
+        v-for="(_p, i) in pages"
+        :key="i"
+        :src="pageSrc(i)"
+        :alt="`page ${i + 1}`"
+        loading="lazy"
+        decoding="async"
+        class="page-img"
+      />
     </div>
 
     <footer class="bar">
       <button class="btn" @click="prev">‹ Prev</button>
-      <input type="range" min="0" :max="Math.max(0, total - 1)" v-model.number="index" />
+      <input
+        type="range"
+        min="1"
+        :max="Math.max(1, total)"
+        v-model.number="currentPage"
+        @change="scrollToPage(currentPage - 1, false)"
+      />
       <button class="btn" @click="next">Next ›</button>
     </footer>
   </div>
@@ -106,50 +181,87 @@ async function remove() {
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
   flex-shrink: 0;
+  z-index: 2;
 }
 .counter {
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 .fit {
   margin-left: auto;
   display: flex;
   gap: 4px;
 }
+.btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
 .btn.small {
   padding: 2px 8px;
   font-size: 0.72rem;
 }
-.page-area {
+.btn.danger {
+  color: #ff8e8e;
+}
+
+.scroll-strip {
   flex: 1;
   min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  cursor: pointer;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: auto;
+  background: #000;
 }
-.page-area img {
+
+.scroll-strip img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  margin: 0 auto;
+  min-height: 1px;
 }
-.fit-height .page-area img {
+
+.fit-height .scroll-strip img {
   height: 100%;
   width: auto;
   max-width: 100%;
   object-fit: contain;
 }
-.fit-width .page-area img {
+
+.fit-width .scroll-strip img {
   width: 100%;
   height: auto;
-  max-height: 100%;
-  object-fit: contain;
 }
+
+.fit-original .scroll-strip {
+  overflow-x: auto;
+}
+.fit-original .scroll-strip img {
+  max-width: none;
+  max-height: none;
+}
+
 .loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   color: #888;
+  font-size: 1rem;
 }
+
 input[type="range"] {
   flex: 1;
+  min-width: 60px;
 }
 </style>

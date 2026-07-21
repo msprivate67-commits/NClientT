@@ -5,6 +5,7 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
+import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType } from "@/types";
 
 const gallery = useGalleryStore();
@@ -15,6 +16,8 @@ const numPages = ref(0);
 const items = ref<SimpleGallery[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const viewRef = ref<HTMLElement | null>(null);
+useScrollCache(viewRef);
 
 const sorts: { value: SortType; label: string }[] = [
   { value: "recent_all_time", label: "Recent" },
@@ -69,7 +72,7 @@ watch(page, load);
 </script>
 
 <template>
-  <div class="view">
+  <div ref="viewRef" class="view">
     <div class="view-header">
       <div class="view-title">Home</div>
       <div class="toolbar">
