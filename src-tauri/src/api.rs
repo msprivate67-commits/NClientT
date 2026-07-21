@@ -59,15 +59,12 @@ impl ApiClient {
             return self.fetch_search(&url).await;
         }
         // Otherwise build a search query with the requested sort.
-        let mut q = SearchQuery {
+        let q = SearchQuery {
             page,
             sort,
             only_language: s.only_language,
             ..Default::default()
         };
-        if let Some(id) = lang_tag {
-            q.accepted_tag_ids.push(id);
-        }
         self.search(&q).await
     }
 
@@ -118,15 +115,8 @@ impl ApiClient {
             }
         }
         // Language filter.
-        if let Some(id) = language_tag_id(q.only_language.or_all(s.only_language)) {
-            // Skip if already covered by accepted_tag_ids (e.g. via browse()).
-            if !q.accepted_tag_ids.contains(&id) {
-                if let Ok(tags) = self.fetch_tags_by_ids(&[id]).await {
-                    if let Some(t) = tags.into_iter().next() {
-                        parts.push(percent_encode(&t.to_query_tag_with(TagStatus::Accepted)));
-                    }
-                }
-            }
+        if let Some(encoded) = language_to_query_tag(q.only_language.or_all(s.only_language)) {
+            parts.push(encoded);
         }
         // Page range filter (mirrors `Ranges`).
         match (q.from_page, q.to_page) {
@@ -717,6 +707,16 @@ fn language_tag_id(lang: Language) -> Option<i64> {
         Language::Japanese => Some(special_tag_ids::LANGUAGE_JAPANESE),
         Language::Chinese => Some(special_tag_ids::LANGUAGE_CHINESE),
     }
+}
+
+fn language_to_query_tag(lang: Language) -> Option<String> {
+    let raw = match lang {
+        Language::All => return None,
+        Language::English => "language:\"english\"",
+        Language::Japanese => "language:\"japanese\"",
+        Language::Chinese => "language:\"chinese\"",
+    };
+    Some(percent_encode(raw))
 }
 
 /// Encode a value for use in a URL query segment. Covers everything NClientV3

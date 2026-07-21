@@ -236,7 +236,7 @@ impl ConfigStore {
     /// `download_dir` defaults to `<app_data>/NClientT/Download`.
     pub fn load_or_init(app_data: &Path) -> Self {
         let path = app_data.join("settings.json");
-        let default_download = app_data.join("NClientT").join("Download");
+        let default_download = default_download_dir(app_data);
 
         let mut settings = match fs::read_to_string(&path) {
             Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
@@ -343,6 +343,25 @@ impl ConfigStore {
 /// Quick helper to read the cookie store file path used by [`crate::http`].
 pub fn cookie_db_path(app_data: &Path) -> PathBuf {
     app_data.join("cookies.json")
+}
+
+/// Default download directory, platform-aware.
+/// On Android we use the external app storage so downloads can be accessed by
+/// file managers and other apps without root.
+fn default_download_dir(app_data: &Path) -> PathBuf {
+    #[cfg(target_os = "android")]
+    {
+        let external = std::env::var("EXTERNAL_STORAGE")
+            .unwrap_or_else(|_| "/storage/emulated/0".into());
+        PathBuf::from(format!(
+            "{}/Android/data/com.nclientt.app/files/NClientT/Download",
+            external.trim_end_matches('/')
+        ))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        app_data.join("NClientT").join("Download")
+    }
 }
 
 /// Check whether the trailing two bytes of a JPEG file are `FF D9`.

@@ -64,7 +64,11 @@ function go(route: string) {
         <button @click="solveCloudflare">Solve now</button>
       </div>
 
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <KeepAlive>
+          <component :is="Component" />
+        </KeepAlive>
+      </RouterView>
     </main>
   </div>
 </template>
