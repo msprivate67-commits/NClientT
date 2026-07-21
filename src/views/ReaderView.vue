@@ -229,11 +229,9 @@ async function load() {
 onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
-  window.addEventListener("popstate", onPop);
 });
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
-  window.removeEventListener("popstate", onPop);
   // Make sure the final position is recorded when leaving the reader.
   reportProgress();
 });
@@ -249,15 +247,6 @@ watch(fitMode, () => {
 watch(scrollMode, () => {
   settings.save({ reader_direction: scrollMode.value });
 });
-
-function onPop() {
-  history.pushState(null, "", window.location.href);
-  if (props.overlay) {
-    emit("back");
-  } else {
-    router.back();
-  }
-}
 </script>
 
 <template>

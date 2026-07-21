@@ -153,7 +153,6 @@ async function load() {
 onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
-  window.addEventListener("popstate", onPop);
 });
 
 watch(() => props.folder, () => {
@@ -161,7 +160,6 @@ watch(() => props.folder, () => {
 });
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
-  window.removeEventListener("popstate", onPop);
   reportProgress();
 });
 
@@ -176,11 +174,6 @@ watch(fitMode, () => {
 watch(scrollMode, () => {
   settings.save({ reader_direction: scrollMode.value });
 });
-
-function onPop() {
-  history.pushState(null, "", window.location.href);
-  router.back();
-}
 
 async function remove() {
   if (!local.value) return;

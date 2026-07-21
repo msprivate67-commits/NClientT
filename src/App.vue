@@ -84,19 +84,47 @@ async function solveCloudflare() {
 function goBack() {
   if (overlay.hasAny()) {
     overlay.pop();
-  } else if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: "home" });
+    return;
   }
+  // Initiate a programmatic back — let the popstate pass through unblocked.
+  backBlocked = true;
+  router.back();
 }
 
+// Track the route before the last popstate so we can decide whether to allow
+// the system back button (only on detail pages with a visible back/close button).
+const previousRouteName = ref<string | null>(null);
+watch(() => route.name, (_, old) => {
+  previousRouteName.value = old ? String(old) : null;
+}, { flush: "sync" });
+
+let backBlocked = false;
+
 function onPopstate() {
+  // Overlay back handling — the overlay system manages its own pushState/popState cycle.
   if (overlay.hasAny()) {
     overlay.pop();
     if (overlay.hasAny()) {
       history.pushState(null, "", window.location.href);
     }
+    return;
+  }
+
+  // Programmatic back (from goBack) — let it through without blocking.
+  if (backBlocked) {
+    backBlocked = false;
+    return;
+  }
+
+  // System back button — block by default.
+  history.pushState(null, "", window.location.href);
+
+  // Only allow the back to proceed when the user was on a detail page
+  // that has a visible back/close button.
+  const detailRoutes = ["gallery", "reader", "reader-local"];
+  if (previousRouteName.value && detailRoutes.includes(previousRouteName.value)) {
+    backBlocked = true;
+    window.history.back();
   }
 }
 
