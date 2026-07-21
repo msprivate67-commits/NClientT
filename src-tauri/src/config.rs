@@ -219,7 +219,7 @@ impl Default for Settings {
             max_history: 100,
             favorite_limit: 100,
             download_dir: PathBuf::new(), // filled in by ConfigStore::load_or_init
-            parallel_downloads: 3,
+            parallel_downloads: 1, // Keep at 1 to reduce server load — do not raise without careful consideration
             parallel_pages: 8,
             lock_screen: false,
             pin: String::new(),

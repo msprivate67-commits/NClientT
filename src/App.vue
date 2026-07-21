@@ -87,15 +87,19 @@ function go(route: string) {
 function goBack() {
   if (overlay.hasAny()) {
     overlay.pop();
-  } else {
+  } else if (window.history.length > 1) {
     router.back();
+  } else {
+    router.push({ name: "home" });
   }
 }
 
 function onPopstate() {
   if (overlay.hasAny()) {
     overlay.pop();
-    history.pushState(null, "", window.location.href);
+    if (overlay.hasAny()) {
+      history.pushState(null, "", window.location.href);
+    }
   }
 }
 

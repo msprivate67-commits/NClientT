@@ -138,6 +138,10 @@ onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
 });
+
+watch(() => props.folder, () => {
+  load();
+});
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
   reportProgress();
@@ -197,6 +201,13 @@ async function remove() {
         :key="i"
         class="page-wrap"
       >
+        <img
+          :src="pageSrc(i)"
+          :alt="`page ${i + 1}`"
+          loading="lazy"
+          decoding="async"
+          class="page-thumb"
+        />
         <img
           :src="pageSrc(i)"
           :alt="`page ${i + 1}`"

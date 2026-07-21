@@ -146,7 +146,11 @@ pub struct DownloadManager {
     db: Database,
     /// Per-gallery active tasks.
     tasks: RwLock<HashMap<i64, Arc<DownloadTask>>>,
-    /// Limit concurrent downloads (separate from per-gallery page parallelism).
+        /// Limit concurrent downloads (separate from per-gallery page parallelism).
+    ///
+    /// NOTE: Keep this at 1 to reduce server pressure. Increasing this value
+    /// will download multiple galleries in parallel, which significantly
+    /// increases load on the source server. Change with caution.
     sem: Arc<Semaphore>,
     /// App handle used to emit progress events.
     app: Mutex<Option<AppHandle>>,
@@ -166,7 +170,7 @@ impl DownloadManager {
             http,
             db,
             tasks: RwLock::new(HashMap::new()),
-            sem: Arc::new(Semaphore::new(3)),
+            sem: Arc::new(Semaphore::new(1)), // Keep at 1 to reduce server load — do not raise without careful consideration
             app: Mutex::new(None),
         }
     }
