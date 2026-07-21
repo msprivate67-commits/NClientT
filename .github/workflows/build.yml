@@ -51,18 +51,6 @@ jobs:
       - name: Init Tauri Android project
         run: npx tauri android init --ci
 
-      - name: Add Android storage permissions
-        run: |
-          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
-          if grep -q 'WRITE_EXTERNAL_STORAGE' "$MANIFEST"; then
-            echo "Permissions already present"
-          else
-            sed -i '/<manifest xmlns/a\
-            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' "$MANIFEST"
-          fi
-          cat "$MANIFEST" | head -30
-
       - name: Build Android APK
         run: npx tauri android build --apk
 
