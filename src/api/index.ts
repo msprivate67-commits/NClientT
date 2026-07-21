@@ -37,6 +37,7 @@ import type {
 export const settingsGet = (): Promise<Settings> => invoke("settings_get");
 export const settingsSet = (s: Settings): Promise<Settings> => invoke("settings_set", { newSettings: s });
 export const settingsGetPaths = (): Promise<{ app_data: string; log_dir: string | null }> => invoke("settings_get_paths");
+export const settingsPickDirectory = (): Promise<string | null> => invoke("settings_pick_directory");
 export const settingsClearCookies = (): Promise<void> => invoke("settings_clear_cookies");
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::api::ApiClient;
@@ -62,10 +63,14 @@ pub fn settings_get_paths(app: AppHandle) -> AppResult<serde_json::Value> {
 }
 
 #[tauri::command]
-pub async fn settings_pick_directory() -> AppResult<Option<String>> {
-    // The frontend uses the dialog plugin directly; this is a convenience
-    // wrapper that returns the chosen path.
-    Ok(None)
+pub async fn settings_pick_directory(app: AppHandle) -> AppResult<Option<String>> {
+    let folder = app
+        .dialog()
+        .file()
+        .pick_folder()
+        .await
+        .map(|p| p.to_string_lossy().to_string());
+    Ok(folder)
 }
 
 #[tauri::command]

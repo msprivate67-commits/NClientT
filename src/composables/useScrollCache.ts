@@ -10,12 +10,15 @@ export function useScrollCache(elRef: Ref<HTMLElement | null>) {
   });
 
   onActivated(() => {
-    if (elRef.value && savedScrollTop.value > 0) {
-      nextTick(() => {
-        if (elRef.value) {
-          elRef.value.scrollTop = savedScrollTop.value;
-        }
-      });
-    }
+    nextTick(() => {
+      if (elRef.value) {
+        elRef.value.scrollTop = savedScrollTop.value;
+        requestAnimationFrame(() => {
+          if (elRef.value) {
+            elRef.value.scrollTop = savedScrollTop.value;
+          }
+        });
+      }
+    });
   });
 }

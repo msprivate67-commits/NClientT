@@ -56,6 +56,7 @@ export const useGalleryStore = defineStore("gallery", () => {
   async function random(): Promise<Gallery> {
     loading.value = true;
     error.value = null;
+    current.value = null;
     try {
       current.value = await apiRandom();
       return current.value;
@@ -67,6 +68,7 @@ export const useGalleryStore = defineStore("gallery", () => {
   async function load(id: number): Promise<Gallery> {
     loading.value = true;
     error.value = null;
+    current.value = null;
     try {
       current.value = await apiGetGallery(id);
       return current.value;

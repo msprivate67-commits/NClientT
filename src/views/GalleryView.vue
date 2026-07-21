@@ -198,6 +198,42 @@ async function onTagClick(t: any) {
         </div>
       </section>
     </div>
+
+    <div v-else-if="loading" class="loading-skeleton">
+      <div class="header">
+        <div class="cover skeleton-pulse"></div>
+        <div class="info">
+          <div class="skeleton-line w-70"></div>
+          <div class="skeleton-line w-30"></div>
+          <div class="skeleton-line w-100"></div>
+        </div>
+      </div>
+      <div class="skeleton-section">
+        <div class="skeleton-line w-15"></div>
+        <div class="chips">
+          <span class="skeleton-chip"></span>
+          <span class="skeleton-chip w-60"></span>
+          <span class="skeleton-chip w-50"></span>
+          <span class="skeleton-chip w-40"></span>
+          <span class="skeleton-chip w-30"></span>
+        </div>
+      </div>
+      <div class="skeleton-section">
+        <div class="skeleton-line w-20"></div>
+        <div class="chips">
+          <span class="skeleton-chip"></span>
+          <span class="skeleton-chip w-45"></span>
+          <span class="skeleton-chip w-55"></span>
+        </div>
+      </div>
+      <div class="skeleton-section">
+        <div class="skeleton-line w-25"></div>
+        <div class="chips">
+          <span class="skeleton-chip w-70"></span>
+          <span class="skeleton-chip w-35"></span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -296,5 +332,82 @@ async function onTagClick(t: any) {
 .empty {
   color: var(--text-dim);
   padding: 14px 0;
+}
+
+.loading-skeleton {
+  animation: fadein 0.2s ease;
+}
+.loading-skeleton .header {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.loading-skeleton .cover {
+  width: 220px;
+  flex-shrink: 0;
+  aspect-ratio: 3 / 4;
+}
+.loading-skeleton .info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 6px;
+}
+.skeleton-pulse {
+  background: var(--surface-2);
+  border-radius: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.skeleton-line {
+  height: 14px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.skeleton-line.w-10 { width: 10%; }
+.skeleton-line.w-15 { width: 15%; }
+.skeleton-line.w-20 { width: 20%; }
+.skeleton-line.w-25 { width: 25%; }
+.skeleton-line.w-30 { width: 30%; }
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-line.w-45 { width: 45%; }
+.skeleton-line.w-50 { width: 50%; }
+.skeleton-line.w-55 { width: 55%; }
+.skeleton-line.w-60 { width: 60%; }
+.skeleton-line.w-70 { width: 70%; }
+.skeleton-line.w-100 { width: 100%; }
+.skeleton-chip {
+  display: inline-block;
+  height: 26px;
+  width: 80px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.skeleton-chip.w-30 { width: 60px; }
+.skeleton-chip.w-35 { width: 70px; }
+.skeleton-chip.w-40 { width: 80px; }
+.skeleton-chip.w-45 { width: 90px; }
+.skeleton-chip.w-50 { width: 100px; }
+.skeleton-chip.w-55 { width: 110px; }
+.skeleton-chip.w-60 { width: 130px; }
+.skeleton-chip.w-70 { width: 150px; }
+.skeleton-section {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.skeleton-section .chips {
+  margin-top: 10px;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+@keyframes fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

@@ -10,6 +10,7 @@ import {
   cloudflareOpenChallenge,
   settingsClearCookies,
   settingsGetPaths,
+  settingsPickDirectory,
 } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -55,9 +56,21 @@ async function save() {
 }
 
 async function pickDownloadDir() {
-  const selected = await open({ directory: true, multiple: false });
-  if (typeof selected === "string") {
-    draft.value.download_dir = selected;
+  try {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === "string") {
+      draft.value.download_dir = selected;
+      return;
+    }
+    if (selected === null) return;
+  } catch {
+    // Dialog might fail on some platforms (e.g. Android) — try backend fallback
+  }
+  try {
+    const picked = await settingsPickDirectory();
+    if (picked) draft.value.download_dir = picked;
+  } catch {
+    // Both failed; user can type manually in the editable field
   }
 }
 
@@ -246,7 +259,7 @@ onMounted(async () => {
       <div class="field path-field">
         <label>Download directory</label>
         <div class="row">
-          <input v-model="draft.download_dir" type="text" readonly />
+          <input v-model="draft.download_dir" type="text" placeholder="Default: app data directory" />
           <button class="btn" @click="pickDownloadDir">Browse…</button>
         </div>
       </div>

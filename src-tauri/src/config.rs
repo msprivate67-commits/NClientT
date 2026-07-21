@@ -346,28 +346,42 @@ pub fn cookie_db_path(app_data: &Path) -> PathBuf {
 }
 
 /// Default download directory, platform-aware.
-/// On Android we try external app storage first (accessible via file manager);
-/// if that fails, fall back to internal app data (always writable).
+/// On Android we always use app-private external storage (no runtime
+/// permissions required — accessible by the user through the file manager
+/// under `Android/data/<pkg>/files/NClientT/Download`).
+/// On desktop the `NClientT/Download` directory inside the app data folder
+/// is used (e.g. `~/.local/share/com.nclientt.app/NClientT/Download` on
+/// Linux).
 fn default_download_dir(app_data: &Path) -> PathBuf {
     #[cfg(target_os = "android")]
     {
+        // Prefer ANDROID_DATA + /data/com.nclientt.app/files for external
+        // storage access (visible to the user without any runtime permission).
         if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
-            let ext_path = PathBuf::from(format!(
-                "{}/Android/data/com.nclientt.app/files/NClientT/Download",
-                ext.trim_end_matches('/')
-            ));
+            let ext_path = PathBuf::from(&ext)
+                .join("Android")
+                .join("data")
+                .join("com.nclientt.app")
+                .join("files")
+                .join("NClientT")
+                .join("Download");
             if std::fs::create_dir_all(&ext_path).is_ok() {
+                log::info!("Android download dir (external): {}", ext_path.display());
                 return ext_path;
             }
             log::warn!("Cannot create external download dir; using internal storage");
         }
+        // Fallback to internal app data (always writable, hidden from file manager).
         let fallback = app_data.join("NClientT").join("Download");
-        log::info!("Android download dir: {}", fallback.display());
-        return fallback;
+        std::fs::create_dir_all(&fallback).ok();
+        log::info!("Android download dir (internal): {}", fallback.display());
+        fallback
     }
     #[cfg(not(target_os = "android"))]
     {
-        app_data.join("NClientT").join("Download")
+        let dir = app_data.join("NClientT").join("Download");
+        std::fs::create_dir_all(&dir).ok();
+        dir
     }
 }
 
