@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build (android)
+    runs-on: ubuntu-22.04
+    env:
+      NDK_VERSION: '27.0.12077973'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'tools platform-tools build-tools;34.0.0 platforms;android-34 ndk;${{ env.NDK_VERSION }}'
+
+      - name: Export Android env vars
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          NDK="$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}"
+          echo "ANDROID_NDK_HOME=$NDK" >> $GITHUB_ENV
+          echo "NDK_HOME=$NDK" >> $GITHUB_ENV
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Init Tauri Android project
+        run: npx tauri android init --ci
+
+      - name: Add Android storage permissions
+        run: |
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          if grep -q 'WRITE_EXTERNAL_STORAGE' "$MANIFEST"; then
+            echo "Permissions already present"
+          else
+            sed -i '/<manifest xmlns/a\
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' "$MANIFEST"
+          fi
+          cat "$MANIFEST" | head -30
+
+      - name: Build Android APK
+        run: npx tauri android build --apk
+
+      - name: Sign APK
+        if: hashFiles('src-tauri/nclientt.keystore') != ''
+        run: |
+          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          APK_DIR="src-tauri/gen/android/app/build/outputs/apk/universal/release"
+          for apk in "$APK_DIR"/*-unsigned.apk; do
+            [ -f "$apk" ] || continue
+            signed="${apk%-unsigned.apk}.apk"
+            "$BUILD_TOOLS/apksigner" sign \
+              --ks src-tauri/nclientt.keystore \
+              --ks-pass pass:nclientt \
+              --ks-key-alias nclientt \
+              --key-pass pass:nclientt \
+              --out "$signed" \
+              --in "$apk"
+            echo "Signed: $signed"
+            rm -f "$apk"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NClientT-android
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          retention-days: 7
+          if-no-files-found: error
