@@ -117,8 +117,10 @@ jobs:
 
       - name: Export NDK env vars
         run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
-          echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
+          NDK="$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}"
+          echo "ANDROID_NDK_HOME=$NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$NDK" >> $GITHUB_ENV
+          echo "NDK_HOME=$NDK" >> $GITHUB_ENV
 
       - run: npm ci
 
