@@ -1,7 +1,7 @@
 // Thin wrapper around Tauri's `invoke` for every backend command.
 // Each function maps 1:1 to a `#[tauri::command]` in `src-tauri/src/commands.rs`.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AuthCredentials,
@@ -179,10 +179,14 @@ export const openInBrowser = (path: string): Promise<void> => invoke("open_in_br
 export const openPath = (path: string): Promise<void> => invoke("open_path", { path });
 export const resolveAsset = (path: string): Promise<string> => invoke("resolve_asset", { path });
 export const imageProxyUrl = (url: string): string => {
-  // This is a sync command but we expose a sync helper that mirrors the
-  // backend logic directly for fast image rendering.
+  // Remote images load directly; local paths go through Tauri's asset
+  // protocol. `convertFileSrc` picks the correct scheme per platform
+  // (`http://asset.localhost/` on Windows/Android, `asset://localhost/`
+  // on macOS/Linux) and encodes the path — both of which a hardcoded
+  // `asset://localhost/` got wrong on Windows/Android.
   if (url && url.startsWith("http")) return url;
-  return "asset://localhost/" + url.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!url) return "";
+  return convertFileSrc(url);
 };
 export const readLocalImage = (path: string): Promise<string | null> =>
   invoke("read_local_image", { path });

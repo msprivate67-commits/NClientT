@@ -5,13 +5,22 @@ description = "NClientT - cross-platform Tauri port of NClientV3"
 authors = ["NClientT"]
 license = "Apache-2.0"
 repository = ""
-default-run = "nclientt"
+default-run = "nclientt-bin"
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
 name = "nclientt"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# The bin target shares the package name with the lib, so its Windows .pdb /
+# Linux .o output collides with the lib's. Give the binary a distinct output
+# name to silence the "output filename collision" warning (a future hard
+# error — see rust-lang/cargo#6313). The `[lib] name` above is unchanged, so
+# the Android `.so` is still loaded as `libnclientt.so`.
+[[bin]]
+name = "nclientt-bin"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.0.3", features = [] }

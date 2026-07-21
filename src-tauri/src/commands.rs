@@ -394,6 +394,8 @@ pub fn history_clear(state: State<'_, AppState>) -> AppResult<()> {
 #[tauri::command]
 pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     let mut found = Vec::new();
+    // `mut` is only needed on Android, where we may push an extra scan dir.
+    #[allow(unused_mut)]
     let mut dirs = vec![state.config.download_dir()];
     // On Android also scan the internal fallback if different.
     #[cfg(target_os = "android")]
@@ -676,8 +678,10 @@ pub fn open_path(app: AppHandle, path: String) -> AppResult<()> {
     Ok(())
 }
 
-/// Convert a `file://` or absolute path to an `asset://` URL the frontend can
-/// load in `<img src>`.
+/// Convert a `file://` or absolute path to an asset URL the frontend can
+/// load in `<img src>`. The scheme is platform-specific: WebView2
+/// (Windows/Android) requires `http://asset.localhost/`, while macOS/Linux
+/// use `asset://localhost/`.
 #[tauri::command]
 pub fn resolve_asset(path: String) -> AppResult<String> {
     let p = if let Some(rest) = path.strip_prefix("file://") {
@@ -685,7 +689,7 @@ pub fn resolve_asset(path: String) -> AppResult<String> {
     } else {
         path
     };
-    Ok(format!("asset://localhost/{}", p.replace('\\', "/")))
+    Ok(asset_url(&p))
 }
 
 /// For remote images we cannot load directly from the renderer (CSP), return
@@ -698,9 +702,55 @@ pub fn image_proxy_url(url: String) -> String {
     if url.starts_with("http") {
         url
     } else {
-        let normalized = url.replace('\\', "/");
-        format!("asset://localhost/{}", normalized.trim_start_matches('/'))
+        asset_url(url.trim_start_matches('/'))
     }
+}
+
+/// Build a per-platform asset URL for a local path. Mirrors the scheme
+/// selection done by Tauri's frontend `convertFileSrc` helper:
+/// `http://asset.localhost/<path>` on Windows & Android, `asset://localhost/`
+/// elsewhere. The path is percent-encoded like the JS `encodeURIComponent`
+/// that `convertFileSrc` uses.
+fn asset_url(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    let encoded = percent_encode_path(&normalized);
+    // WebView2 (Windows) and Android's WebView only recognise the asset
+    // protocol under the `http://asset.localhost` host; macOS/Linux use the
+    // bare `asset://` scheme.
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    {
+        format!("http://asset.localhost/{}", encoded)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
+    {
+        format!("asset://localhost/{}", encoded)
+    }
+}
+
+/// Percent-encode a path for use in a URL path component, matching JS
+/// `encodeURIComponent` (encodes everything except the unreserved set
+/// `A-Za-z0-9-_.!~*'()` and the path separators `/`).
+fn percent_encode_path(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')'
+            | b'/' => out.push(b as char),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
 }
 
 /// Read a local image file as base64 data URL. Useful when the asset protocol

@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://* data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; connect-src 'self' ipc: https://*",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost https://asset.localhost https://* data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; connect-src 'self' ipc: https://*",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
