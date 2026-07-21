@@ -351,16 +351,26 @@ pub fn history_clear(state: State<'_, AppState>) -> AppResult<()> {
 
 #[tauri::command]
 pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
-    let dir = state.config.download_dir();
     let mut found = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for e in entries.flatten() {
-            if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            if let Some(lg) = read_local_gallery(&e.path()) {
-                let _ = state.db.local_upsert(&lg);
-                found.push(lg);
+    let mut dirs = vec![state.config.download_dir()];
+    // On Android also scan the internal fallback if different.
+    #[cfg(target_os = "android")]
+    {
+        let internal = &state.config.app_data.join("NClientT").join("Download");
+        if *internal != *dirs[0] && internal.exists() {
+            dirs.push(internal.clone());
+        }
+    }
+    for dir in &dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for e in entries.flatten() {
+                if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
+                if let Some(lg) = read_local_gallery(&e.path()) {
+                    let _ = state.db.local_upsert(&lg);
+                    found.push(lg);
+                }
             }
         }
     }
@@ -377,7 +387,26 @@ pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
 
 #[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
-    state.db.local_all()
+    let mut items = state.db.local_all().unwrap_or_default();
+    // Quick scan of download dir: add folders on disk but missing from DB.
+    let dir = state.config.download_dir();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let p = e.path();
+            let folder_str = p.to_string_lossy().to_string();
+            if items.iter().any(|i| i.folder == folder_str) {
+                continue;
+            }
+            if let Some(lg) = read_local_gallery(&p) {
+                let _ = state.db.local_upsert(&lg);
+                items.push(lg);
+            }
+        }
+    }
+    Ok(items)
 }
 
 #[tauri::command]

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import TagChip from "@/components/TagChip.vue";
@@ -81,11 +81,39 @@ async function load() {
   loading.value = true;
   try {
     await gallery.load(id.value);
+    startPreload();
   } catch (e: any) {
     error.value = String(e?.message ?? e);
   } finally {
     loading.value = false;
   }
+}
+
+let preloadCancel: (() => void) | null = null;
+
+function startPreload() {
+  preloadCancel?.();
+  if (!g.value?.pages?.length) return;
+  const pagePaths = g.value.pages.map((p) => p.path).filter(Boolean) as string[];
+  if (!pagePaths.length) return;
+  let cancelled = false;
+  preloadCancel = () => { cancelled = true; };
+  let i = 0;
+  const CONCURRENCY = 3;
+  const next = () => {
+    if (cancelled || i >= pagePaths.length) return;
+    const batch = pagePaths.slice(i, i + CONCURRENCY);
+    i += CONCURRENCY;
+    for (const path of batch) {
+      const img = new Image();
+      img.src = imageProxyUrl(path);
+      img.onload = img.onerror = () => {};
+    }
+    if (!cancelled && i < pagePaths.length) {
+      setTimeout(next, 200);
+    }
+  };
+  setTimeout(next, 500);
 }
 
 async function toggleFavorite() {
@@ -138,6 +166,7 @@ function readPage(pageNum: number) {
 
 onMounted(load);
 watch(id, load);
+onUnmounted(() => preloadCancel?.());
 
 async function toggleComments() {
   commentsOpen.value = !commentsOpen.value;

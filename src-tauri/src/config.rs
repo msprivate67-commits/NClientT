@@ -233,6 +233,7 @@ impl Default for Settings {
 pub struct ConfigStore {
     settings: RwLock<Settings>,
     path: PathBuf,
+    pub app_data: PathBuf,
 }
 
 impl ConfigStore {
@@ -264,6 +265,7 @@ impl ConfigStore {
         let store = Self {
             settings: RwLock::new(settings.clone()),
             path,
+            app_data: app_data.to_path_buf(),
         };
         store.persist(&settings);
         store
@@ -350,7 +352,9 @@ pub fn cookie_db_path(app_data: &Path) -> PathBuf {
 }
 
 /// Default download directory, platform-aware.
-/// On Android we use the public Download directory.
+/// On Android we first try the public Download directory, then the app-specific
+/// external storage (which works without special permissions on API 29+),
+/// lastly fall back to internal app data.
 fn default_download_dir(app_data: &Path) -> PathBuf {
     #[cfg(target_os = "android")]
     {
@@ -359,9 +363,19 @@ fn default_download_dir(app_data: &Path) -> PathBuf {
             log::info!("Android download dir: {}", public.display());
             return public;
         }
-        log::warn!("Cannot create public download dir; using internal storage");
+        log::warn!("Cannot use public download dir; trying app external storage");
+        if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
+            let ext_path = PathBuf::from(format!(
+                "{}/Android/data/com.nclientt.app/files/NClientT/Download",
+                ext.trim_end_matches('/')
+            ));
+            if std::fs::create_dir_all(&ext_path).is_ok() {
+                log::info!("Android download dir (app external): {}", ext_path.display());
+                return ext_path;
+            }
+        }
         let fallback = app_data.join("NClientT").join("Download");
-        log::info!("Android download dir (fallback): {}", fallback.display());
+        log::info!("Android download dir (internal): {}", fallback.display());
         return fallback;
     }
     #[cfg(not(target_os = "android"))]

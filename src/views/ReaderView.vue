@@ -32,25 +32,76 @@ const rtl = computed(() => settings.settings.use_rtl);
 
 const scrollRef = ref<HTMLElement | null>(null);
 const currentPage = ref(1);
+const failedPages = ref(new Set<number>());
+const retries = ref(new Map<number, number>());
 
 function pageSrc(i: number): string {
-  return imageProxyUrl(pages.value[i]?.path ?? "");
+  const url = imageProxyUrl(pages.value[i]?.path ?? "");
+  const r = retries.value.get(i);
+  if (r && r > 0 && url) {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}_retry=${r}`;
+  }
+  return url;
+}
+
+function thumbSrc(i: number): string {
+  const t = pages.value[i]?.thumbnail;
+  return t ? imageProxyUrl(t) : "";
+}
+
+function onImageError(i: number) {
+  const s = new Set(failedPages.value);
+  s.add(i);
+  failedPages.value = s;
+}
+
+function reloadPage(i: number) {
+  const s = new Set(failedPages.value);
+  s.delete(i);
+  failedPages.value = s;
+  const m = new Map(retries.value);
+  m.set(i, (m.get(i) ?? 0) + 1);
+  retries.value = m;
 }
 
 const preloaded = new Set<number>();
+const preloadedFull = new Set<number>();
 const PRELOAD_BUF = 3;
 
 function preloadNearby() {
-  const start = Math.max(0, currentPage.value - PRELOAD_BUF);
-  const end = Math.min(total.value, currentPage.value + PRELOAD_BUF);
-  for (let i = start; i < end; i++) {
-    if (preloaded.has(i)) continue;
-    preloaded.add(i);
+  const cp = currentPage.value - 1;
+  // Phase 1: preload thumbnails first (fast, gives instant preview)
+  for (let i = 0; i < total.value; i++) {
+    if (!preloaded.has(i)) {
+      preloaded.add(i);
+      const t = pages.value[i]?.thumbnail;
+      if (t) {
+        const img = new Image();
+        img.src = imageProxyUrl(t);
+      }
+    }
+  }
+  // Phase 2: preload full images around current page with priority
+  const priorities: number[] = [];
+  // Current page first, then expand outward
+  for (let d = 0; d <= PRELOAD_BUF + 2; d++) {
+    const a = cp - d;
+    const b = cp + d;
+    if (d === 0 && a >= 0 && a < total.value) priorities.push(a);
+    else {
+      if (a >= 0 && a < total.value) priorities.push(a);
+      if (b >= 0 && b < total.value && b !== a) priorities.push(b);
+    }
+  }
+  for (const i of priorities) {
+    if (preloadedFull.has(i)) continue;
+    preloadedFull.add(i);
     const p = pages.value[i]?.path;
     if (p) {
       const img = new Image();
       img.src = imageProxyUrl(p);
-      img.onerror = () => preloaded.delete(i);
+      img.onerror = () => preloadedFull.delete(i);
     }
   }
 }
@@ -62,9 +113,9 @@ function computeCurrentPage() {
 
   let best = 0;
   let bestDist = Infinity;
-  const imgs = container.querySelectorAll<HTMLElement>(".page-img");
-  for (let i = 0; i < imgs.length; i++) {
-    const el = imgs[i];
+  const wraps = container.querySelectorAll<HTMLElement>(".page-wrap");
+  for (let i = 0; i < wraps.length; i++) {
+    const el = wraps[i];
     const top = el.offsetTop;
     const center = top + el.offsetHeight / 2;
     const dist = Math.abs(viewCenter - center);
@@ -87,7 +138,7 @@ function onScroll() {
 
 function scrollToPage(idx: number, smooth = true) {
   if (!scrollRef.value || idx < 0 || idx >= total.value) return;
-  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-img")[idx];
+  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-wrap")[idx];
   if (!el) return;
   el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
@@ -129,6 +180,9 @@ async function load() {
     ? overlay.readerPage
     : Number(route.query.page) || null;
   preloaded.clear();
+  preloadedFull.clear();
+  failedPages.value.clear();
+  retries.value.clear();
   await nextTick();
   if (start && start > 0 && start <= total.value) {
     currentPage.value = start;
@@ -190,16 +244,34 @@ watch(fitMode, () => {
 
     <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
       <div v-if="!total" class="loading">Loading…</div>
-      <img
+      <div
         v-for="(_p, i) in pages"
         :key="i"
-        :src="pageSrc(i)"
-        :alt="`page ${i + 1}`"
-        loading="lazy"
-        decoding="async"
-        class="page-img"
+        class="page-wrap"
         :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
-      />
+      >
+        <img
+          v-if="thumbSrc(i)"
+          :src="thumbSrc(i)"
+          :alt="`page ${i + 1}`"
+          loading="lazy"
+          decoding="async"
+          class="page-thumb"
+        />
+        <img
+          :src="pageSrc(i)"
+          :alt="`page ${i + 1}`"
+          :loading="Math.abs(i - (currentPage - 1)) <= 1 ? 'eager' : 'lazy'"
+          decoding="async"
+          class="page-img"
+          @error="onImageError(i)"
+          @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
+        />
+        <div v-if="failedPages.has(i) && !thumbSrc(i)" class="page-error">
+          <span>⚠</span>
+          <button class="btn" @click="reloadPage(i)">Reload</button>
+        </div>
+      </div>
     </div>
 
     <footer class="bar">
@@ -273,20 +345,57 @@ watch(fitMode, () => {
   background: #000;
 }
 
-.scroll-strip img {
-  display: block;
-  margin: 0 auto 2px;
+.page-wrap {
+  display: grid;
+}
+.page-wrap > img {
+  grid-area: 1 / 1;
   min-height: 1px;
 }
 
-.fit-height .scroll-strip img {
+.page-thumb {
+  display: block;
+  margin: 0 auto 2px;
+}
+
+.page-img {
+  display: block;
+  margin: 0 auto 2px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+.page-img.loaded {
+  opacity: 1;
+}
+
+.page-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ff9e9e;
+  font-size: 1.5rem;
+}
+.page-error .btn {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+}
+
+.fit-height .page-thumb,
+.fit-height .page-img {
   height: 100%;
   width: auto;
   max-width: 100%;
   object-fit: contain;
 }
 
-.fit-width .scroll-strip img {
+.fit-width .page-thumb,
+.fit-width .page-img {
   width: 100%;
   height: auto;
 }
@@ -294,7 +403,8 @@ watch(fitMode, () => {
 .fit-original .scroll-strip {
   overflow-x: auto;
 }
-.fit-original .scroll-strip img {
+.fit-original .page-thumb,
+.fit-original .page-img {
   max-width: none;
   max-height: none;
 }

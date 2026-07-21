@@ -16,9 +16,32 @@ const total = computed(() => pages.value.length);
 
 const scrollRef = ref<HTMLElement | null>(null);
 const currentPage = ref(1);
+const failedPages = ref(new Set<number>());
+const retries = ref(new Map<number, number>());
 
 function pageSrc(i: number): string {
-  return imageProxyUrl(pages.value[i] ?? "");
+  const url = imageProxyUrl(pages.value[i] ?? "");
+  const r = retries.value.get(i);
+  if (r && r > 0 && url) {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}_retry=${r}`;
+  }
+  return url;
+}
+
+function onImageError(i: number) {
+  const s = new Set(failedPages.value);
+  s.add(i);
+  failedPages.value = s;
+}
+
+function reloadPage(i: number) {
+  const s = new Set(failedPages.value);
+  s.delete(i);
+  failedPages.value = s;
+  const m = new Map(retries.value);
+  m.set(i, (m.get(i) ?? 0) + 1);
+  retries.value = m;
 }
 
 function computeCurrentPage() {
@@ -28,9 +51,9 @@ function computeCurrentPage() {
 
   let best = 0;
   let bestDist = Infinity;
-  const imgs = container.querySelectorAll<HTMLElement>(".page-img");
-  for (let i = 0; i < imgs.length; i++) {
-    const el = imgs[i];
+  const wraps = container.querySelectorAll<HTMLElement>(".page-wrap");
+  for (let i = 0; i < wraps.length; i++) {
+    const el = wraps[i];
     const top = el.offsetTop;
     const center = top + el.offsetHeight / 2;
     const dist = Math.abs(viewCenter - center);
@@ -50,7 +73,7 @@ function onScroll() {
 
 function scrollToPage(idx: number, smooth = true) {
   if (!scrollRef.value || idx < 0 || idx >= total.value) return;
-  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-img")[idx];
+  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-wrap")[idx];
   if (!el) return;
   el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
@@ -78,6 +101,8 @@ async function load() {
   const all = await localList();
   local.value =
     all.find((l) => String(l.id) === String(props.folder)) ?? null;
+  failedPages.value.clear();
+  retries.value.clear();
   await nextTick();
   currentPage.value = 1;
   if (scrollRef.value) {
@@ -140,15 +165,25 @@ async function remove() {
 
     <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
       <div v-if="!total" class="loading">No pages found.</div>
-      <img
+      <div
         v-for="(_p, i) in pages"
         :key="i"
-        :src="pageSrc(i)"
-        :alt="`page ${i + 1}`"
-        loading="lazy"
-        decoding="async"
-        class="page-img"
-      />
+        class="page-wrap"
+      >
+        <img
+          :src="pageSrc(i)"
+          :alt="`page ${i + 1}`"
+          loading="lazy"
+          decoding="async"
+          class="page-img"
+          @error="onImageError(i)"
+          @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
+        />
+        <div v-if="failedPages.has(i)" class="page-error">
+          <span>⚠</span>
+          <button class="btn" @click="reloadPage(i)">Reload</button>
+        </div>
+      </div>
     </div>
 
     <footer class="bar">
@@ -225,20 +260,41 @@ async function remove() {
   background: #000;
 }
 
-.scroll-strip img {
+.page-wrap {
+  position: relative;
+}
+
+.page-wrap img {
   display: block;
   margin: 0 auto 2px;
   min-height: 1px;
 }
 
-.fit-height .scroll-strip img {
+.page-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ff9e9e;
+  font-size: 1.5rem;
+}
+.page-error .btn {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+}
+
+.fit-height .page-wrap img {
   height: 100%;
   width: auto;
   max-width: 100%;
   object-fit: contain;
 }
 
-.fit-width .scroll-strip img {
+.fit-width .page-wrap img {
   width: 100%;
   height: auto;
 }
@@ -246,7 +302,7 @@ async function remove() {
 .fit-original .scroll-strip {
   overflow-x: auto;
 }
-.fit-original .scroll-strip img {
+.fit-original .page-wrap img {
   max-width: none;
   max-height: none;
 }
