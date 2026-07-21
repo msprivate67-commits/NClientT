@@ -67,7 +67,6 @@ pub fn open_challenge(
     )
     .title("Cloudflare verification — solve then close")
     .inner_size(520.0, 700.0)
-    .center()
     .resizable(true)
     .initialization_script(&probe_script())
     .build()

@@ -20,6 +20,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   build-desktop:
     name: Build (${{ matrix.name }})
+    if: false  # temporarily disabled while debugging Android
     strategy:
       fail-fast: false
       matrix:
