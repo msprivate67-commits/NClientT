@@ -346,17 +346,24 @@ pub fn cookie_db_path(app_data: &Path) -> PathBuf {
 }
 
 /// Default download directory, platform-aware.
-/// On Android we use the external app storage so downloads can be accessed by
-/// file managers and other apps without root.
+/// On Android we try external app storage first (accessible via file manager);
+/// if that fails, fall back to internal app data (always writable).
 fn default_download_dir(app_data: &Path) -> PathBuf {
     #[cfg(target_os = "android")]
     {
-        let external = std::env::var("EXTERNAL_STORAGE")
-            .unwrap_or_else(|_| "/storage/emulated/0".into());
-        PathBuf::from(format!(
-            "{}/Android/data/com.nclientt.app/files/NClientT/Download",
-            external.trim_end_matches('/')
-        ))
+        if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
+            let ext_path = PathBuf::from(format!(
+                "{}/Android/data/com.nclientt.app/files/NClientT/Download",
+                ext.trim_end_matches('/')
+            ));
+            if std::fs::create_dir_all(&ext_path).is_ok() {
+                return ext_path;
+            }
+            log::warn!("Cannot create external download dir; using internal storage");
+        }
+        let fallback = app_data.join("NClientT").join("Download");
+        log::info!("Android download dir: {}", fallback.display());
+        return fallback;
     }
     #[cfg(not(target_os = "android"))]
     {

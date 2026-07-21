@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { RouterView, useRouter } from "vue-router";
+import { computed, onMounted, ref } from "vue";
+import { RouterView, useRoute, useRouter } from "vue-router";
 
 import AppSidebar from "@/components/AppSidebar.vue";
 import { cloudflareOpenChallenge } from "@/api";
@@ -14,9 +14,15 @@ const downloads = useDownloadsStore();
 const favorites = useFavoritesStore();
 const tags = useTagsStore();
 const router = useRouter();
+const route = useRoute();
 
 const sidebarOpen = ref(true);
 const cloudflareBanner = ref(false);
+
+const canGoBack = computed(() => {
+  const detailRoutes = ["gallery", "reader", "reader-local"];
+  return detailRoutes.includes(String(route.name));
+});
 
 onMounted(async () => {
   try {
@@ -45,6 +51,10 @@ async function solveCloudflare() {
 function go(route: string) {
   router.push({ name: route });
 }
+
+function goBack() {
+  router.back();
+}
 </script>
 
 <template>
@@ -52,6 +62,9 @@ function go(route: string) {
     <AppSidebar :open="sidebarOpen" @toggle="toggleSidebar" />
     <main class="content">
       <header class="topbar">
+        <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" title="Back">
+          ←
+        </button>
         <button class="icon-btn" @click="toggleSidebar">☰</button>
         <div class="search" @click="go('search')">
           <span>🔍</span>
@@ -103,6 +116,11 @@ function go(route: string) {
   font-size: 1.1rem;
   cursor: pointer;
   padding: 4px 8px;
+}
+.back-btn {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-right: -4px;
 }
 .search {
   flex: 1;
