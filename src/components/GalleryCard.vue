@@ -13,6 +13,15 @@ const props = defineProps<{
   local?: boolean;
   /** Optional override thumbnail (used for local galleries). */
   thumbnailOverride?: string | null;
+  /** When true, the card shows a selection checkbox. */
+  selectable?: boolean;
+  /** Whether this card is currently selected. */
+  selected?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: "select", id: number): void;
+  (e: "deselect", id: number): void;
 }>();
 
 const router = useRouter();
@@ -42,10 +51,22 @@ const languageFlag = computed(() => {
 });
 
 function open() {
+  if (props.selectable) {
+    handleSelect();
+    return;
+  }
   if (props.local) {
     router.push({ name: "reader-local", params: { folder: encodeURIComponent(props.gallery.id.toString()) } });
   } else {
     overlay.openGallery(props.gallery.id);
+  }
+}
+
+function handleSelect() {
+  if (props.selected) {
+    emit("deselect", props.gallery.id);
+  } else {
+    emit("select", props.gallery.id);
   }
 }
 
@@ -61,11 +82,14 @@ async function toggleFav(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="card" @click="open">
+  <div class="card" :class="{ selected, selectable }" @click="open">
     <div class="thumb">
       <img v-if="src" :src="src" loading="lazy" :alt="gallery.title" />
       <div v-else class="placeholder">No cover</div>
-      <span v-if="languageFlag" class="flag">{{ languageFlag }}</span>
+      <div v-if="selectable" class="select-check" :class="{ checked: selected }" @click.stop="handleSelect">
+        <span v-if="selected">✓</span>
+      </div>
+      <span v-if="languageFlag && !selectable" class="flag">{{ languageFlag }}</span>
       <span v-if="gallery.num_pages" class="pages">{{ gallery.num_pages }}p</span>
       <button
         class="fav"
@@ -161,5 +185,37 @@ async function toggleFav(e: MouseEvent) {
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--text);
+}
+
+.select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: background 0.15s, border-color 0.15s;
+}
+.select-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.card.selectable {
+  cursor: default;
+}
+.card.selectable:hover {
+  transform: none;
+  box-shadow: none;
+}
+.card.selected {
+  outline: 2px solid var(--accent);
+  border-radius: 8px;
 }
 </style>

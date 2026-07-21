@@ -198,6 +198,7 @@ watch(fitMode, () => {
         loading="lazy"
         decoding="async"
         class="page-img"
+        :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
       />
     </div>
 

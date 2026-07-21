@@ -32,6 +32,14 @@ const statusLabel = computed(() => {
       return "Queued";
   }
 });
+
+const speedLabel = computed(() => {
+  if (props.entry.status !== "downloading" || props.entry.bytes_per_second == null) return "";
+  const bps = props.entry.bytes_per_second;
+  if (bps >= 1024 * 1024) return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+  if (bps >= 1024) return `${(bps / 1024).toFixed(0)} KB/s`;
+  return `${bps.toFixed(0)} B/s`;
+});
 </script>
 
 <template>
@@ -40,6 +48,7 @@ const statusLabel = computed(() => {
       <div class="title" :title="entry.title">{{ entry.title }}</div>
       <div class="sub">
         <span class="status" :data-status="entry.status">{{ statusLabel }}</span>
+        <span v-if="speedLabel" class="speed">{{ speedLabel }}</span>
         <span class="pages">{{ entry.done_pages }}/{{ entry.total_pages }}</span>
       </div>
       <div class="bar">
@@ -103,6 +112,10 @@ const statusLabel = computed(() => {
 }
 .status[data-status="failed"] {
   color: #ff8e8e;
+}
+.speed {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 .bar {
   height: 4px;

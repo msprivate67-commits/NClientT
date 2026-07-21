@@ -185,6 +185,7 @@ export interface Settings {
   show_titles: boolean;
 
   column_count: number;
+  page_thumbnail_columns: number;
   use_rtl: boolean;
   default_zoom_pct: number;
   button_change_page: boolean;
@@ -240,6 +241,8 @@ export interface DownloadEntry {
   status: DownloadStatus;
   done_pages: number;
   total_pages: number;
+  bytes_per_second: number | null;
+  total_bytes: number | null;
 }
 
 export interface DownloadProgress {
@@ -251,6 +254,8 @@ export interface DownloadProgress {
   total_pages: number;
   current_page: number | null;
   error: string | null;
+  bytes_per_second: number | null;
+  total_bytes: number | null;
 }
 
 export interface DownloadRequest {

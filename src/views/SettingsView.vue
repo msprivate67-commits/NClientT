@@ -245,6 +245,10 @@ onMounted(async () => {
           <input v-model.number="draft.column_count" type="number" min="2" max="10" />
         </div>
         <div class="field">
+          <label>Page thumbnail columns (0 = auto)</label>
+          <input v-model.number="draft.page_thumbnail_columns" type="number" min="0" max="10" />
+        </div>
+        <div class="field">
           <label>Default zoom (%)</label>
           <input v-model.number="draft.default_zoom_pct" type="number" min="20" max="300" />
         </div>

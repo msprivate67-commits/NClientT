@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: Settings = {
   remove_avoided_galleries: true,
   show_titles: true,
   column_count: 3,
+  page_thumbnail_columns: 0,
   use_rtl: false,
   default_zoom_pct: 100,
   button_change_page: true,

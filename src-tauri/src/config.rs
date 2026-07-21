@@ -164,6 +164,9 @@ pub struct Settings {
 
     // --- display ------------------------------------------------------------
     pub column_count: u32,
+    /// Number of page-thumbnail columns in gallery detail.
+    /// 0 = auto (responsive CSS grid). 2-10 = fixed count.
+    pub page_thumbnail_columns: u32,
     pub use_rtl: bool,
     pub default_zoom_pct: u32,
     pub button_change_page: bool,
@@ -206,6 +209,7 @@ impl Default for Settings {
             remove_avoided_galleries: true,
             show_titles: true,
             column_count: 3,
+            page_thumbnail_columns: 0,
             use_rtl: false,
             default_zoom_pct: 100,
             button_change_page: true,
@@ -346,23 +350,18 @@ pub fn cookie_db_path(app_data: &Path) -> PathBuf {
 }
 
 /// Default download directory, platform-aware.
-/// On Android we try external app storage first (accessible via file manager);
-/// if that fails, fall back to internal app data (always writable).
+/// On Android we use the public Download directory.
 fn default_download_dir(app_data: &Path) -> PathBuf {
     #[cfg(target_os = "android")]
     {
-        if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
-            let ext_path = PathBuf::from(format!(
-                "{}/Android/data/com.nclientt.app/files/NClientT/Download",
-                ext.trim_end_matches('/')
-            ));
-            if std::fs::create_dir_all(&ext_path).is_ok() {
-                return ext_path;
-            }
-            log::warn!("Cannot create external download dir; using internal storage");
+        let public = PathBuf::from("/storage/emulated/0/Download/NClientT");
+        if std::fs::create_dir_all(&public).is_ok() {
+            log::info!("Android download dir: {}", public.display());
+            return public;
         }
+        log::warn!("Cannot create public download dir; using internal storage");
         let fallback = app_data.join("NClientT").join("Download");
-        log::info!("Android download dir: {}", fallback.display());
+        log::info!("Android download dir (fallback): {}", fallback.display());
         return fallback;
     }
     #[cfg(not(target_os = "android"))]

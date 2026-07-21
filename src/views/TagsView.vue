@@ -38,7 +38,9 @@ const types: (TagType | "all")[] = [
 ];
 
 function onClick(t: any) {
-  router.push({ name: "search", query: { tags: `${t.id}:accepted` } });
+  const name = encodeURIComponent(t.name);
+  const type = encodeURIComponent(t.type);
+  router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
 
 async function cycle(t: any) {

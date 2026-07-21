@@ -5,12 +5,14 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
+import { useDownloadsStore } from "@/stores/downloads";
 import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType } from "@/types";
 
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
+const downloads = useDownloadsStore();
 const overlay = useOverlayStore();
 
 const page = ref(1);
@@ -20,6 +22,41 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
+
+const selectMode = ref(false);
+const selected = ref(new Set<number>());
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value;
+  selected.value.clear();
+}
+
+function toggleSelect(id: number) {
+  const s = selected.value;
+  if (s.has(id)) {
+    s.delete(id);
+  } else {
+    s.add(id);
+  }
+  selected.value = new Set(s);
+}
+
+function selectAll() {
+  selected.value = new Set(items.value.map((g) => g.id));
+}
+
+function deselectAll() {
+  selected.value.clear();
+}
+
+async function downloadSelected() {
+  if (selected.value.size === 0) return;
+  for (const id of selected.value) {
+    await downloads.enqueue({ gallery_id: id });
+  }
+  selectMode.value = false;
+  selected.value.clear();
+}
 
 const sorts: { value: SortType; label: string }[] = [
   { value: "recent_all_time", label: "Recent" },
@@ -79,6 +116,21 @@ watch(page, load);
       <div class="view-title">Home</div>
       <div class="toolbar">
         <button
+          class="btn"
+          :class="{ primary: selectMode }"
+          @click="toggleSelectMode"
+        >
+          {{ selectMode ? "✕ Cancel" : "☑ Select" }}
+        </button>
+        <template v-if="selectMode">
+          <button class="btn" @click="selectAll">Select all</button>
+          <button class="btn" @click="deselectAll">Deselect all</button>
+          <button class="btn primary" :disabled="selected.size === 0" @click="downloadSelected">
+            Download ({{ selected.size }})
+          </button>
+        </template>
+        <template v-else>
+        <button
           v-for="s in sorts"
           :key="s.value"
           class="btn"
@@ -106,6 +158,7 @@ watch(page, load);
             {{ l.label }}
           </button>
         </div>
+        </template>
       </div>
     </div>
 
@@ -116,6 +169,10 @@ watch(page, load);
       :loading="loading"
       empty-title="No galleries"
       empty-hint="Try a different sort or check your mirror in Settings."
+      :selectable="selectMode"
+      :selected="selected"
+      @select="toggleSelect"
+      @deselect="toggleSelect"
     />
 
     <Pagination :page="page" :num-pages="numPages" @change="page = $event" />

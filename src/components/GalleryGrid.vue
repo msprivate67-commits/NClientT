@@ -8,6 +8,13 @@ defineProps<{
   loading?: boolean;
   emptyTitle?: string;
   emptyHint?: string;
+  selectable?: boolean;
+  selected?: Set<number>;
+}>();
+
+const emit = defineEmits<{
+  (e: "select", id: number): void;
+  (e: "deselect", id: number): void;
 }>();
 </script>
 
@@ -23,6 +30,10 @@ defineProps<{
       v-for="g in galleries"
       :key="g.id"
       :gallery="g"
+      :selectable="selectable"
+      :selected="selected?.has(g.id)"
+      @select="emit('select', $event)"
+      @deselect="emit('deselect', $event)"
     />
   </div>
 </template>

@@ -24,6 +24,14 @@ const router = useRouter();
 const gallery = useGalleryStore();
 const favorites = useFavoritesStore();
 const downloads = useDownloadsStore();
+
+const downloadState = computed(() => {
+  if (!g.value) return null;
+  const entry = downloads.items.find(
+    (d) => d.id === g.value!.id && (d.status === "downloading" || d.status === "pending"),
+  );
+  return entry?.status ?? null;
+});
 const settings = useSettingsStore();
 const overlay = useOverlayStore();
 
@@ -60,6 +68,12 @@ const tagsByType = computed(() => {
     map.set(t.type, list);
   }
   return map;
+});
+
+const thumbColumns = computed(() => {
+  const cols = settings.settings.page_thumbnail_columns;
+  if (cols <= 0) return "auto";
+  return cols;
 });
 
 async function load() {
@@ -136,7 +150,9 @@ async function onTagClick(t: any) {
   if (props.overlay) {
     overlay.closeAll();
   }
-  router.push({ name: "search", query: { tags: `${t.id}:accepted` } });
+  const name = encodeURIComponent(t.name);
+  const type = encodeURIComponent(t.type);
+  router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
 </script>
 
@@ -171,7 +187,16 @@ async function onTagClick(t: any) {
         </div>
         <div class="actions">
           <button class="btn primary" @click="read">📖 Read</button>
-          <button class="btn" @click="download">⬇ Download</button>
+          <button
+            class="btn"
+            :disabled="downloadState !== null"
+            :class="{ downloading: downloadState === 'downloading', queued: downloadState === 'pending' }"
+            @click="download"
+          >
+            <template v-if="downloadState === 'downloading'">⏳ Downloading…</template>
+            <template v-else-if="downloadState === 'pending'">⏳ Queued…</template>
+            <template v-else>⬇ Download</template>
+          </button>
           <button
             class="btn"
             :class="{ primary: g.is_favorited || favorites.ids.has(g.id) }"
@@ -202,7 +227,10 @@ async function onTagClick(t: any) {
 
       <section v-if="g.pages.length" class="page-thumbs">
         <div class="section-title">Pages</div>
-        <div class="thumb-strip">
+        <div
+          class="thumb-grid"
+          :style="thumbColumns === 'auto' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : { gridTemplateColumns: `repeat(${thumbColumns}, 1fr)` }"
+        >
           <div
             v-for="(page, i) in g.pages"
             :key="i"
@@ -347,6 +375,20 @@ async function onTagClick(t: any) {
   gap: 8px;
   flex-wrap: wrap;
 }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn.downloading {
+  opacity: 0.7;
+  cursor: default;
+  color: var(--accent);
+}
+.btn.queued {
+  opacity: 0.7;
+  cursor: default;
+  color: #ffce80;
+}
 .body {
   margin-top: 8px;
 }
@@ -359,18 +401,11 @@ async function onTagClick(t: any) {
 .page-thumbs {
   margin-top: 22px;
 }
-.thumb-strip {
-  display: flex;
+.thumb-grid {
+  display: grid;
   gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 8px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
 }
 .thumb-item {
-  flex-shrink: 0;
-  width: 120px;
   aspect-ratio: 3 / 4;
   border-radius: 6px;
   overflow: hidden;

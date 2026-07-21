@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, defineAsyncComponent } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch, defineAsyncComponent } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 
 import AppSidebar from "@/components/AppSidebar.vue";
@@ -69,6 +69,38 @@ function goBack() {
     router.back();
   }
 }
+
+function onPopstate() {
+  if (overlay.hasAny()) {
+    overlay.pop();
+    history.pushState(null, "", window.location.href);
+  }
+}
+
+watch(
+  () => overlay.hasAny(),
+  (has, prev) => {
+    if (has && !prev) {
+      history.pushState(null, "", window.location.href);
+    }
+  },
+);
+
+onMounted(() => {
+  window.addEventListener("popstate", onPopstate);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("popstate", onPopstate);
+});
+
+const globalSpeedLabel = computed(() => {
+  const bps = downloads.totalSpeed;
+  if (bps <= 0) return "";
+  if (bps >= 1024 * 1024) return `↓ ${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+  if (bps >= 1024) return `↓ ${(bps / 1024).toFixed(0)} KB/s`;
+  return `↓ ${bps.toFixed(0)} B/s`;
+});
 </script>
 
 <template>
@@ -108,6 +140,8 @@ function goBack() {
         <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
       </div>
     </Transition>
+
+    <div v-if="globalSpeedLabel" class="global-speed">{{ globalSpeedLabel }}</div>
   </div>
 </template>
 
@@ -210,5 +244,19 @@ function goBack() {
 }
 .slide-in-leave-to {
   transform: translateX(100%);
+}
+
+.global-speed {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 </style>

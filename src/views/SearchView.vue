@@ -8,6 +8,7 @@ import TagChip from "@/components/TagChip.vue";
 import { tagsSearch } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
+import { useDownloadsStore } from "@/stores/downloads";
 import { useTagsStore } from "@/stores/tags";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType, Tag } from "@/types";
@@ -16,6 +17,7 @@ const route = useRoute();
 const router = useRouter();
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
+const downloads = useDownloadsStore();
 const tagsStore = useTagsStore();
 
 const query = ref(String(route.query.q ?? ""));
@@ -30,6 +32,41 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
+
+const selectMode = ref(false);
+const selectedIds = ref(new Set<number>());
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value;
+  selectedIds.value.clear();
+}
+
+function toggleSelect(id: number) {
+  const s = selectedIds.value;
+  if (s.has(id)) {
+    s.delete(id);
+  } else {
+    s.add(id);
+  }
+  selectedIds.value = new Set(s);
+}
+
+function selectAllIds() {
+  selectedIds.value = new Set(items.value.map((g) => g.id));
+}
+
+function deselectAllIds() {
+  selectedIds.value.clear();
+}
+
+async function downloadSelected() {
+  if (selectedIds.value.size === 0) return;
+  for (const id of selectedIds.value) {
+    await downloads.enqueue({ gallery_id: id });
+  }
+  selectMode.value = false;
+  selectedIds.value.clear();
+}
 
 const tagQuery = ref("");
 const suggestions = ref<Tag[]>([]);
@@ -55,15 +92,18 @@ function parseTagsParam(s: string): Tag[] {
   if (!s) return [];
   const out: Tag[] = [];
   for (const part of s.split(",")) {
-    const [idStr, status] = part.split(":");
-    const id = Number(idStr);
+    const segments = part.split(":");
+    const id = Number(segments[0]);
     if (!id) continue;
+    const status = (segments[1] as Tag["status"]) ?? "accepted";
+    const name = segments.length > 2 ? decodeURIComponent(segments[2]) : "";
+    const type = (segments.length > 3 ? decodeURIComponent(segments[3]) : "tag") as Tag["type"];
     out.push({
       id,
-      name: "",
-      type: "tag",
+      name,
+      type,
       count: 0,
-      status: (status as Tag["status"]) ?? "accepted",
+      status,
     });
   }
   return out;
@@ -217,13 +257,23 @@ watch(() => route.query, () => {
     </form>
 
     <div class="field tag-input">
-      <input
-        v-model="tagQuery"
-        type="text"
-        placeholder="Add a tag filter…"
-        @input="searchSuggestions"
-        @keydown.enter.prevent="suggestions[0] && addTag(suggestions[0])"
-      />
+      <div class="tag-input-row">
+        <input
+          v-model="tagQuery"
+          type="text"
+          placeholder="Add a tag filter…"
+          @input="searchSuggestions"
+          @keydown.enter.prevent="suggestions[0] && addTag(suggestions[0])"
+        />
+        <button
+          type="button"
+          class="btn primary small"
+          :disabled="suggestions.length === 0"
+          @click="suggestions[0] && addTag(suggestions[0])"
+        >
+          + Add
+        </button>
+      </div>
       <div v-if="suggestions.length" class="suggest">
         <TagChip
           v-for="t in suggestions"
@@ -255,7 +305,32 @@ watch(() => route.query, () => {
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="hasQuery" class="results">
-      <GalleryGrid :galleries="items" :loading="loading" empty-title="No matches" />
+      <div class="toolbar" style="margin-bottom: 10px;">
+        <button
+          class="btn"
+          :class="{ primary: selectMode }"
+          type="button"
+          @click="toggleSelectMode"
+        >
+          {{ selectMode ? "✕ Cancel" : "☑ Select" }}
+        </button>
+        <template v-if="selectMode">
+          <button class="btn" type="button" @click="selectAllIds">Select all</button>
+          <button class="btn" type="button" @click="deselectAllIds">Deselect all</button>
+          <button class="btn primary" type="button" :disabled="selectedIds.size === 0" @click="downloadSelected">
+            Download ({{ selectedIds.size }})
+          </button>
+        </template>
+      </div>
+      <GalleryGrid
+        :galleries="items"
+        :loading="loading"
+        empty-title="No matches"
+        :selectable="selectMode"
+        :selected="selectedIds"
+        @select="toggleSelect"
+        @deselect="toggleSelect"
+      />
       <Pagination :page="page" :num-pages="numPages" @change="changePage" />
     </div>
     <div v-else class="hint-block">
@@ -282,6 +357,19 @@ watch(() => route.query, () => {
 }
 .tag-input {
   margin-bottom: 8px;
+}
+.tag-input-row {
+  display: flex;
+  gap: 6px;
+}
+.tag-input-row input {
+  flex: 1;
+  min-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
 }
 .suggest {
   display: flex;

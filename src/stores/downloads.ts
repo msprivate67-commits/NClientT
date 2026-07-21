@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 
 import {
   downloadClear,
@@ -30,6 +30,8 @@ export const useDownloadsStore = defineStore("downloads", () => {
       status: p.status,
       done_pages: p.done_pages,
       total_pages: p.total_pages,
+      bytes_per_second: p.bytes_per_second,
+      total_bytes: p.total_bytes,
     };
     if (idx >= 0) {
       items.value[idx] = { ...items.value[idx], ...entry };
@@ -86,8 +88,21 @@ export const useDownloadsStore = defineStore("downloads", () => {
     items.value = items.value.filter((i) => i.status !== "finished");
   }
 
+  const hasActive = computed(() => items.value.some((i) => i.status === "downloading"));
+  const totalSpeed = computed(() => {
+    let sum = 0;
+    for (const i of items.value) {
+      if (i.status === "downloading" && i.bytes_per_second != null) {
+        sum += i.bytes_per_second;
+      }
+    }
+    return sum;
+  });
+
   return {
     items,
+    hasActive,
+    totalSpeed,
     init,
     dispose,
     refresh,

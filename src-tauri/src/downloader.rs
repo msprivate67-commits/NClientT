@@ -12,6 +12,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -62,6 +64,8 @@ pub struct DownloadProgress {
     pub total_pages: usize,
     pub current_page: Option<usize>,
     pub error: Option<String>,
+    pub bytes_per_second: Option<f64>,
+    pub total_bytes: Option<u64>,
 }
 
 /// Request payload used by the frontend to start a download.
@@ -95,6 +99,8 @@ struct DownloadTask {
     status: RwLock<DownloadStatus>,
     pause_flag: Mutex<bool>,
     cancel_flag: Mutex<bool>,
+    bytes_downloaded: AtomicU64,
+    start_time: Mutex<Option<Instant>>,
 }
 
 impl DownloadTask {
@@ -110,6 +116,26 @@ impl DownloadTask {
     fn next_pending(&self) -> Option<usize> {
         let g = self.done.lock();
         g.iter().position(|b| !b)
+    }
+    fn add_bytes(&self, n: u64) {
+        let mut t = self.start_time.lock();
+        if t.is_none() {
+            *t = Some(Instant::now());
+        }
+        self.bytes_downloaded.fetch_add(n, Ordering::SeqCst);
+    }
+    fn speed(&self) -> Option<f64> {
+        let t = self.start_time.lock();
+        let start = (*t)?;
+        let elapsed = start.elapsed().as_secs_f64();
+        if elapsed < 0.1 {
+            return None;
+        }
+        let bytes = self.bytes_downloaded.load(Ordering::SeqCst) as f64;
+        Some(bytes / elapsed)
+    }
+    fn total_bytes_downloaded(&self) -> u64 {
+        self.bytes_downloaded.load(Ordering::SeqCst)
     }
 }
 
@@ -255,6 +281,8 @@ impl DownloadManager {
             status: RwLock::new(DownloadStatus::Pending),
             pause_flag: Mutex::new(false),
             cancel_flag: Mutex::new(false),
+            bytes_downloaded: AtomicU64::new(0),
+            start_time: Mutex::new(None),
         });
 
         let entry = DownloadEntry {
@@ -341,13 +369,13 @@ impl DownloadManager {
             drop(permit);
 
             match res {
-                Ok(()) => {
+                Ok(written) => {
                     task.mark_done(idx);
+                    task.add_bytes(written);
                     self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
                 }
                 Err(e) => {
                     log::warn!("page {} fetch failed for gallery {}: {}", page_index, task.id, e);
-                    // Retry once after a short delay, otherwise mark task failed.
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                     let http = http.clone();
                     let settings = settings.clone();
@@ -355,8 +383,9 @@ impl DownloadManager {
                     let file_path2 = file_path.clone();
                     let retry = download_one_async(&http, &settings, &url2, &file_path2).await;
                     match retry {
-                        Ok(()) => {
+                        Ok(written) => {
                             task.mark_done(idx);
+                            task.add_bytes(written);
                             self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
                         }
                         Err(_) => {
@@ -541,18 +570,13 @@ impl DownloadManager {
     ) {
         let app_opt = self.app.lock();
         if let Some(app) = app_opt.as_ref() {
-            let title = self
-                .tasks
-                .read()
-                .get(&id)
-                .map(|t| t.title.clone())
-                .unwrap_or_default();
-            let folder = self
-                .tasks
-                .read()
-                .get(&id)
-                .map(|t| t.folder.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let tasks = self.tasks.read();
+            let task = tasks.get(&id);
+            let title = task.map(|t| t.title.clone()).unwrap_or_default();
+            let folder = task.map(|t| t.folder.to_string_lossy().to_string()).unwrap_or_default();
+            let (bps, tbytes) = task
+                .map(|t| (t.speed(), Some(t.total_bytes_downloaded())))
+                .unwrap_or((None, None));
             let _ = app.emit(
                 "download:progress",
                 DownloadProgress {
@@ -564,6 +588,8 @@ impl DownloadManager {
                     total_pages: total,
                     current_page: current,
                     error,
+                    bytes_per_second: bps,
+                    total_bytes: tbytes,
                 },
             );
         }
@@ -637,10 +663,9 @@ async fn download_one_async(
     settings: &crate::config::Settings,
     url: &str,
     dest: &Path,
-) -> AppResult<()> {
+) -> AppResult<u64> {
     let resp = http.get_stream(url, settings).await?;
     let expected = resp.content_length();
-    // Stream to a temp file then rename on success.
     let tmp = dest.with_extension("part");
     if let Some(parent) = tmp.parent() {
         std::fs::create_dir_all(parent).ok();
@@ -662,7 +687,7 @@ async fn download_one_async(
         }
     }
     tokio::fs::rename(&tmp, dest).await?;
-    Ok(())
+    Ok(written)
 }
 
 fn list_image_files(folder: &Path) -> Vec<String> {
