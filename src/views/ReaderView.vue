@@ -248,7 +248,6 @@ watch(fitMode, () => {
         v-for="(_p, i) in pages"
         :key="i"
         class="page-wrap"
-        :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
       >
         <img
           v-if="thumbSrc(i)"
@@ -257,6 +256,7 @@ watch(fitMode, () => {
           loading="lazy"
           decoding="async"
           class="page-thumb"
+          :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
         />
         <img
           :src="pageSrc(i)"
@@ -264,6 +264,7 @@ watch(fitMode, () => {
           :loading="Math.abs(i - (currentPage - 1)) <= 1 ? 'eager' : 'lazy'"
           decoding="async"
           class="page-img"
+          :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
           @error="onImageError(i)"
           @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
         />
@@ -346,21 +347,23 @@ watch(fitMode, () => {
 }
 
 .page-wrap {
-  display: grid;
-}
-.page-wrap > img {
-  grid-area: 1 / 1;
-  min-height: 1px;
+  position: relative;
+  margin-bottom: 2px;
 }
 
 .page-thumb {
   display: block;
-  margin: 0 auto 2px;
+  margin: 0 auto;
+  min-height: 1px;
 }
 
 .page-img {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   display: block;
-  margin: 0 auto 2px;
+  margin: 0 auto;
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 1;
@@ -386,6 +389,9 @@ watch(fitMode, () => {
   padding: 4px 12px;
 }
 
+.fit-height .page-wrap {
+  height: 100%;
+}
 .fit-height .page-thumb,
 .fit-height .page-img {
   height: 100%;
