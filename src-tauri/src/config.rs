@@ -352,36 +352,145 @@ pub fn cookie_db_path(app_data: &Path) -> PathBuf {
 }
 
 /// Default download directory, platform-aware.
-/// On Android we first try the public Download directory, then the app-specific
-/// external storage (which works without special permissions on API 29+),
-/// lastly fall back to internal app data.
+///
+/// On Android the download dir lives under the app's own **external files
+/// directory** (`<external>/Android/data/com.nclientt.app/files/NClientT/Download`),
+/// which is part of scoped storage: it is world-visible in file managers yet
+/// needs **no runtime permission** to read/write on Android 10+ (API 29+). This
+/// is the standard location for app-managed downloadable content.
+///
+/// The Tauri path API (`app_data_dir`) resolves to *internal* private storage
+/// (`/data/user/0/<pkg>`) on Android, which is the wrong place for large
+/// downloads — so we resolve the external files directory ourselves via
+/// [`android_external_files_dir`] and fall back to internal storage only if
+/// every external candidate is unwritable.
 fn default_download_dir(app_data: &Path) -> PathBuf {
     #[cfg(target_os = "android")]
     {
-        let public = PathBuf::from("/storage/emulated/0/Download/NClientT");
-        if std::fs::create_dir_all(&public).is_ok() {
-            log::info!("Android download dir: {}", public.display());
-            return public;
-        }
-        log::warn!("Cannot use public download dir; trying app external storage");
-        if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
-            let ext_path = PathBuf::from(format!(
-                "{}/Android/data/com.nclientt.app/files/NClientT/Download",
-                ext.trim_end_matches('/')
-            ));
-            if std::fs::create_dir_all(&ext_path).is_ok() {
-                log::info!("Android download dir (app external): {}", ext_path.display());
-                return ext_path;
-            }
+        if let Some(ext) = android_external_files_dir() {
+            let dir = ext.join("NClientT").join("Download");
+            log::info!("Android download dir (app external): {}", dir.display());
+            return dir;
         }
         let fallback = app_data.join("NClientT").join("Download");
-        log::info!("Android download dir (internal): {}", fallback.display());
-        return fallback;
+        log::warn!(
+            "No writable app-external storage found; using internal: {}",
+            fallback.display()
+        );
+        fallback
     }
     #[cfg(not(target_os = "android"))]
     {
         app_data.join("NClientT").join("Download")
     }
+}
+
+/// Candidate download directories the user can pick from in Settings, in
+/// preference order. Each entry is `(label, path)`. Used by the
+/// `settings_list_download_candidates` command so the frontend can offer a
+/// chooser when the native directory dialog is unavailable (e.g. Android).
+///
+/// On Android this surfaces (1) the public shared Download folder (needs
+/// `MANAGE_EXTERNAL_STORAGE` / all-files-access), (2) the app's own external
+/// files directory under `Android/data/<pkg>/files` (no permission needed), and
+/// (3) internal app storage as a last resort. On other platforms only the
+/// default app-data directory is returned.
+pub fn download_candidates(app_data: &Path) -> Vec<(&'static str, PathBuf)> {
+    let mut out = Vec::new();
+    #[cfg(target_os = "android")]
+    {
+        out.push((
+            "Public Download (requires all-files access)",
+            PathBuf::from("/storage/emulated/0/Download/NClientT"),
+        ));
+        if let Some(ext) = android_external_files_dir() {
+            out.push((
+                "App external storage (recommended)",
+                ext.join("NClientT").join("Download"),
+            ));
+        }
+        out.push((
+            "Internal app storage",
+            app_data.join("NClientT").join("Download"),
+        ));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        out.push(("App data", default_download_dir(app_data)));
+    }
+    out
+}
+
+/// Resolve the app's external files directory on Android, i.e.
+/// `<external_root>/Android/data/com.nclientt.app/files`.
+///
+/// Tauri 2 has no Rust API exposing `Context.getExternalFilesDir()`, and the
+/// legacy `EXTERNAL_STORAGE` env var is no longer populated for app processes
+/// on Android 11+. Instead we probe the well-known external-storage mount
+/// points, build the app-specific `Android/data/<pkg>/files` path under each,
+/// and pick the first one we can actually create **and write** to (creating a
+/// dir alone can succeed on read-only mounts, so a write probe is required).
+///
+/// Returns `None` if no candidate is writable (caller should then use internal
+/// app storage as a last resort).
+#[cfg(target_os = "android")]
+fn android_external_files_dir() -> Option<PathBuf> {
+    /// Package-specific suffix under external storage (scoped-storage app dir).
+    const APP_EXT_SUFFIX: &str = "Android/data/com.nclientt.app/files";
+
+    // Candidate external-storage roots, most common first. Order matters: the
+    // canonical primary external storage is `/storage/emulated/0`; the others
+    // cover vendor/legacy layouts and secondary SD cards.
+    const CANDIDATE_ROOTS: &[&str] = &[
+        "/storage/emulated/0",
+        "/sdcard",
+        "/storage/sdcard0",
+        "/mnt/sdcard",
+        "/storage/self/primary",
+    ];
+
+    // 1. Physical mount points (preferred — always present on real devices).
+    for root in CANDIDATE_ROOTS {
+        let path = PathBuf::from(root).join(APP_EXT_SUFFIX);
+        if dir_is_writable(&path) {
+            log::info!("Android external files dir: {}", path.display());
+            return Some(path);
+        }
+    }
+
+    // 2. Legacy `EXTERNAL_STORAGE` env var, if the vendor still sets it.
+    if let Ok(ext) = std::env::var("EXTERNAL_STORAGE") {
+        let trimmed = ext.trim_end_matches('/');
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed).join(APP_EXT_SUFFIX);
+            if dir_is_writable(&path) {
+                log::info!(
+                    "Android external files dir (via EXTERNAL_STORAGE): {}",
+                    path.display()
+                );
+                return Some(path);
+            }
+        }
+    }
+
+    log::warn!("No writable Android external files dir found among candidates");
+    None
+}
+
+/// Ensure `dir` exists and is writable by creating it (recursively) and writing
+/// a throwaway probe file. The probe file is removed afterwards. Returns `false`
+/// if any step fails — callers treat a `false` as "this location is unusable".
+#[cfg(target_os = "android")]
+fn dir_is_writable(dir: &Path) -> bool {
+    if std::fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join(".write_probe");
+    let writable = std::fs::write(&probe, b"x").is_ok();
+    if writable {
+        let _ = std::fs::remove_file(&probe);
+    }
+    writable
 }
 
 /// Check whether the trailing two bytes of a JPEG file are `FF D9`.

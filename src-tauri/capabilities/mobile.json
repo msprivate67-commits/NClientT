@@ -1,0 +1,42 @@
+{
+  "$schema": "../gen/schemas/android-schema.json",
+  "identifier": "mobile",
+  "description": "Android-only capability granting file-system access to external storage (downloads, local library) and the app's own Android/data directory. Desktop builds are unaffected because of the platforms filter.",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-remove",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "/storage/**" },
+        { "path": "**/Android/data/com.nclientt.app/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$AUDIO/**" },
+        { "path": "$PICTURE/**" },
+        { "path": "$VIDEO/**" },
+        { "path": "$APPCONFIG/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "$APPCACHE/**" }
+      ]
+    },
+    "dialog:default",
+    "opener:default",
+    "opener:allow-open-url",
+    "opener:allow-open-path",
+    "shell:default",
+    "os:default"
+  ]
+}

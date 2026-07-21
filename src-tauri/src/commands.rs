@@ -62,8 +62,50 @@ pub fn settings_get_paths(app: AppHandle) -> AppResult<serde_json::Value> {
 }
 
 #[tauri::command]
-pub async fn settings_pick_directory() -> AppResult<Option<String>> {
-    Ok(None)
+pub async fn settings_pick_directory(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    // No native directory dialog on Android — return the recommended default
+    // (the app's external files directory) so the frontend can prefill the field
+    // and the user can switch via `settings_list_download_candidates`.
+    #[cfg(target_os = "android")]
+    {
+        let candidates = crate::config::download_candidates(&state.config.app_data);
+        // Prefer the "app external storage (recommended)" entry; fall back to
+        // the last candidate (internal storage), which always exists.
+        let pick = candidates
+            .iter()
+            .find(|(label, _)| label.contains("recommended"))
+            .or_else(|| candidates.last())
+            .map(|(_, p)| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| {
+                state
+                    .config
+                    .app_data
+                    .join("NClientT")
+                    .join("Download")
+                    .to_string_lossy()
+                    .to_string()
+            });
+        Ok(Some(pick))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        // Desktop uses the native dialog in the frontend; nothing to return.
+        let _ = state;
+        Ok(None)
+    }
+}
+
+/// Return candidate download directories `(label, path)` the user can pick from
+/// when the native directory dialog is unavailable (Android). See
+/// [`crate::config::download_candidates`].
+#[tauri::command]
+pub fn settings_list_download_candidates(
+    state: State<'_, AppState>,
+) -> AppResult<Vec<(String, String)>> {
+    Ok(crate::config::download_candidates(&state.config.app_data)
+        .into_iter()
+        .map(|(label, path)| (label.to_string(), path.to_string_lossy().to_string()))
+        .collect())
 }
 
 #[tauri::command]

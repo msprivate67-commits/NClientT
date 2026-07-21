@@ -90,6 +90,7 @@ pub fn run() {
             settings_set,
             settings_get_paths,
             settings_pick_directory,
+            settings_list_download_candidates,
             settings_clear_cookies,
             // auth / cloudflare
             auth_get,

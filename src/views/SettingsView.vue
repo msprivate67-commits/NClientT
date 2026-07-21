@@ -11,6 +11,7 @@ import {
   settingsClearCookies,
   settingsGetPaths,
   settingsPickDirectory,
+  settingsListDownloadCandidates,
 } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -66,9 +67,31 @@ async function pickDownloadDir() {
   } catch {
     // Dialog might fail on some platforms (e.g. Android) — try backend fallback
   }
+  // No native dialog (typical on Android): offer the backend-provided
+  // candidate directories so the user can switch between public Download,
+  // the app's own external storage, and internal storage.
   try {
-    const picked = await settingsPickDirectory();
-    if (picked) draft.value.download_dir = picked;
+    const candidates = await settingsListDownloadCandidates();
+    if (candidates.length === 0) {
+      const picked = await settingsPickDirectory();
+      if (picked) draft.value.download_dir = picked;
+      return;
+    }
+    if (candidates.length === 1) {
+      draft.value.download_dir = candidates[0][1];
+      return;
+    }
+    const menu = candidates
+      .map(([label, path], i) => `${i + 1}. ${label}\n   ${path}`)
+      .join("\n\n");
+    const choice = window.prompt(
+      `Choose a download directory (enter the number):\n\n${menu}`,
+      "2",
+    );
+    const idx = Number.parseInt((choice ?? "").trim(), 10) - 1;
+    if (Number.isInteger(idx) && idx >= 0 && idx < candidates.length) {
+      draft.value.download_dir = candidates[idx][1];
+    }
   } catch {
     // Both failed; user can type manually in the editable field
   }

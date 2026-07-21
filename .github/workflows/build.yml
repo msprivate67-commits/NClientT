@@ -48,8 +48,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Init Tauri Android project
-        run: npx tauri android init --ci
+      # gen/android (with the storage-permission AndroidManifest.xml) is
+      # committed to the repo, so we only scaffold it when missing — running
+      # `tauri android init` unconditionally would overwrite our manifest.
+      - name: Init Tauri Android project (only if not scaffolded)
+        run: |
+          if [ ! -d src-tauri/gen/android ]; then
+            npx tauri android init --ci
+          else
+            echo "src-tauri/gen/android already exists, skipping init"
+          fi
 
       - name: Build Android APK
         run: npx tauri android build --apk
