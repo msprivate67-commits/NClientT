@@ -114,6 +114,14 @@ function read() {
   }
 }
 
+function readPage(pageNum: number) {
+  if (props.overlay) {
+    overlay.openReader(id.value, pageNum);
+  } else {
+    router.push({ name: "reader", params: { id: id.value }, query: { page: pageNum } });
+  }
+}
+
 onMounted(load);
 watch(id, load);
 
@@ -189,6 +197,29 @@ async function onTagClick(t: any) {
             show-type
             @click="onTagClick(t)"
           />
+        </div>
+      </section>
+
+      <section v-if="g.pages.length" class="page-thumbs">
+        <div class="section-title">Pages</div>
+        <div class="thumb-strip">
+          <div
+            v-for="(page, i) in g.pages"
+            :key="i"
+            class="thumb-item"
+            @click="readPage(i + 1)"
+          >
+            <img
+              v-if="page.thumbnail || page.path"
+              :src="imageProxyUrl(page.thumbnail || page.path || '')"
+              :alt="`Page ${i + 1}`"
+              loading="lazy"
+              decoding="async"
+              class="thumb-img"
+              @load="($event.target as HTMLImageElement).classList.add('loaded')"
+            />
+            <span class="thumb-label">{{ i + 1 }}</span>
+          </div>
         </div>
       </section>
 
@@ -324,6 +355,59 @@ async function onTagClick(t: any) {
 }
 .related {
   margin-top: 22px;
+}
+.page-thumbs {
+  margin-top: 22px;
+}
+.thumb-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.thumb-item {
+  flex-shrink: 0;
+  width: 120px;
+  aspect-ratio: 3 / 4;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.thumb-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  z-index: 1;
+}
+.thumb-item:active {
+  transform: scale(0.97);
+}
+.thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.thumb-img.loaded {
+  opacity: 1;
+}
+.thumb-label {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
 }
 .comments {
   margin-top: 22px;

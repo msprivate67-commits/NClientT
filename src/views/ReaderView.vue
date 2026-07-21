@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import { imageProxyUrl } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
+import { useOverlayStore } from "@/stores/overlay";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
+const route = useRoute();
 const router = useRouter();
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
+const overlay = useOverlayStore();
 
 const id = computed(() => Number(props.id));
 const fitMode = ref<"width" | "height" | "original">(
@@ -122,13 +125,22 @@ async function load() {
   if (!gallery.current || gallery.current.id !== id.value) {
     await gallery.load(id.value);
   }
+  const start = props.overlay
+    ? overlay.readerPage
+    : Number(route.query.page) || null;
   preloaded.clear();
   await nextTick();
-  currentPage.value = 1;
-  if (scrollRef.value) {
-    scrollRef.value.scrollTop = 0;
+  if (start && start > 0 && start <= total.value) {
+    currentPage.value = start;
+    scrollToPage(start - 1, false);
+  } else {
+    currentPage.value = 1;
+    if (scrollRef.value) {
+      scrollRef.value.scrollTop = 0;
+    }
   }
   preloadNearby();
+  if (props.overlay) overlay.readerPage = null;
 }
 
 onMounted(() => {
