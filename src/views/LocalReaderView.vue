@@ -32,6 +32,13 @@ const currentPage = ref(1);
 const failedPages = ref(new Set<number>());
 const retries = ref(new Map<number, number>());
 
+// Track how many page images have loaded so we don't record spurious
+// page numbers while the layout is still settling.
+const pagesLoaded = ref(0);
+function onPageLoaded(i: number) {
+  pagesLoaded.value = Math.max(pagesLoaded.value, i + 1);
+}
+
 function pageSrc(i: number): string {
   const url = imageProxyUrl(pages.value[i] ?? "");
   const r = retries.value.get(i);
@@ -92,21 +99,21 @@ function onScroll() {
 }
 
 /**
- * Persist the furthest page viewed (high-water mark), mirroring the online
- * reader. Local galleries are keyed by their numeric gallery id, so the read
- * badge shows up on the Local Library cover too. Falls back to 0 silently if
- * the folder has no parseable id.
+ * Report the page the user is actually looking at. We avoid the
+ * high-water-mark approach used by the online reader because in the
+ * local reader `computeCurrentPage()` can be inaccurate before page
+ * images finish loading (empty elements collapse to zero height).
+ * Instead we only report after nearby images are confirmed loaded.
  */
-let reportedMax = 0;
 function reportProgress() {
   const totalVal = total.value;
   if (!totalVal || !local.value) return;
   const page = currentPage.value;
-  if (page > reportedMax) reportedMax = page;
   const gid = local.value.id;
-  if (gid > 0 && reportedMax > 0) {
-    void readProgress.report(gid, reportedMax, totalVal);
-  }
+  if (gid <= 0 || page <= 0) return;
+  // Don't report if the image we think we're on hasn't loaded yet.
+  if (pagesLoaded.value < page) return;
+  void readProgress.report(gid, page, totalVal);
 }
 
 function scrollToPage(idx: number, smooth = true) {
@@ -146,7 +153,7 @@ async function load() {
     all.find((l) => String(l.id) === String(props.folder)) ?? null;
   failedPages.value.clear();
   retries.value.clear();
-  reportedMax = 0;
+  pagesLoaded.value = 0;
   await nextTick();
   currentPage.value = 1;
   if (scrollRef.value) {
@@ -157,7 +164,6 @@ async function load() {
     try {
       const progress = await readProgressGet(local.value.id);
       if (progress && progress.last_page > 1 && progress.last_page <= total.value) {
-        reportedMax = progress.last_page;
         await nextTick();
         currentPage.value = progress.last_page;
         scrollToPage(currentPage.value - 1, false);
@@ -176,7 +182,10 @@ watch(() => props.folder, () => {
 });
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
-  reportProgress();
+  // Always flush the exact page on exit, bypassing the loaded guard.
+  if (local.value && local.value.id > 0 && currentPage.value > 0) {
+    void readProgress.report(local.value.id, currentPage.value, total.value);
+  }
 });
 
 watch(fitMode, () => {
@@ -263,7 +272,7 @@ async function remove() {
           decoding="async"
           class="page-img"
           @error="onImageError(i)"
-          @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
+             @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); onPageLoaded(i); }"
         />
         <div v-if="failedPages.has(i)" class="page-error">
           <AlertTriangle :size="20" />
