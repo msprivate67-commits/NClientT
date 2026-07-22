@@ -32,6 +32,10 @@
     "opener:allow-open-path",
     "shell:default",
     "shell:allow-open",
-    "os:default"
+    "os:default",
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted"
   ]
 }

@@ -3,7 +3,8 @@ import { onMounted, ref } from "vue";
 
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import { localList, localScan } from "@/api";
+import { localScan } from "@/api";
+import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { LocalGallery, SimpleGallery } from "@/types";
 
@@ -11,6 +12,7 @@ const items = ref<LocalGallery[]>([]);
 const scanning = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
+const downloaded = useDownloadedStore();
 
 function toSimple(l: LocalGallery): SimpleGallery {
   return {
@@ -24,20 +26,20 @@ function toSimple(l: LocalGallery): SimpleGallery {
   };
 }
 
-async function load() {
-  items.value = await localList();
-}
-
 async function scan() {
   scanning.value = true;
   try {
     items.value = await localScan();
+    // A scan may pick up galleries newly placed in the download dir (or
+    // remove deleted ones), so re-sync the "downloaded" id set that badges
+    // online covers.
+    await downloaded.refresh();
   } finally {
     scanning.value = false;
   }
 }
 
-onMounted(load);
+onMounted(scan);
 </script>
 
 <template>
@@ -63,7 +65,7 @@ onMounted(load);
     <EmptyState
       v-else
       title="No local galleries"
-      hint="Download galleries, or click Rescan to pick up existing folders in your download dir."
+      hint="Download galleries and they'll appear here automatically. You can also click Rescan to refresh."
     />
   </div>
 </template>

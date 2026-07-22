@@ -595,6 +595,20 @@ impl Database {
         })
     }
 
+    /// IDs of galleries that exist on disk in the local library (downloaded).
+    /// Only rows with a non-zero `gallery_id` count — folders without an id
+    /// marker can't be matched against online galleries anyway.
+    pub fn local_ids(&self) -> AppResult<Vec<i64>> {
+        self.with_conn(|c| {
+            let mut stmt =
+                c.prepare("SELECT gallery_id FROM local_meta WHERE gallery_id != 0")?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, i64>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+    }
+
     pub fn local_all(&self) -> AppResult<Vec<LocalGallery>> {
         self.with_conn(|c| {
             let mut stmt = c.prepare(

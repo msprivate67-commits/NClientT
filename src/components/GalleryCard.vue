@@ -6,6 +6,7 @@ import { imageProxyUrl } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
+import { useDownloadedStore } from "@/stores/downloaded";
 import type { SimpleGallery } from "@/types";
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const router = useRouter();
 const favorites = useFavoritesStore();
 const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
+const downloaded = useDownloadedStore();
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
@@ -57,6 +59,13 @@ const languageFlag = computed(() => {
 
 // Has the user read >= 50% of this gallery? Badged in the bottom-left corner.
 const isRead = computed(() => readProgress.has(props.gallery.id));
+
+// Has the user already downloaded this gallery to the local library? Also
+// badged bottom-left, stacked *below* the read mark when both are present.
+// Local cards are obviously already on disk, so the badge is redundant there.
+const isDownloaded = computed(
+  () => !props.local && downloaded.has(props.gallery.id),
+);
 
 function open() {
   if (props.selectable) {
@@ -100,12 +109,22 @@ async function toggleFav(e: MouseEvent) {
       <span v-if="languageFlag && !selectable" class="flag">{{ languageFlag }}</span>
       <span v-if="gallery.num_pages" class="pages">{{ gallery.num_pages }}p</span>
       <!-- "Read" badge: shown once the user has viewed >= 50% of the pages.
-           Lives bottom-left (the favorite star is bottom-right). -->
+           Lives bottom-left (the favorite star is bottom-right). When a
+           "downloaded" badge is also present it stacks beneath, so we lift the
+           read badge up to leave room. -->
       <span
         v-if="isRead && !selectable"
         class="read-mark"
+        :class="{ stacked: isDownloaded }"
         title="You’ve read this"
       >✓ read</span>
+      <!-- "Downloaded" badge: this gallery already exists on disk in the local
+           library. Sits bottom-left, below the read mark when both show. -->
+      <span
+        v-if="isDownloaded && !selectable"
+        class="downloaded-mark"
+        title="Downloaded"
+      >⬇ downloaded</span>
       <button
         class="fav"
         :class="{ active: favorites.ids.has(gallery.id) }"
@@ -175,6 +194,25 @@ async function toggleFav(e: MouseEvent) {
   bottom: 6px;
   left: 6px;
   background: rgba(40, 170, 90, 0.92);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  transition: bottom 0.15s ease;
+}
+/* When both read + downloaded badges show, lift the read badge above the
+   downloaded one so the two stack instead of overlapping. */
+.read-mark.stacked {
+  bottom: 25px;
+}
+.downloaded-mark {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(60, 130, 220, 0.92);
   color: #fff;
   font-size: 0.66rem;
   font-weight: 600;

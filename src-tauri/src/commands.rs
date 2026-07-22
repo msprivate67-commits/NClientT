@@ -465,6 +465,14 @@ pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     Ok(found)
 }
 
+/// IDs of galleries the user has downloaded (present on disk in the local
+/// library). The frontend uses this to badge online gallery covers with a
+/// "downloaded" mark and to disable re-downloading.
+#[tauri::command]
+pub fn local_ids(state: State<'_, AppState>) -> AppResult<Vec<i64>> {
+    state.db.local_ids()
+}
+
 #[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     let mut items = state.db.local_all().unwrap_or_default();

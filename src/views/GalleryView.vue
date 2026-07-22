@@ -13,6 +13,7 @@ import { useFavoritesStore } from "@/stores/favorites";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
+import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
@@ -21,6 +22,7 @@ const router = useRouter();
 const gallery = useGalleryStore();
 const favorites = useFavoritesStore();
 const downloads = useDownloadsStore();
+const downloaded = useDownloadedStore();
 
 const downloadState = computed(() => {
   if (!g.value) return null;
@@ -38,6 +40,10 @@ const commentsOpen = ref(false);
 const tagsExpanded = ref(false);
 const loading = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
+
+// Is this gallery already on disk in the local library? When true the download
+// button is disabled — re-downloading would just duplicate the folder.
+const isDownloaded = computed(() => (g.value ? downloaded.has(g.value.id) : false));
 useScrollCache(viewRef);
 
 const g = computed(() => gallery.current);
@@ -126,6 +132,8 @@ async function toggleFavorite() {
 
 async function download() {
   if (!g.value) return;
+  if (downloadState.value !== null) return;
+  if (isDownloaded.value) return; // already on disk — nothing to download
   await downloads.enqueue({ gallery_id: g.value.id });
 }
 
@@ -217,12 +225,13 @@ async function onTagClick(t: any) {
           <button class="btn primary" @click="read">📖 Read</button>
           <button
             class="btn"
-            :disabled="downloadState !== null"
-            :class="{ downloading: downloadState === 'downloading', queued: downloadState === 'pending' }"
+            :disabled="downloadState !== null || isDownloaded"
+            :class="{ downloading: downloadState === 'downloading', queued: downloadState === 'pending', done: isDownloaded && downloadState === null }"
             @click="download"
           >
             <template v-if="downloadState === 'downloading'">⏳ Downloading…</template>
             <template v-else-if="downloadState === 'pending'">⏳ Queued…</template>
+            <template v-else-if="isDownloaded" title="Already in your local library">✓ Downloaded</template>
             <template v-else>⬇ Download</template>
           </button>
           <button
@@ -451,6 +460,11 @@ async function onTagClick(t: any) {
   opacity: 0.7;
   cursor: default;
   color: #ffce80;
+}
+.btn.done {
+  opacity: 0.7;
+  cursor: default;
+  color: #6ec16e;
 }
 .body {
   margin-top: 8px;

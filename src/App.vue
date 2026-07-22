@@ -5,13 +5,15 @@ import { onBackButtonPress } from "@tauri-apps/api/app";
 import type { PluginListener } from "@tauri-apps/api/core";
 
 import AppSidebar from "@/components/AppSidebar.vue";
-import { cloudflareOpenChallenge } from "@/api";
+import { cloudflareOpenChallenge, onDownloadProgress } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useTagsStore } from "@/stores/tags";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
+import { useDownloadedStore } from "@/stores/downloaded";
+import { ensureNotificationPermission, handleDownloadNotification } from "@/composables/useNotifications";
 
 const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
 const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
@@ -22,6 +24,7 @@ const favorites = useFavoritesStore();
 const tags = useTagsStore();
 const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
+const downloaded = useDownloadedStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -175,13 +178,31 @@ onMounted(async () => {
       favorites.load(),
       tags.load(),
       readProgress.load(),
+      downloaded.load(),
     ]);
+    // Best-effort: ask for notification permission early so download progress
+    // / completion can be surfaced. No-op where the plugin is unavailable.
+    ensureNotificationPermission().catch(() => {});
     // Soft CF check on launch (best effort).
     const needed = await settings.checkCloudflare();
     cloudflareBanner.value = needed;
   } catch (e) {
     console.error("init failed", e);
   }
+
+  // Watch download progress so we can (a) keep the "downloaded" cover badge in
+  // sync the moment a gallery finishes on disk, and (b) post Android
+  // notifications for progress + completion. Unsubscribed on teardown below.
+  progressUnlisten = await onDownloadProgress(async (p) => {
+    if (p.status === "finished") {
+      // The backend indexes a finished gallery into the local library, so the
+      // id is now on disk — optimistically flip the badge, then re-sync.
+      downloaded.add(p.id);
+      await downloaded.refresh();
+    }
+    // Notifications are guarded internally; safe to always invoke.
+    handleDownloadNotification(p).catch(() => {});
+  });
 });
 
 function toggleSidebar() {
@@ -215,6 +236,12 @@ function goBack() {
 // a safe no-op when there is no route history to pop, so on the root screen the
 // press is simply swallowed and the app stays open.
 let backButtonUnlisten: PluginListener | null = null;
+
+// Unsubscribe handle for the download:progress listener set up in onMounted.
+// Used to refresh the "downloaded" cover badge on completion and to post
+// download notifications. Typed loosely (UnlistenFn) to avoid importing the
+// type just for teardown.
+let progressUnlisten: (() => void) | null = null;
 
 function handleBackButton() {
   // An open overlay always closes first (reader/gallery slide-over panel).
@@ -254,6 +281,8 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
   compactMql?.removeEventListener("change", syncCompact);
+  progressUnlisten?.();
+  progressUnlisten = null;
 });
 
 const globalSpeedLabel = computed(() => {
@@ -264,21 +293,27 @@ const globalSpeedLabel = computed(() => {
   return `↓ ${bps.toFixed(0)} B/s`;
 });
 
-const searchQuery = computed({
-  get: () => String(route.query.q ?? ""),
-  set: (val: string) => {
-    if (route.name === "search") {
-      router.replace({ query: { ...route.query, q: val.trim() || undefined } });
-    }
+// Local search-box model. Kept deliberately separate from the route so typing
+// does NOT trigger a search on every keystroke — the user must press Enter or
+// click the submit button (doSearch). We only seed it from the URL when the
+// route changes externally (e.g. opening a tag link from another page).
+const searchQuery = ref(String(route.query.q ?? ""));
+
+watch(
+  () => route.query.q,
+  (q) => {
+    searchQuery.value = String(q ?? "");
   },
-});
+);
 
 function doSearch() {
   const q = searchQuery.value.trim();
-  if (!q) return;
   if (route.name === "search") {
-    router.replace({ query: { ...route.query, q } });
+    // Empty query is allowed on the search page (clears the text filter) so the
+    // user can drop a text search but keep tag / language filters.
+    router.replace({ query: { ...route.query, q: q || undefined } });
   } else {
+    if (!q) return;
     router.push({ name: "search", query: { q } });
   }
 }
@@ -328,6 +363,13 @@ function doSearch() {
             placeholder="Search galleries, tags..."
             @keydown.enter="doSearch"
           />
+          <button
+            type="button"
+            class="search-btn"
+            :disabled="!searchQuery.trim() && route.name !== 'search'"
+            title="Search"
+            @click="doSearch"
+          >Search</button>
         </div>
       </header>
 
@@ -436,6 +478,22 @@ function doSearch() {
 .search-input::placeholder {
   color: var(--text-dim);
   opacity: 0.7;
+}
+.search-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.search-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .banner {
   margin: 10px 14px 0;
