@@ -139,6 +139,7 @@ pub fn run() {
             local_list,
             local_ids,
             local_get,
+            local_get_meta,
             local_set_translated_title,
             local_delete,
             local_import_folder,

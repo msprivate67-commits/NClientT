@@ -7,6 +7,7 @@ import { ArrowUp, ArrowDown } from "lucide-vue-next";
 import { localScan, localDelete } from "@/api";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
+import { stripLeadingId } from "@/utils/title";
 import type { LocalGallery, SimpleGallery } from "@/types";
 
 const items = ref<LocalGallery[]>([]);
@@ -88,7 +89,7 @@ function toSimple(l: LocalGallery): SimpleGallery {
   return {
     id: l.id,
     media_id: l.media_id,
-    title: l.title || `#${l.id}`,
+    title: stripLeadingId(l.title || `#${l.id}`),
     thumbnail: l.thumbnail_path ?? null,
     language: "all",
     tags: [],

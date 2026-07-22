@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { localGet, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
-import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import { localGet, localGetMeta, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
+import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
+import TagChip from "@/components/TagChip.vue";
+import GalleryGrid from "@/components/GalleryGrid.vue";
 import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
-import type { LocalGallery } from "@/types";
+import { stripLeadingId } from "@/utils/title";
+import type { Gallery, LocalGallery, Tag } from "@/types";
 
 const props = defineProps<{ folder: string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
+const router = useRouter();
 const overlayStore = useOverlayStore();
 const settingsStore = useSettingsStore();
 
@@ -16,12 +21,29 @@ const loading = ref(true);
 const translating = ref(false);
 const translated = ref("");
 const translateError = ref("");
+// Offline metadata (tags + related) read from the folder's `.nomedia` file.
+// May be `null` for imported folders without a cached gallery JSON; the tags and
+// related sections simply stay hidden in that case.
+const meta = ref<Gallery | null>(null);
+const tagsExpanded = ref(false);
 
-const title = computed(() => local.value?.title || `#${props.folder}`);
+const title = computed(() => stripLeadingId(local.value?.title || `#${props.folder}`));
 const translatedTitle = computed(() => local.value?.translated_title || "");
 const coverSrc = computed(() => {
   const t = local.value?.thumbnail_path;
   return t ? imageProxyUrl(t) : "";
+});
+
+// Tags grouped by type, mirroring GalleryView's tagsByType.
+const tagsByType = computed(() => {
+  const map = new Map<string, Tag[]>();
+  if (!meta.value) return map;
+  for (const t of meta.value.tags) {
+    const list = map.get(t.type) ?? [];
+    list.push(t);
+    map.set(t.type, list);
+  }
+  return map;
 });
 
 async function load() {
@@ -32,6 +54,13 @@ async function load() {
     local.value = null;
   } finally {
     loading.value = false;
+  }
+  // Fetch the cached gallery metadata in parallel with rendering the header —
+  // a missing/corrupt .nomedia returns null and the extra sections stay hidden.
+  try {
+    meta.value = await localGetMeta(Number(props.folder));
+  } catch {
+    meta.value = null;
   }
 }
 
@@ -59,6 +88,16 @@ async function doTranslate() {
 
 function read() {
   overlayStore.openLocalReader(String(local.value?.id ?? props.folder));
+}
+
+function onTagClick(t: Tag) {
+  // Same behavior as GalleryView: close any overlay panel, then search.
+  if (props.overlay) {
+    overlayStore.closeAll();
+  }
+  const name = encodeURIComponent(t.name);
+  const type = encodeURIComponent(t.type);
+  router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
 
 onMounted(load);
@@ -100,6 +139,36 @@ watch(() => props.folder, load);
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Tags + related: sourced from the cached gallery JSON (.nomedia).
+           Mirrors the online GalleryView layout. Only rendered when metadata
+           is present. -->
+      <div v-if="meta" class="body">
+        <div v-if="tagsByType.size" class="tag-toggle-bar">
+          <button class="btn small" @click="tagsExpanded = !tagsExpanded">
+            <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
+          </button>
+        </div>
+        <div v-show="tagsExpanded">
+          <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
+            <div class="section-title">{{ type }}</div>
+            <div class="chips">
+              <TagChip
+                v-for="t in tags"
+                :key="t.id"
+                :tag="t"
+                show-type
+                @click="onTagClick(t)"
+              />
+            </div>
+          </section>
+        </div>
+
+        <section v-if="meta.related.length" class="related">
+          <div class="section-title">{{ $t('gallery.section_related') }}</div>
+          <GalleryGrid :galleries="meta.related" />
+        </section>
       </div>
     </template>
     <div v-else class="error">{{ $t('localDetail.load_error') }}</div>
@@ -237,6 +306,31 @@ watch(() => props.folder, load);
 .loading, .error {
   color: var(--text-dim);
   padding: 20px;
+}
+.body {
+  margin-top: 8px;
+}
+.tag-toggle-bar {
+  margin-bottom: 10px;
+}
+.tag-group {
+  margin-bottom: 14px;
+}
+.section-title {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Related galleries: thumbnail grid (same component as the online detail page).
+   GalleryCard handles click → online detail. */
+.related {
+  margin-top: 22px;
 }
 @media (max-width: 768px) {
   .view {

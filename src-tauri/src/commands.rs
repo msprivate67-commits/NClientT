@@ -10,7 +10,7 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::api::ApiClient;
 use crate::cloudflare;
-use crate::config::{AuthCredentials, Settings, TitleType};
+use crate::config::{AuthCredentials, Settings};
 use crate::db::{DownloadRow, FavoriteRow, ReadProgressRow};
 use crate::downloader::{DownloadRequest, DownloadStatus};
 use crate::error::{AppError, AppResult};
@@ -506,6 +506,25 @@ pub fn local_set_translated_title(state: State<'_, AppState>, gallery_id: i64, t
     state.db.local_set_translated_title(gallery_id, &title)
 }
 
+/// Read the full `Gallery` JSON cached on disk in a downloaded folder's
+/// `.nomedia` file. This is the offline source for tags + related galleries on
+/// the local detail page. Returns `None` when the folder or metadata file is
+/// missing/unreadable (e.g. imported folders) — callers degrade gracefully.
+#[tauri::command]
+pub fn local_get_meta(state: State<'_, AppState>, gallery_id: i64) -> AppResult<Option<Gallery>> {
+    let Some(lg) = state.db.local_get(gallery_id)? else {
+        return Ok(None);
+    };
+    let nomedia = PathBuf::from(&lg.folder).join(".nomedia");
+    let Ok(content) = std::fs::read_to_string(&nomedia) else {
+        return Ok(None);
+    };
+    match serde_json::from_str::<Gallery>(&content) {
+        Ok(g) => Ok(Some(g)),
+        Err(_) => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     let mut items = state.db.local_all().unwrap_or_default();
@@ -575,8 +594,11 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
                 .and_then(|s| s.parse().ok())
                 .or_else(|| v.get("media_id").and_then(|x| x.as_i64()))
                 .unwrap_or(0);
-            let pref = TitleType::Pretty;
-            let titles = v.get("title");
+            // The .nomedia file stores a full `Gallery` whose title object is
+            // serialized as `titles` (plural). Restore the gallery title from
+            // it so the library shows the real title instead of the on-disk
+            // folder name (`[id] title`).
+            let titles = v.get("titles");
             let pick = |key: &str| -> String {
                 titles
                     .and_then(|t| t.get(key))
@@ -596,7 +618,6 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
             if !new_title.is_empty() {
                 title = new_title;
             }
-            let _ = pref;
         }
     }
 

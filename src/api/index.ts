@@ -178,6 +178,10 @@ export const localScan = (): Promise<LocalGallery[]> => invoke("local_scan");
 export const localList = (): Promise<LocalGallery[]> => invoke("local_list");
 export const localIds = (): Promise<number[]> => invoke("local_ids");
 export const localGet = (galleryId: number): Promise<LocalGallery | null> => invoke("local_get", { galleryId });
+// Full Gallery JSON cached in a downloaded folder's `.nomedia` — the offline
+// source for tags + related galleries on the local detail page. `null` when the
+// folder/metadata is missing (e.g. imported folders); callers degrade gracefully.
+export const localGetMeta = (galleryId: number): Promise<Gallery | null> => invoke("local_get_meta", { galleryId });
 export const localSetTranslatedTitle = (galleryId: number, title: string): Promise<void> =>
   invoke("local_set_translated_title", { galleryId, title });
 export const localDelete = (folder: string): Promise<void> => invoke("local_delete", { folder });
