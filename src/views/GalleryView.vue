@@ -413,8 +413,17 @@ async function onTagClick(t: any) {
 
 <style scoped>
 .gallery-view {
+  /* The centered, width-capped content is itself the scroll container, so the
+     scrollbar hugs the content's right edge instead of sitting at the window
+     edge on wide screens. height:100% + flex column keeps sticky positioning
+     (sticky-title-bar / overlay-bar) anchored to this element while it
+     scrolls. */
+  width: 100%;
   max-width: 1000px;
+  height: 100%;
   margin: 0 auto;
+  padding: 14px;
+  overflow-y: auto;
 }
 .error {
   padding: 12px 14px;
@@ -443,8 +452,13 @@ async function onTagClick(t: any) {
   font-size: 1.2rem;
   font-weight: 700;
   padding: 2px 10px;
+  flex-shrink: 0;
 }
 .sticky-title {
+  /* flex:1 + min-width:0 lets the title ellipsize instead of pushing the back
+     button off-screen when the title is very long. */
+  flex: 1;
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 600;
   overflow: hidden;
@@ -484,6 +498,10 @@ async function onTagClick(t: any) {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.35;
+  /* Long titles (no spaces, e.g. long romanized/japanese strings) must wrap
+     rather than inflate the info column and overflow the window. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .primary-actions {
   display: flex;
@@ -742,6 +760,10 @@ async function onTagClick(t: any) {
   border-radius: 6px;
 }
 .overlay-title {
+  /* min-width:0 + flex:1 so the title ellipsizes within the overlay bar rather
+     than stretching the bar beyond the panel width. */
+  flex: 1;
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 600;
   white-space: nowrap;

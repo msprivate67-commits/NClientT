@@ -352,6 +352,10 @@ watch(scrollMode, () => {
   color: #fff;
   flex-shrink: 0;
   z-index: 2;
+  /* On narrow windows (e.g. a slim desktop pane or phone landscape) the
+     counter + scroll-mode + fit + slider don't all fit on one line. Wrap them
+     down instead of overflowing horizontally. */
+  flex-wrap: wrap;
 }
 .counter {
   font-size: 0.85rem;

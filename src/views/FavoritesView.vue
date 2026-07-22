@@ -116,4 +116,12 @@ async function refresh() {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
 }
+/* On phones force exactly two covers per row, matching GalleryGrid, so the
+   auto-fill above doesn't collapse to a single column on narrow viewports. */
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
 </style>

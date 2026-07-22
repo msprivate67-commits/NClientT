@@ -359,7 +359,16 @@ onMounted(async () => {
 
 <style scoped>
 .settings {
+  /* The centered, width-capped content is itself the scroll container so the
+     scrollbar hugs the content's right edge instead of sitting at the window
+     edge on wide screens. height:100% + display:flex column lets the save bar
+     ride along at the bottom of the scroll area. */
+  width: 100%;
   max-width: 720px;
+  height: 100%;
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: 14px;
 }
 section {
   margin-bottom: 22px;
@@ -385,7 +394,10 @@ section:last-child {
 .row input[type="password"],
 .row input:read-only {
   flex: 1;
-  min-width: 200px;
+  /* min-width:0 so a long value (e.g. a download dir path) can shrink/wrap
+     inside the flex row instead of forcing the row wider than the viewport. */
+  min-width: 0;
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);

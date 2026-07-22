@@ -312,6 +312,9 @@ async function remove() {
   color: #fff;
   flex-shrink: 0;
   z-index: 2;
+  /* On narrow windows the buttons + delete don't all fit on one line; wrap
+     them down instead of overflowing horizontally. */
+  flex-wrap: wrap;
 }
 .counter {
   font-size: 0.85rem;

@@ -145,6 +145,10 @@ watch(() => props.folder, load);
   border-radius: 6px;
 }
 .overlay-title {
+  /* min-width:0 + flex:1 so the title ellipsizes within the overlay bar rather
+     than stretching the bar beyond the panel width. */
+  flex: 1;
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 600;
   white-space: nowrap;
@@ -180,6 +184,9 @@ watch(() => props.folder, load);
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.35;
+  /* Long titles must wrap rather than inflate the info column and overflow. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .translated-title {
   color: var(--accent);

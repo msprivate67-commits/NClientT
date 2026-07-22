@@ -75,17 +75,18 @@ onMounted(() => downloads.init());
   flex-direction: column;
   gap: 8px;
   max-width: 720px;
+  margin: 0 auto;
 }
 .batch-bar {
   display: flex;
   align-items: center;
   gap: 6px;
   max-width: 720px;
+  margin: 0 auto 8px;
   padding: 8px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  margin-bottom: 8px;
 }
 .batch-label {
   font-size: 0.8rem;

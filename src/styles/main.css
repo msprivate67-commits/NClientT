@@ -71,6 +71,10 @@ textarea {
 .view {
   padding: 14px;
   flex: 1;
+  /* min-width:0 lets this flex item shrink below its content's min-content
+     width, so a long title or unbreakable child can't blow out the whole
+     column and overflow the app window. */
+  min-width: 0;
   overflow-y: auto;
 }
 .view-header {
