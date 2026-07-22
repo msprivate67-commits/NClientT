@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, RwLock};
@@ -97,8 +97,8 @@ struct DownloadTask {
     pages: Vec<(usize, String)>, // (page_index, url)
     done: Mutex<Vec<bool>>,
     status: RwLock<DownloadStatus>,
-    pause_flag: Mutex<bool>,
-    cancel_flag: Mutex<bool>,
+    pause_flag: AtomicBool,
+    cancel_flag: AtomicBool,
     bytes_downloaded: AtomicU64,
     start_time: Mutex<Option<Instant>>,
 }
@@ -286,8 +286,8 @@ impl DownloadManager {
             pages,
             done: Mutex::new(vec![false; total]),
             status: RwLock::new(DownloadStatus::Pending),
-            pause_flag: Mutex::new(false),
-            cancel_flag: Mutex::new(false),
+            pause_flag: AtomicBool::new(false),
+            cancel_flag: AtomicBool::new(false),
             bytes_downloaded: AtomicU64::new(0),
             start_time: Mutex::new(None),
         });
@@ -319,14 +319,14 @@ impl DownloadManager {
         // Poll pause/cancel flags while waiting for a download slot so queued
         // tasks can be interrupted immediately.
         let _permit = loop {
-            if *task.cancel_flag.lock() {
+            if task.cancel_flag.load(Ordering::SeqCst) {
                 let info = self.task_info(&task);
                 self.tasks.write().remove(&task.id);
                 self.emit_canceled(&info);
                 self.cleanup_canceled_by_info(&info);
                 return;
             }
-            if *task.pause_flag.lock() {
+            if task.pause_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Paused);
                 self.emit_progress(task.id, DownloadStatus::Paused, task.done_count(), task.pages.len(), None, None);
                 return;
@@ -361,14 +361,14 @@ impl DownloadManager {
                 None => break,
             };
 
-            if *task.cancel_flag.lock() {
+            if task.cancel_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Canceled);
                 self.emit_progress(task.id, DownloadStatus::Canceled, task.done_count(), task.pages.len(), None, None);
                 self.cleanup_canceled(&task);
                 self.tasks.write().remove(&task.id);
                 return;
             }
-            if *task.pause_flag.lock() {
+            if task.pause_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Paused);
                 self.emit_progress(task.id, DownloadStatus::Paused, task.done_count(), task.pages.len(), None, None);
                 return;
@@ -517,7 +517,7 @@ impl DownloadManager {
 
     pub fn pause(&self, id: i64) -> AppResult<()> {
         if let Some(t) = self.tasks.read().get(&id).cloned() {
-            *t.pause_flag.lock() = true;
+            t.pause_flag.store(true, Ordering::SeqCst);
         }
         Ok(())
     }
@@ -530,7 +530,7 @@ impl DownloadManager {
         };
         if let Some(t) = task {
             // Resume by spawning a continuation task.
-            *t.pause_flag.lock() = false;
+            t.pause_flag.store(false, Ordering::SeqCst);
             *t.status.write() = DownloadStatus::Pending;
             let me = self.clone();
             let t = t.clone();
@@ -559,7 +559,7 @@ impl DownloadManager {
 
     pub fn cancel(&self, id: i64) -> AppResult<()> {
         if let Some(t) = self.tasks.read().get(&id).cloned() {
-            *t.cancel_flag.lock() = true;
+            t.cancel_flag.store(true, Ordering::SeqCst);
             let status = *t.status.read();
             // If the task is not actively running (paused / pending / failed),
             // run_task won't process the flag — clean up immediately.
@@ -584,7 +584,7 @@ impl DownloadManager {
     /// Cancel the download AND delete local files — works for any status.
     pub fn delete_download(&self, id: i64) -> AppResult<()> {
         if let Some(t) = self.tasks.read().get(&id).cloned() {
-            *t.cancel_flag.lock() = true;
+            t.cancel_flag.store(true, Ordering::SeqCst);
             let info = self.task_info(&t);
             self.tasks.write().remove(&id);
             self.emit_canceled(&info);
