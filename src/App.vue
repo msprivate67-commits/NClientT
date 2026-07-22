@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch, defineAsyncComponent } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { onBackButtonPress } from "@tauri-apps/api/app";
 import type { PluginListener } from "@tauri-apps/api/core";
 
+import { ArrowLeft, Menu, Search as SearchIcon } from "lucide-vue-next";
 import AppSidebar from "@/components/AppSidebar.vue";
 import { cloudflareOpenChallenge, onDownloadProgress } from "@/api";
+import { setLocale, detectPlatformLanguage, isValidLanguage } from "@/i18n";
 import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useFavoritesStore } from "@/stores/favorites";
@@ -29,6 +32,7 @@ const readProgress = useReadProgressStore();
 const downloaded = useDownloadedStore();
 const router = useRouter();
 const route = useRoute();
+const i18n = useI18n();
 
 const sidebarOpen = ref(true);
 const cloudflareBanner = ref(false);
@@ -169,12 +173,29 @@ watch(() => route.fullPath, () => {
   if (isCompact.value) sidebarOpen.value = false;
 });
 
+watch(() => i18n.locale.value, (loc) => {
+  document.documentElement.lang = loc;
+}, { immediate: true });
+
 onMounted(async () => {
   syncCompact();
   compactMql = window.matchMedia(COMPACT_QUERY);
   compactMql.addEventListener("change", syncCompact);
   try {
     await settings.load();
+
+    // Initialize app language: use saved preference, or auto-detect from platform.
+    const savedLang = settings.settings.app_language;
+    if (savedLang && isValidLanguage(savedLang)) {
+      i18n.locale.value = savedLang;
+      setLocale(savedLang);
+    } else {
+      const detected = await detectPlatformLanguage();
+      i18n.locale.value = detected;
+      setLocale(detected);
+      settings.save({ app_language: detected });
+    }
+
     await Promise.allSettled([
       downloads.init(),
       favorites.load(),
@@ -346,38 +367,38 @@ function doSearch() {
       @touchend="onContentTouchEnd"
     >
       <header class="topbar">
-        <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" title="Back">
-          ←
+        <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" :title="$t('common.back')">
+          <ArrowLeft :size="18" />
         </button>
         <button
           class="icon-btn"
-          :title="isCompact ? 'Menu' : 'Toggle sidebar'"
+          :title="isCompact ? $t('common.menu') : $t('common.toggle_sidebar')"
           @click="toggleSidebar"
         >
-          ☰
+          <Menu :size="18" />
         </button>
         <div class="search">
-          <span>🔍</span>
+          <SearchIcon :size="16" />
           <input
             v-model="searchQuery"
             type="text"
             class="search-input"
-            placeholder="Search galleries, tags..."
+            :placeholder="$t('common.search_placeholder')"
             @keydown.enter="doSearch"
           />
           <button
             type="button"
             class="search-btn"
             :disabled="!searchQuery.trim() && route.name !== 'search'"
-            title="Search"
+            :title="$t('common.search')"
             @click="doSearch"
-          >Search</button>
+          >{{ $t('common.search') }}</button>
         </div>
       </header>
 
       <div v-if="cloudflareBanner" class="banner cf">
-        <span>Cloudflare verification required to reach {{ settings.mirror }}.</span>
-        <button @click="solveCloudflare">Solve now</button>
+        <span>{{ $t('cloudflare.verification_required', { mirror: settings.mirror }) }}</span>
+        <button @click="solveCloudflare">{{ $t('cloudflare.solve_now') }}</button>
       </div>
 
       <RouterView v-slot="{ Component }">

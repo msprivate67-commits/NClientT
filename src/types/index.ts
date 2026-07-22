@@ -213,6 +213,8 @@ export interface Settings {
   tl_api_key: string;
   tl_target_lang: string;
   tl_thinking: boolean;
+
+  app_language: string;
 }
 
 export interface FavoriteRow {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
+import { Dices, RefreshCw } from "lucide-vue-next";
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";
@@ -9,11 +10,13 @@ import { useDownloadsStore } from "@/stores/downloads";
 import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SimpleGallery, SortType } from "@/types";
+import { useI18n } from "vue-i18n";
 
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
 const overlay = useOverlayStore();
+const { t } = useI18n();
 
 const page = ref(1);
 const numPages = ref(0);
@@ -58,20 +61,20 @@ async function downloadSelected() {
   selected.value.clear();
 }
 
-const sorts: { value: SortType; label: string }[] = [
-  { value: "recent_all_time", label: "Recent" },
-  { value: "popular_all_time", label: "Popular (all)" },
-  { value: "popular_week", label: "Popular (week)" },
-  { value: "popular_day", label: "Popular (day)" },
-  { value: "popular_month", label: "Popular (month)" },
-];
+const sorts = computed(() => [
+  { value: "recent_all_time" as SortType, label: t("home.sort_recent") },
+  { value: "popular_all_time" as SortType, label: t("home.sort_popular_all") },
+  { value: "popular_week" as SortType, label: t("home.sort_popular_week") },
+  { value: "popular_day" as SortType, label: t("home.sort_popular_day") },
+  { value: "popular_month" as SortType, label: t("home.sort_popular_month") },
+]);
 
-const langs: { value: Language; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "english", label: "EN" },
-  { value: "japanese", label: "JP" },
-  { value: "chinese", label: "CN" },
-];
+const langs = computed(() => [
+  { value: "all" as Language, label: t("home.lang_all") },
+  { value: "english" as Language, label: t("home.lang_en") },
+  { value: "japanese" as Language, label: t("home.lang_jp") },
+  { value: "chinese" as Language, label: t("home.lang_cn") },
+]);
 
 async function load() {
   loading.value = true;
@@ -90,8 +93,8 @@ async function load() {
 
 function humanizeError(e: any): string {
   const s = String(e?.message ?? e);
-  if (/cloudflare/i.test(s)) return "Cloudflare challenge required. Open Settings → Cloudflare to solve.";
-  if (/401|403|unauthorized/i.test(s)) return "Authentication failed. Check your API key in Settings.";
+  if (/cloudflare/i.test(s)) return t("home.cf_error");
+  if (/401|403|unauthorized/i.test(s)) return t("home.auth_error");
   return s;
 }
 
@@ -113,20 +116,20 @@ watch(page, load);
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Home</div>
+      <div class="view-title">{{ $t('home.title') }}</div>
       <div class="toolbar">
         <button
           class="btn"
           :class="{ primary: selectMode }"
           @click="toggleSelectMode"
         >
-          {{ selectMode ? "✕ Cancel" : "☑ Select" }}
+          {{ selectMode ? $t('common.cancel') : $t('common.select') }}
         </button>
         <template v-if="selectMode">
-          <button class="btn" @click="selectAll">Select all</button>
-          <button class="btn" @click="deselectAll">Deselect all</button>
+          <button class="btn" @click="selectAll">{{ $t('common.select_all') }}</button>
+          <button class="btn" @click="deselectAll">{{ $t('common.deselect_all') }}</button>
           <button class="btn primary" :disabled="selected.size === 0" @click="downloadSelected">
-            Download ({{ selected.size }})
+            {{ $t('common.download') }} ({{ selected.size }})
           </button>
         </template>
         <template v-else>
@@ -140,19 +143,19 @@ watch(page, load);
           {{ s.label }}
         </button>
         <button class="btn" @click="gallery.random().then((g) => overlay.openGallery(g.id))">
-          🎲 Random
+          <Dices :size="14" /> {{ $t('home.random') }}
         </button>
-        <button class="btn" :disabled="loading" @click="load" title="Reload galleries">
-          {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+        <button class="btn" :disabled="loading" @click="load" :title="$t('home.reload_galleries')">
+          {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
         </button>
         <div class="lang-group">
-          <span class="lang-label">Lang:</span>
+          <span class="lang-label">{{ $t('home.lang_label') }}</span>
           <button
             v-for="l in langs"
             :key="l.value"
             class="btn small"
             :class="{ primary: settings.settings.only_language === l.value }"
-            :title="l.value === 'all' ? 'All languages' : l.label"
+            :title="l.value === 'all' ? $t('home.all_languages') : l.label"
             @click="changeLanguage(l.value)"
           >
             {{ l.label }}
@@ -167,8 +170,8 @@ watch(page, load);
     <GalleryGrid
       :galleries="items"
       :loading="loading"
-      empty-title="No galleries"
-      empty-hint="Try a different sort or check your mirror in Settings."
+      :empty-title="$t('home.no_galleries')"
+      :empty-hint="$t('home.no_galleries_hint')"
       :selectable="selectMode"
       :selected="selected"
       @select="toggleSelect"

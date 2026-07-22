@@ -53,16 +53,16 @@ onMounted(() => tags.load());
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Tags</div>
+      <div class="view-title">{{ $t('tags.title') }}</div>
       <div class="toolbar">
-        <input v-model="query" type="text" placeholder="Filter…" />
+        <input v-model="query" type="text" :placeholder="$t('tags.filter')" />
         <button
           v-for="t in types"
           :key="t"
           class="btn"
           :class="{ primary: filter === t }"
           @click="filter = t"
-        >{{ t }}</button>
+        >{{ $t('tags.tag_type_' + t) }}</button>
       </div>
     </div>
 
@@ -76,7 +76,7 @@ onMounted(() => tags.load());
         @cycle="cycle(t)"
       />
     </div>
-    <EmptyState v-else title="No tags loaded" hint="Browse some galleries first to populate the tag cache." />
+    <EmptyState v-else :title="$t('tags.no_tags')" :hint="$t('tags.no_tags_hint')" />
   </div>
 </template>
 

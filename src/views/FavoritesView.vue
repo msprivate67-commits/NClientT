@@ -5,6 +5,7 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import GalleryCard from "@/components/GalleryCard.vue";
 import Pagination from "@/components/Pagination.vue";
 import EmptyState from "@/components/EmptyState.vue";
+import { RefreshCw } from "lucide-vue-next";
 import { apiGetFavoritesPage } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -69,12 +70,12 @@ async function refresh() {
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Favorites</div>
+      <div class="view-title">{{ $t('favorites.title') }}</div>
       <div class="toolbar">
-        <button class="btn" :class="{ primary: mode === 'local' }" @click="switchMode('local')">Local</button>
-        <button class="btn" :class="{ primary: mode === 'online' }" @click="switchMode('online')">Online</button>
-        <button class="btn" :disabled="loading" @click="refresh" title="Reload favorites">
-          {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+        <button class="btn" :class="{ primary: mode === 'local' }" @click="switchMode('local')">{{ $t('favorites.local') }}</button>
+        <button class="btn" :class="{ primary: mode === 'online' }" @click="switchMode('online')">{{ $t('favorites.online') }}</button>
+        <button class="btn" :disabled="loading" @click="refresh" :title="$t('favorites.reload_favorites')">
+          {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
         </button>
       </div>
     </div>
@@ -85,15 +86,15 @@ async function refresh() {
       <div v-if="localItems.length" class="grid">
         <GalleryCard v-for="g in localItems" :key="g.id" :gallery="g" />
       </div>
-      <EmptyState v-else title="No favorites yet" hint="Click ★ on any gallery to add it here." />
+      <EmptyState v-else :title="$t('favorites.no_favorites')" :hint="$t('favorites.no_favorites_hint')" />
     </template>
 
     <template v-else>
       <GalleryGrid
         :galleries="onlineItems"
         :loading="loading"
-        empty-title="No online favorites"
-        empty-hint="Online favorites require an API key. Add one in Settings."
+        :empty-title="$t('favorites.no_online_favorites')"
+        :empty-hint="$t('favorites.no_online_favorites_hint')"
       />
       <Pagination :page="page" :num-pages="numPages" @change="page = $event; loadOnline()" />
     </template>

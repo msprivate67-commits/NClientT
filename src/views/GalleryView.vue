@@ -1,9 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 import TagChip from "@/components/TagChip.vue";
 import GalleryGrid from "@/components/GalleryGrid.vue";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Loader,
+  Languages,
+  Download,
+  Star,
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Heart,
+} from "lucide-vue-next";
 import {
   imageProxyUrl,
   openInBrowser,
@@ -33,6 +47,7 @@ const downloadState = computed(() => {
   return entry?.status ?? null;
 });
 const settings = useSettingsStore();
+const { t: i18n } = useI18n();
 const overlay = useOverlayStore();
 
 const id = computed(() => Number(props.id));
@@ -77,7 +92,7 @@ const title = computed(() => {
   if (pref === "pretty" && t.pretty) return t.pretty;
   if (pref === "english" && t.english) return t.english;
   if (pref === "japanese" && t.japanese) return t.japanese;
-  return t.pretty || t.english || t.japanese || "Unnamed";
+  return t.pretty || t.english || t.japanese || i18n("common.unnamed");
 });
 
 const coverSrc = computed(() => {
@@ -210,14 +225,14 @@ async function onTagClick(t: any) {
 <template>
   <div ref="viewRef" class="view gallery-view" :class="{ 'overlay-mode': overlay }">
     <div v-if="overlay" class="overlay-bar">
-      <button class="btn" @click="emit('back')">← Back</button>
+      <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /> {{ $t('gallery.back') }}</button>
       <span class="overlay-title">{{ title }}</span>
     </div>
 
     <!-- Sticky title bar: stays pinned to the top while the page scrolls,
          so the back button + title are always reachable on long pages. -->
     <div v-else class="sticky-title-bar">
-      <button class="btn ghost back" @click="goBack" title="Back">←</button>
+      <button class="btn ghost back" @click="goBack" :title="$t('gallery.back')"><ArrowLeft :size="16" /></button>
       <span class="sticky-title">{{ title }}</span>
     </div>
 
@@ -230,48 +245,53 @@ async function onTagClick(t: any) {
       <div class="info">
         <div class="title-row">
           <h1 class="title">{{ title }}</h1>
-          <button class="btn" :disabled="loading" @click="load" title="Reload gallery">
-            {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+          <button class="btn" :disabled="loading" @click="load" :title="$t('gallery.reload_gallery')">
+            {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
           </button>
           <button
             class="btn"
             :disabled="translating"
             @click="doTranslate"
-            :title="translatedTitle ? 'Retranslate' : 'Translate title'"
-          >{{ translating ? '⏳ Translating…' : translatedTitle ? '🔄 Retranslate' : '🔤 Translate' }}</button>
+            :title="translatedTitle ? $t('gallery.retranslate') : $t('gallery.translate_title')"
+          >
+            <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('gallery.translating') }}</span>
+            <span v-else-if="translatedTitle"><RefreshCw :size="14" /> {{ $t('gallery.retranslate') }}</span>
+            <span v-else><Languages :size="14" /> {{ $t('gallery.translate') }}</span>
+          </button>
         </div>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
         <div class="meta">
           <span>#{{ g.id }}</span>
           <span>·</span>
-          <span>{{ g.num_pages }} pages</span>
+          <span>{{ g.num_pages }} {{ $t('gallery.pages') }}</span>
           <span>·</span>
-          <span>❤ {{ g.num_favorites }}</span>
+          <span><Heart :size="12" /> {{ g.num_favorites }}</span>
           <span v-if="g.upload_date">·</span>
           <span v-if="g.upload_date">{{ new Date(g.upload_date).toLocaleDateString() }}</span>
         </div>
         <div class="actions">
-          <button class="btn" @click="openInBrowser(String(g.id))">🌐 Open</button>
+          <button class="btn" @click="openInBrowser(String(g.id))">{{ $t('gallery.open') }}</button>
           <button
             class="btn"
             :disabled="downloadState !== null || isDownloaded"
             :class="{ downloading: downloadState === 'downloading', queued: downloadState === 'pending', done: isDownloaded && downloadState === null }"
+            :title="isDownloaded && downloadState === null ? $t('gallery.already_downloaded') : undefined"
             @click="download"
           >
-            <template v-if="downloadState === 'downloading'">⏳ Downloading…</template>
-            <template v-else-if="downloadState === 'pending'">⏳ Queued…</template>
-            <template v-else-if="isDownloaded" title="Already in your local library">✓ Downloaded</template>
-            <template v-else>⬇ Download</template>
+            <span v-if="downloadState === 'downloading'"><Loader :size="14" class="spin" /> {{ $t('gallery.downloading') }}</span>
+            <span v-else-if="downloadState === 'pending'"><Loader :size="14" class="spin" /> {{ $t('gallery.queued') }}</span>
+            <span v-else-if="isDownloaded"><Check :size="14" /> {{ $t('gallery.downloaded') }}</span>
+            <span v-else><Download :size="14" /> {{ $t('gallery.download_btn') }}</span>
           </button>
           <button
             class="btn"
             :class="{ primary: g.is_favorited || favorites.ids.has(g.id) }"
             @click="toggleFavorite"
           >
-            ★ Favorite
+            {{ '' }}<Star :size="14" :fill="g.is_favorited || favorites.ids.has(g.id) ? 'currentColor' : 'none'" /> {{ $t('gallery.favorite') }}
           </button>
-          <button class="btn primary" @click="read">📖 Read</button>
+          <button class="btn primary" @click="read"><BookOpen :size="14" /> {{ $t('gallery.read') }}</button>
         </div>
       </div>
     </div>
@@ -279,7 +299,7 @@ async function onTagClick(t: any) {
     <div v-if="g" class="body">
       <div class="tag-toggle-bar">
         <button class="btn small" @click="tagsExpanded = !tagsExpanded">
-          {{ tagsExpanded ? '▲ Collapse tags' : '▼ Expand tags' }}
+          <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
         </button>
       </div>
       <div v-show="tagsExpanded">
@@ -298,7 +318,7 @@ async function onTagClick(t: any) {
       </div>
 
       <section v-if="g.pages.length" class="page-thumbs">
-        <div class="section-title">Pages</div>
+        <div class="section-title">{{ $t('gallery.section_pages') }}</div>
         <div
           class="thumb-grid"
           :style="thumbColumns === 'auto' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : { gridTemplateColumns: `repeat(${thumbColumns}, 1fr)` }"
@@ -312,7 +332,7 @@ async function onTagClick(t: any) {
             <img
               v-if="page.thumbnail || page.path"
               :src="imageProxyUrl(page.thumbnail || page.path || '')"
-              :alt="`Page ${i + 1}`"
+              :alt="$t('common.page_n', { n: i + 1 })"
               loading="lazy"
               decoding="async"
               class="thumb-img"
@@ -324,13 +344,13 @@ async function onTagClick(t: any) {
       </section>
 
       <section v-if="g.related.length" class="related">
-        <div class="section-title">Related</div>
+        <div class="section-title">{{ $t('gallery.section_related') }}</div>
         <GalleryGrid :galleries="g.related" />
       </section>
 
       <section class="comments">
         <button class="btn" @click="toggleComments">
-          {{ commentsOpen ? "Hide comments" : "Show comments" }}
+          {{ commentsOpen ? $t('gallery.hide_comments') : $t('gallery.show_comments') }}
         </button>
         <div v-if="commentsOpen" class="comment-list">
           <div v-for="c in gallery.comments" :key="c.id" class="comment">
@@ -340,7 +360,7 @@ async function onTagClick(t: any) {
             </div>
             <div class="body">{{ c.body }}</div>
           </div>
-          <div v-if="!gallery.comments.length" class="empty">No comments.</div>
+          <div v-if="!gallery.comments.length" class="empty">{{ $t('gallery.no_comments') }}</div>
         </div>
       </section>
     </div>

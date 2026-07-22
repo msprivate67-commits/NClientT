@@ -32,3 +32,4 @@ Thumbs.db
 
 # ZCode agent session data
 .zcode/
+.ipynb_checkpoints/

@@ -1,169 +1,120 @@
 # NClientT
 
-> A **full rewrite** of [NClientV3](https://github.com/maxwai/NClientV3) —
-> an unofficial NHentai Android client (originally built with OkHttp, JSoup,
-> Glide, etc.) — **refactored with GLM 5.2** from a native Android app into a
-> **cross-platform desktop application**, no longer limited to Android.
+[![License](https://img.shields.io/github/license/maxwai/NClientT?color=blue)](https://github.com/maxwai/NClientT/blob/main/LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.77%2B-orange)](https://www.rust-lang.org/)
+[![Tauri](https://img.shields.io/badge/tauri-2.0-67b5d1)](https://tauri.app/)
+[![Vue](https://img.shields.io/badge/vue-3.5-42b883)](https://vuejs.org/)
 
-Refactored with GLM 5.2 and built with **Tauri 2** (Rust backend) +
-**Vue 3** (TypeScript frontend) for **Windows / macOS / Linux**.
+An **unofficial** [nhentai](https://nhentai.net) client — a full cross-platform
+rewrite of [NClientV3](https://github.com/maxwai/NClientV3) using
+**Tauri 2** (Rust backend) + **Vue 3** (TypeScript frontend).
 
-> ⚠️ This is an unofficial, hobbyist client and is for personal, lawful use only.
-> Respect the source site's Terms of Service and your local laws. The project
-> focuses purely on the technical port (networking, downloads, auth, etc.).
+> NClientV3 was an Android-only app built with OkHttp, JSoup, and Glide.
+> NClientT brings the same experience to **Windows**, **macOS**, and **Linux**
+> as a native desktop application.
 
-## GLM 5.2 refactoring map
+> ⚠️ This is an **unofficial, hobbyist client** for personal use only.
+> Respect nhentai's Terms of Service and your local laws.
 
-The table below shows how each module of NClientV3 (native Android) was
-refactored with GLM 5.2 into its cross-platform counterpart:
+## Features
 
-| NClientV3 (Android)                       | NClientT (cross-platform desktop)                  |
-|-------------------------------------------|---------------------------------------------------|
-| `OkHttpClient` + `CustomCookieJar`        | `reqwest` + `reqwest_cookie_store` (JSON jar)     |
-| `ApiAuthInterceptor` (UA + `Key <api>`)   | `http.rs` — same UA + `Authorization: Key <key>`  |
-| `InspectorV3` (browse/search/random)      | `api.rs` — same v2 endpoints                      |
-| `GalleryDownloaderV2` + `DownloadQueue`   | `downloader.rs` — concurrent, pause/cancel/resume |
-| `CookieInterceptor` + `CFTokenView` (CF)  | `cloudflare.rs` — webview window + cf_clearance   |
-| `async/database/Queries` (SQLite)         | `db.rs` — favorites/history/tags/local/downloads  |
-| `ApiAuthInterceptor` + `AuthStore`        | `config.rs::AuthCredentials` + `auth_*` cmds      |
-| PDF / ZIP export                          | `export.rs` (`lopdf` + `zip`)                     |
-| Activity / Fragment                       | Vue 3 views + Pinia stores                        |
+- 🏠 **Browse** — recent, popular (today / week / month / all-time)
+- 🔍 **Search** — by title, keyword, or tag; include/exclude tags; filter by language and page range
+- 🎲 **Random** — discover random galleries
+- 📖 **Reader** — fit to width / height / 1:1, RTL mode, keyboard navigation
+- ⬇️ **Download manager** — concurrent page downloads, pause / resume / cancel, progress tracking
+- ⭐ **Favorites** — local favorites (offline) and online favorites (requires API key)
+- 🕓 **History** — automatically records viewed galleries
+- 📁 **Local library** — scan downloaded galleries, offline browsing with metadata
+- 🏷 **Tags** — cached, searchable, mark as included or excluded
+- ☁️ **Cloudflare bypass** — solve challenges in an embedded webview, token reused for all requests
+- 🔑 **API key** — authenticates with nhentai for premium features (optional)
+- 🍪 **Persistent cookies** — session and CF tokens survive restarts
+- ⚙️ **Settings** — mirror, User-Agent, timeouts, grid columns, zoom, RTL, download directory
+- 📦 **Export** — convert downloaded galleries to PDF or ZIP
+- 🖥️ **Cross-platform** — native builds for Windows, macOS, and Linux
 
-### Features
+## Quick start
 
-- 🏠 **Home** — browse recent / popular (day / week / month / all)
-- 🔍 **Search** — by query + tag filters (include / exclude) + language + page-range
-- 🎲 **Random** gallery
-- 📖 **In-app reader** — fit width / height / 1:1, RTL, keyboard nav
-- ⬇ **Download manager** — queue, parallel pages, pause / resume / cancel, progress events
-- ★ **Favorites** — local (DB) and online (requires API key)
-- 🕑 **History** — auto-recorded reads
-- 📁 **Local library** — scans the download dir, reads gallery `.nomedia` metadata
-- 🏷 **Tags** — cached, searchable, mark include/exclude
-- 🌐 **Cloudflare** — challenge solved in an embedded webview, `cf_clearance` reused by the HTTP client
-- 🔑 **API key auth** — sent as `Authorization: Key <key>` on every API call
-- 🍪 **Persistent cookies** — survive restarts (so do CF tokens)
-- ⚙ **Settings** — mirror, User-Agent, timeouts, columns, zoom, RTL, download dir, ...
-- 📦 **Export** — convert a downloaded gallery to PDF or ZIP
-- 🖥 **Cross-platform** — refactored with GLM 5.2, no longer limited to Android;
-  natively runs on **Windows / macOS / Linux** (Tauri 2)
+### Prerequisites
+- **Rust** (1.77+) — [rustup.rs](https://rustup.rs/)
+- **Node.js** (18+) — [nodejs.org](https://nodejs.org/)
+- Platform-specific dependencies — see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
-## Project layout
+```bash
+# Clone & install
+git clone https://github.com/maxwai/NClientT.git
+cd NClientT
 
-```
-NClientT/
-├── index.html
-├── package.json            # frontend deps + Tauri CLI scripts
-├── vite.config.ts
-├── tsconfig.json
-├── scripts/make-icon.mjs   # generates src-tauri/icons/icon.png
-├── src/                    # Vue 3 frontend
-│   ├── api/                # invoke() wrappers for every Rust command
-│   ├── components/         # GalleryCard, TagChip, DownloadItem, ...
-│   ├── router/
-│   ├── stores/             # Pinia: settings, gallery, downloads, favorites, tags
-│   ├── styles/main.css
-│   ├── types/              # TS types mirrored from Rust models
-│   ├── views/              # Home, Search, Gallery, Reader, Favorites, ...
-│   ├── App.vue
-│   └── main.ts
-└── src-tauri/              # Rust backend
-    ├── Cargo.toml
-    ├── tauri.conf.json
-    ├── capabilities/default.json
-    ├── icons/              # generated by `npm run icon`
-    └── src/
-        ├── main.rs
-        ├── lib.rs          # app builder + command registration
-        ├── config.rs       # settings store (mirror, UA, auth, paths)
-        ├── error.rs        # AppError (serialized as string to JS)
-        ├── http.rs         # reqwest + UA + cookies + CF detection
-        ├── models.rs       # Gallery / Tag / Page / ... (serde)
-        ├── api.rs          # nhentai API v2 client (InspectorV3 port)
-        ├── cloudflare.rs   # CF webview + cf_clearance capture
-        ├── db.rs           # SQLite (rusqlite + r2d2)
-        ├── downloader.rs   # concurrent download manager
-        ├── export.rs       # PDF (lopdf) + ZIP
-        └── commands.rs     # all #[tauri::command] handlers
-```
-
-## Windows — first-time build setup
-
-Tauri on Windows needs **Rust** and the **MSVC C++ build tools** plus **WebView2**.
-
-### 1. Install Visual Studio Build Tools (MSVC)
-
-Download **"Build Tools for Visual Studio 2022"**:
-<https://visualstudio.microsoft.com/visual-cpp-build-tools/>
-
-In the installer, check **"Desktop development with C++"**, which pulls in:
-- MSVC v143 build tools
-- Windows 11 SDK (or Windows 10 SDK)
-- C++ CMake tools
-
-### 2. Install Rust
-
-Install via **rustup** (the official installer):
-<https://www.rust-lang.org/tools/install>
-
-In a **new** PowerShell / cmd window verify:
-
-```powershell
-rustc --version
-cargo --version
-```
-
-> The default `stable-x86_64-pc-windows-msvc` toolchain is what we want.
-
-### 3. Confirm WebView2 runtime
-
-WebView2 is preinstalled on Windows 10/11. If missing, grab the Evergreen
-bootstrapper from <https://developer.microsoft.com/microsoft-edge/webview2/>.
-
-### 4. Build & run
-
-```powershell
-cd Y:\NClientT
-
-# Install JS deps (Vue, Tauri CLI, Pinia, ...)
+# Install frontend dependencies
 npm install
 
-# Generate all icon sizes (PNG/ICO/ICNS) from the source PNG — no deps needed
+# Generate icons
 npm run icon
 
-# Dev: launches the Vite dev server + Rust shell with hot reload
+# Development (hot reload)
 npm run tauri:dev
 
-# Production build → .msi / .exe installer under src-tauri/target/release/bundle/
+# Production build
 npm run tauri:build
 ```
 
-The first `cargo` build downloads and compiles all crates (5–15 min depending
-on machine). Subsequent builds are fast.
+### Platform notes
 
-## macOS / Linux
+| Platform | Extra dependencies |
+|----------|--------------------|
+| **Windows** | Visual Studio Build Tools ("Desktop development with C++"), WebView2 (preinstalled on Win 10/11) |
+| **macOS** | `xcode-select --install` |
+| **Linux** | `webkit2gtk`, `libssl-dev`, `librsvg2`, etc. (see [Tauri docs](https://tauri.app/start/prerequisites/)) |
 
-The same Rust + npm steps work; only the prerequisites differ:
+First build compiles all Rust crates (5–15 minutes); subsequent builds are fast.
 
-- **macOS**: `xcode-select --install` then rustup. `npm run tauri:build` → `.app` / `.dmg`.
-- **Linux**: install `webkit2gtk`, `libssl-dev`, `librsvg2`, etc. (see
-  <https://tauri.app/start/prerequisites/>), then rustup + npm.
+## Project structure
+
+```
+NClientT/
+├── src/                    # Vue 3 frontend
+│   ├── api/                # Rust command wrappers
+│   ├── components/         # GalleryCard, TagChip, DownloadItem, ...
+│   ├── stores/             # Pinia stores (settings, gallery, downloads, ...)
+│   ├── views/              # Home, Search, Gallery, Reader, Favorites, ...
+│   └── main.ts
+├── src-tauri/              # Rust backend
+│   └── src/
+│       ├── api.rs          # nhentai API v2 client
+│       ├── cloudflare.rs   # Cloudflare challenge solver
+│       ├── commands.rs     # Tauri command handlers
+│       ├── config.rs       # Settings & auth
+│       ├── db.rs           # SQLite (favorites, history, tags, downloads)
+│       ├── downloader.rs   # Concurrent download manager
+│       ├── export.rs       # PDF / ZIP export
+│       ├── http.rs         # reqwest + cookies + auth
+│       └── models.rs       # Shared data models
+├── docs/ARCHITECTURE.md    # NClientV3 → NClientT porting reference
+└── package.json
+```
 
 ## API key (optional)
 
-Without an API key the client behaves like NClientV3 in logged-out mode: browse,
-search, read, and download all work. Online favorites and comments require a key.
-Add it under **Settings → API Key Authentication**.
+Browsing, searching, reading, and downloading all work without an API key.
+An API key enables online favorites and comments.
+
+Add yours under **Settings → API Key Authentication**.
 
 ## Cloudflare
 
-If the source site is behind Cloudflare, the home/search pages will surface a
-"Cloudflare verification required" banner. Click **Solve now** (or open
-**Settings → Cloudflare → Solve**). A small webview opens, you solve the
-challenge like a normal browser, and the resulting `cf_clearance` cookie is
-captured and reused by the Rust HTTP client for all subsequent requests —
-including downloads.
+When nhentai is behind Cloudflare, a banner prompts you to solve the challenge.
+Click **Solve now** — a webview opens, complete the captcha, and the
+`cf_clearance` cookie is captured for all subsequent requests.
+
+## Migration from NClientV3
+
+NClientT is a **ground-up rewrite**, not an upgrade. The same API endpoints and
+download folder layout are used, so downloaded galleries are compatible.
+Settings and favorites do not migrate automatically — re-add them in NClientT.
+
+For the full module-by-module porting reference, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## License
 
-Apache-2.0, matching NClientV3.
+[Apache-2.0](LICENSE) — same as NClientV3.

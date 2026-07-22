@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+import { Pause, Play, X, Folder } from "lucide-vue-next";
 
 import type { DownloadEntry } from "@/types";
+
+const { t: $t } = useI18n();
 
 const props = defineProps<{ entry: DownloadEntry }>();
 const emit = defineEmits<{
@@ -19,17 +23,17 @@ const pct = computed(() => {
 const statusLabel = computed(() => {
   switch (props.entry.status) {
     case "downloading":
-      return "Downloading";
+      return $t("downloads.status_downloading");
     case "paused":
-      return "Paused";
+      return $t("downloads.status_paused");
     case "finished":
-      return "Finished";
+      return $t("downloads.status_finished");
     case "canceled":
-      return "Canceled";
+      return $t("downloads.status_canceled");
     case "failed":
-      return "Failed";
+      return $t("downloads.status_failed");
     default:
-      return "Queued";
+      return $t("downloads.status_queued");
   }
 });
 
@@ -58,24 +62,24 @@ const speedLabel = computed(() => {
     <div class="actions">
       <button
         v-if="entry.status === 'downloading' || entry.status === 'pending'"
-        title="Pause"
+        :title="$t('downloads.pause')"
         @click="emit('pause', entry.id)"
-      >⏸</button>
+      ><Pause :size="14" /></button>
       <button
         v-if="entry.status === 'paused' || entry.status === 'failed'"
-        title="Resume"
+        :title="$t('downloads.resume')"
         @click="emit('resume', entry.id)"
-      >▶</button>
+      ><Play :size="14" /></button>
       <button
         v-if="entry.status !== 'finished' && entry.status !== 'canceled'"
-        title="Cancel"
+        :title="$t('downloads.cancel')"
         @click="emit('cancel', entry.id)"
-      >✕</button>
+      ><X :size="14" /></button>
       <button
         v-if="entry.status === 'finished'"
-        title="Open folder"
+        :title="$t('downloads.open_folder')"
         @click="emit('open', entry.folder)"
-      >📁</button>
+      ><Folder :size="14" /></button>
     </div>
   </div>
 </template>

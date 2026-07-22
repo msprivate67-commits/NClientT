@@ -17,10 +17,10 @@ onMounted(() => downloads.init());
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Downloads</div>
+      <div class="view-title">{{ $t('downloads.title') }}</div>
       <div class="toolbar">
-        <button class="btn" @click="downloads.refresh()">Refresh</button>
-        <button class="btn" @click="downloads.clear()">Clear finished</button>
+        <button class="btn" @click="downloads.refresh()">{{ $t('downloads.refresh') }}</button>
+        <button class="btn" @click="downloads.clear()">{{ $t('downloads.clear_finished') }}</button>
       </div>
     </div>
 
@@ -35,7 +35,7 @@ onMounted(() => downloads.init());
         @open="openPath"
       />
     </div>
-    <EmptyState v-else title="No downloads" hint="Start a download from any gallery page." />
+    <EmptyState v-else :title="$t('downloads.no_downloads')" :hint="$t('downloads.no_downloads_hint')" />
   </div>
 </template>
 

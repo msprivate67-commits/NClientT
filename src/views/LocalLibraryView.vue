@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
+import { ArrowUp, ArrowDown } from "lucide-vue-next";
 import { localScan, localDelete } from "@/api";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -112,29 +113,30 @@ onMounted(scan);
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Local Library</div>
+      <div class="view-title">{{ $t('localLibrary.title') }}</div>
       <div class="toolbar">
         <button class="btn" :disabled="scanning" @click="scan">
-          {{ scanning ? "Scanning…" : "Rescan" }}
+          {{ scanning ? $t('localLibrary.scanning') : $t('localLibrary.rescan') }}
         </button>
       </div>
     </div>
 
     <div class="sort-row">
       <div class="sort-group">
-        <span class="sort-label">Sort:</span>
+        <span class="sort-label">{{ $t('localLibrary.sort_label') }}</span>
         <button
           class="btn small"
           :class="{ active: sortField === 'name' }"
           @click="sortField = 'name'"
-        >Name</button>
+        >{{ $t('localLibrary.sort_name') }}</button>
         <button
           class="btn small"
           :class="{ active: sortField === 'date' }"
           @click="sortField = 'date'"
-        >Date</button>
-        <button class="btn small icon" @click="sortAsc = !sortAsc" :title="sortAsc ? 'Ascending' : 'Descending'">
-          {{ sortAsc ? "↑" : "↓" }}
+        >{{ $t('localLibrary.sort_date') }}</button>
+        <button class="btn small icon" @click="sortAsc = !sortAsc" :title="sortAsc ? $t('localLibrary.ascending') : $t('localLibrary.descending')">
+          <ArrowUp v-if="sortAsc" :size="14" />
+          <ArrowDown v-else :size="14" />
         </button>
       </div>
       <div class="select-group">
@@ -142,17 +144,17 @@ onMounted(scan);
           class="btn small"
           :class="{ active: selectMode }"
           @click="toggleSelectMode"
-        >{{ selectMode ? "Cancel" : "Select" }}</button>
+        >{{ selectMode ? $t('localLibrary.cancel') : $t('localLibrary.select') }}</button>
         <template v-if="selectMode">
           <button class="btn small" @click="toggleSelectAll">
-            {{ allSelected ? "Deselect All" : "Select All" }}
+            {{ allSelected ? $t('localLibrary.deselect_all') : $t('localLibrary.select_all') }}
           </button>
           <button
             class="btn small danger"
             :disabled="selectedIds.size === 0"
             @click="deleteSelected"
           >
-            Delete ({{ selectedIds.size }})
+            {{ $t('localLibrary.delete_selected', { n: selectedIds.size }) }}
           </button>
         </template>
       </div>
@@ -173,8 +175,8 @@ onMounted(scan);
     </div>
     <EmptyState
       v-else
-      title="No local galleries"
-      hint="Download galleries and they'll appear here automatically. You can also click Rescan to refresh."
+      :title="$t('localLibrary.no_local')"
+      :hint="$t('localLibrary.no_local_hint')"
     />
   </div>
 </template>

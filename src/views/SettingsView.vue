@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
+import { save as taSave, open as taOpen } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { useI18n } from "vue-i18n";
+import { Check } from "lucide-vue-next";
+import { SUPPORTED_LANGUAGES, exportLocaleJson, applyImportedMessages, setLocale, getLocale, type AppLanguage } from "@/i18n";
 
 import {
   authClear,
@@ -17,6 +21,8 @@ import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { Language, SortType, TitleType } from "@/types";
 
+const i18n = useI18n();
+
 const settings = useSettingsStore();
 const draft = ref(JSON.parse(JSON.stringify(settings.settings)));
 const saved = ref(false);
@@ -27,24 +33,29 @@ const apiKeyInput = ref("");
 const cfNeeded = ref(false);
 const cfSolved = ref(false);
 
+const currentLang = ref<string>(getLocale());
+const importMissing = ref<string[] | null>(null);
+const importError = ref("");
+const langSaved = ref(false);
+
 const sorts: { value: SortType; label: string }[] = [
-  { value: "recent_all_time", label: "Recent" },
-  { value: "popular_all_time", label: "Popular (all)" },
-  { value: "popular_week", label: "Popular (week)" },
-  { value: "popular_day", label: "Popular (day)" },
-  { value: "popular_month", label: "Popular (month)" },
+  { value: "recent_all_time", label: "home.sort_recent" },
+  { value: "popular_all_time", label: "home.sort_popular_all" },
+  { value: "popular_week", label: "home.sort_popular_week" },
+  { value: "popular_day", label: "home.sort_popular_day" },
+  { value: "popular_month", label: "home.sort_popular_month" },
 ];
 const langs: { value: Language; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "english", label: "English" },
-  { value: "japanese", label: "Japanese" },
-  { value: "chinese", label: "Chinese" },
+  { value: "all", label: "settings.lang_all" },
+  { value: "english", label: "settings.lang_english" },
+  { value: "japanese", label: "settings.lang_japanese" },
+  { value: "chinese", label: "settings.lang_chinese" },
 ];
 const titleTypes: { value: TitleType; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "pretty", label: "Pretty" },
-  { value: "english", label: "English" },
-  { value: "japanese", label: "Japanese" },
+  { value: "auto", label: "settings.title_auto" },
+  { value: "pretty", label: "settings.title_pretty" },
+  { value: "english", label: "settings.title_english" },
+  { value: "japanese", label: "settings.title_japanese" },
 ];
 
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(settings.settings));
@@ -58,7 +69,7 @@ async function save() {
 
 async function pickDownloadDir() {
   try {
-    const selected = await open({ directory: true, multiple: false });
+    const selected = await taOpen({ directory: true, multiple: false });
     if (typeof selected === "string") {
       draft.value.download_dir = selected;
       return;
@@ -123,6 +134,52 @@ async function solveCf() {
   await cloudflareOpenChallenge();
 }
 
+async function changeLang(code: AppLanguage) {
+  currentLang.value = code;
+  setLocale(code);
+  i18n.locale.value = code;
+  await settings.save({ app_language: code });
+  draft.value = JSON.parse(JSON.stringify(settings.settings));
+  langSaved.value = true;
+  setTimeout(() => langSaved.value = false, 1500);
+}
+
+async function exportLang() {
+  try {
+    const json = exportLocaleJson(currentLang.value);
+    const path = await taSave({
+      defaultPath: `nclientt-${currentLang.value}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (path) {
+      await writeTextFile(path, json);
+    }
+  } catch (e) {
+    console.error("export failed", e);
+  }
+}
+
+async function importLang() {
+  importError.value = "";
+  importMissing.value = null;
+  try {
+    const selected = await taOpen({
+      multiple: false,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!selected) return;
+    const path = selected as string;
+    const content = await readTextFile(path);
+    const { missingKeys } = applyImportedMessages(currentLang.value, content);
+    importMissing.value = missingKeys;
+    i18n.locale.value = currentLang.value;
+    langSaved.value = true;
+    setTimeout(() => langSaved.value = false, 1500);
+  } catch (e: any) {
+    importError.value = String(e?.message ?? e);
+  }
+}
+
 onMounted(async () => {
   draft.value = JSON.parse(JSON.stringify(settings.settings));
   try {
@@ -138,198 +195,225 @@ onMounted(async () => {
 <template>
   <div ref="viewRef" class="view settings">
     <div class="view-header">
-      <div class="view-title">Settings</div>
+      <div class="view-title">{{ $t('settings.title') }}</div>
       <div class="toolbar">
         <button class="btn primary" :disabled="!dirty" @click="save">
-          {{ saved ? "Saved ✓" : "Save" }}
+          {{ saved ? $t('common.saved') : $t('common.save') }}
         </button>
       </div>
     </div>
 
     <section>
-      <div class="section-title">Site & Network</div>
+      <div class="section-title">{{ $t('settings.section_language') }}</div>
+      <div class="row">
+        <label style="min-width: 120px;">{{ $t('settings.app_language') }}</label>
+        <select v-model="currentLang" @change="changeLang(currentLang as AppLanguage)">
+          <option v-for="lang in SUPPORTED_LANGUAGES" :key="lang.code" :value="lang.code">
+            {{ lang.nativeName }}
+          </option>
+        </select>
+        <span v-if="langSaved" class="ok" style="font-size:0.82rem;">{{ $t('common.saved') }}</span>
+      </div>
+      <p class="hint">{{ $t('settings.app_language_hint') }}</p>
+      <div class="row" style="margin-top: 8px;">
+        <button class="btn" @click="exportLang">{{ $t('settings.export_lang') }}</button>
+        <button class="btn" @click="importLang">{{ $t('settings.import_lang') }}</button>
+      </div>
+      <p class="hint" style="margin-top: 4px;">{{ $t('settings.export_lang_hint') }}</p>
+      <p class="hint">{{ $t('settings.import_lang_hint') }}</p>
+      <div v-if="importError" class="tl-error" style="margin-top: 6px;">{{ importError }}</div>
+      <div v-if="importMissing !== null && importMissing.length > 0" class="error" style="margin-top: 6px; font-size:0.8rem;">
+        Missing keys ({{ importMissing.length }}) — falling back to English:
+        <div style="max-height:80px; overflow-y:auto; margin-top:4px;">
+          <span v-for="k in importMissing" :key="k" style="display:inline-block; margin:2px 4px; background:var(--surface-2); padding:1px 6px; border-radius:4px; font-size:0.7rem;">{{ k }}</span>
+        </div>
+      </div>
+      <div v-else-if="importMissing !== null && importMissing.length === 0" class="ok" style="margin-top: 6px; font-size:0.82rem;">
+        <Check :size="14" /> All keys present
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">{{ $t('settings.section_site') }}</div>
       <div class="fields">
         <div class="field">
-          <label>Mirror host</label>
+          <label>{{ $t('settings.mirror_host') }}</label>
           <input v-model="draft.mirror" type="text" placeholder="nhentai.net" />
         </div>
         <div class="field">
-          <label>User-Agent (blank = default)</label>
+          <label>{{ $t('settings.user_agent') }}</label>
           <input v-model="draft.user_agent" type="text" placeholder="NClientT/0.1.0 ..." />
         </div>
         <div class="field">
-          <label>Request timeout (seconds)</label>
+          <label>{{ $t('settings.request_timeout') }}</label>
           <input v-model.number="draft.request_timeout_secs" type="number" min="5" max="300" />
         </div>
       </div>
     </section>
 
     <section>
-      <div class="section-title">Proxy</div>
+      <div class="section-title">{{ $t('settings.section_proxy') }}</div>
       <div class="fields">
         <div class="field">
-          <label>Proxy type</label>
+          <label>{{ $t('settings.proxy_type') }}</label>
           <select v-model="draft.proxy_type">
-            <option value="none">None</option>
-            <option value="http">HTTP</option>
-            <option value="socks5">SOCKS5</option>
+            <option value="none">{{ $t('settings.proxy_none') }}</option>
+            <option value="http">{{ $t('settings.proxy_http') }}</option>
+            <option value="socks5">{{ $t('settings.proxy_socks5') }}</option>
           </select>
         </div>
         <div class="field">
-          <label>Host</label>
+          <label>{{ $t('settings.host') }}</label>
           <input v-model="draft.proxy_host" type="text" placeholder="127.0.0.1" :disabled="draft.proxy_type === 'none'" />
         </div>
         <div class="field">
-          <label>Port</label>
+          <label>{{ $t('settings.port') }}</label>
           <input v-model.number="draft.proxy_port" type="number" min="1" max="65535" :disabled="draft.proxy_type === 'none'" />
         </div>
       </div>
       <div class="fields" style="margin-top: 8px;">
         <div class="field">
-          <label>Username (optional)</label>
+          <label>{{ $t('settings.username_optional') }}</label>
           <input v-model="draft.proxy_username" type="text" placeholder="optional" :disabled="draft.proxy_type === 'none'" />
         </div>
         <div class="field">
-          <label>Password (optional)</label>
+          <label>{{ $t('settings.password_optional') }}</label>
           <input v-model="draft.proxy_password" type="password" placeholder="optional" :disabled="draft.proxy_type === 'none'" />
         </div>
       </div>
     </section>
 
     <section>
-      <div class="section-title">Cloudflare</div>
+      <div class="section-title">{{ $t('settings.section_cloudflare') }}</div>
       <div class="row">
-        <span>Status:</span>
-        <strong v-if="cfSolved" class="ok">Solved</strong>
-        <strong v-else-if="cfNeeded" class="warn">Challenge needed</strong>
-        <strong v-else>Unknown</strong>
-        <button class="btn" @click="checkCf">Check</button>
-        <button class="btn" :disabled="cfSolved" @click="solveCf">Solve</button>
-        <button class="btn" @click="clearCookies">Clear cookies</button>
+        <span>{{ $t('settings.cf_status') }}</span>
+        <strong v-if="cfSolved" class="ok">{{ $t('settings.cf_solved') }}</strong>
+        <strong v-else-if="cfNeeded" class="warn">{{ $t('settings.cf_challenge_needed') }}</strong>
+        <strong v-else>{{ $t('settings.cf_unknown') }}</strong>
+        <button class="btn" @click="checkCf">{{ $t('settings.check') }}</button>
+        <button class="btn" :disabled="cfSolved" @click="solveCf">{{ $t('settings.solve') }}</button>
+        <button class="btn" @click="clearCookies">{{ $t('settings.clear_cookies') }}</button>
       </div>
     </section>
 
     <section>
-      <div class="section-title">API Key Authentication</div>
+      <div class="section-title">{{ $t('settings.section_api') }}</div>
       <div class="row">
-        <span>Has key:</span>
-        <strong>{{ settings.auth.has_credentials ? "yes" : "no" }}</strong>
+        <span>{{ $t('settings.has_key') }}</span>
+        <strong>{{ settings.auth.has_credentials ? $t('common.yes') : $t('common.no') }}</strong>
         <strong v-if="settings.auth.has_credentials" :class="{ ok: settings.auth.api_key_valid, warn: !settings.auth.api_key_valid }">
-          {{ settings.auth.api_key_valid ? "(valid)" : "(invalid)" }}
+          {{ settings.auth.api_key_valid ? $t('settings.key_valid') : $t('settings.key_invalid') }}
         </strong>
       </div>
       <div class="row">
-        <input v-model="apiKeyInput" type="password" placeholder="Paste API key" />
-        <button class="btn primary" @click="saveApiKey">Save key</button>
-        <button class="btn danger" :disabled="!settings.auth.has_credentials" @click="clearAuth">Clear</button>
+        <input v-model="apiKeyInput" type="password" :placeholder="$t('settings.paste_api_key')" />
+        <button class="btn primary" @click="saveApiKey">{{ $t('settings.save_key') }}</button>
+        <button class="btn danger" :disabled="!settings.auth.has_credentials" @click="clearAuth">{{ $t('settings.clear') }}</button>
       </div>
-      <p class="hint">
-        The key is sent as <code>Authorization: Key &lt;key&gt;</code> on every API request, mirroring NClientV3's
-        <code>ApiAuthInterceptor</code>.
-      </p>
+      <p class="hint" v-html="$t('settings.api_hint', { code: '<code>Authorization: Key &lt;key&gt;</code>' })"></p>
     </section>
 
     <section>
-      <div class="section-title">Browsing</div>
+      <div class="section-title">{{ $t('settings.section_browsing') }}</div>
       <div class="fields">
         <div class="field">
-          <label>Default sort</label>
+          <label>{{ $t('settings.default_sort') }}</label>
           <select v-model="draft.sort_type">
-            <option v-for="s in sorts" :key="s.value" :value="s.value">{{ s.label }}</option>
+            <option v-for="s in sorts" :key="s.value" :value="s.value">{{ $t(s.label) }}</option>
           </select>
         </div>
         <div class="field">
-          <label>Default language filter</label>
+          <label>{{ $t('settings.default_lang_filter') }}</label>
           <select v-model="draft.only_language">
-            <option v-for="l in langs" :key="l.value" :value="l.value">{{ l.label }}</option>
+            <option v-for="l in langs" :key="l.value" :value="l.value">{{ $t(l.label) }}</option>
           </select>
         </div>
         <div class="field">
-          <label>Title preference</label>
+          <label>{{ $t('settings.title_preference') }}</label>
           <select v-model="draft.title_type">
-            <option v-for="t in titleTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            <option v-for="t in titleTypes" :key="t.value" :value="t.value">{{ $t(t.label) }}</option>
           </select>
         </div>
       </div>
       <div class="checkboxes">
-        <label><input type="checkbox" v-model="draft.show_titles" /> Show titles</label>
-        <label><input type="checkbox" v-model="draft.exact_tag_match" /> Exact tag match</label>
-        <label><input type="checkbox" v-model="draft.remove_avoided_galleries" /> Hide avoided</label>
-        <label><input type="checkbox" v-model="draft.use_rtl" /> RTL reader</label>
-        <label><input type="checkbox" v-model="draft.keep_history" /> Keep history</label>
+        <label><input type="checkbox" v-model="draft.show_titles" /> {{ $t('settings.show_titles') }}</label>
+        <label><input type="checkbox" v-model="draft.exact_tag_match" /> {{ $t('settings.exact_tag_match') }}</label>
+        <label><input type="checkbox" v-model="draft.remove_avoided_galleries" /> {{ $t('settings.hide_avoided') }}</label>
+        <label><input type="checkbox" v-model="draft.use_rtl" /> {{ $t('settings.rtl_reader') }}</label>
+        <label><input type="checkbox" v-model="draft.keep_history" /> {{ $t('settings.keep_history') }}</label>
       </div>
     </section>
 
     <section>
-      <div class="section-title">Display</div>
+      <div class="section-title">{{ $t('settings.section_display') }}</div>
       <div class="fields">
         <div class="field">
-          <label>Grid columns (approx)</label>
+          <label>{{ $t('settings.grid_columns') }}</label>
           <input v-model.number="draft.column_count" type="number" min="2" max="10" />
         </div>
         <div class="field">
-          <label>Page thumbnail columns (0 = auto)</label>
+          <label>{{ $t('settings.page_thumb_columns') }}</label>
           <input v-model.number="draft.page_thumbnail_columns" type="number" min="0" max="10" />
         </div>
         <div class="field">
-          <label>Default zoom (%)</label>
+          <label>{{ $t('settings.default_zoom') }}</label>
           <input v-model.number="draft.default_zoom_pct" type="number" min="20" max="300" />
         </div>
       </div>
       <div class="checkboxes">
-        <label><input type="checkbox" v-model="draft.button_change_page" /> Page-change buttons</label>
+        <label><input type="checkbox" v-model="draft.button_change_page" /> {{ $t('settings.page_change_buttons') }}</label>
       </div>
     </section>
 
     <section>
-      <div class="section-title">Downloads</div>
+      <div class="section-title">{{ $t('settings.section_downloads') }}</div>
       <div class="field path-field">
-        <label>Download directory</label>
+        <label>{{ $t('settings.download_dir') }}</label>
         <div class="row">
-          <input v-model="draft.download_dir" type="text" placeholder="Default: app data directory" />
-          <button class="btn" @click="pickDownloadDir">Browse…</button>
+          <input v-model="draft.download_dir" type="text" :placeholder="$t('settings.download_dir_placeholder')" />
+          <button class="btn" @click="pickDownloadDir">{{ $t('settings.browse') }}</button>
         </div>
       </div>
       <div class="fields">
         <div class="field">
-          <label>Parallel galleries</label>
+          <label>{{ $t('settings.parallel_galleries') }}</label>
           <input v-model.number="draft.parallel_downloads" type="number" min="1" max="10" />
         </div>
         <div class="field">
-          <label>Parallel pages per gallery</label>
+          <label>{{ $t('settings.parallel_pages') }}</label>
           <input v-model.number="draft.parallel_pages" type="number" min="1" max="32" />
         </div>
       </div>
     </section>
 
     <section>
-      <div class="section-title">AI Translation</div>
+      <div class="section-title">{{ $t('settings.section_ai') }}</div>
       <div class="fields">
         <div class="field">
-          <label>Base URL</label>
+          <label>{{ $t('settings.ai_base_url') }}</label>
           <input v-model="draft.tl_base_url" type="text" placeholder="https://api.deepseek.com" />
         </div>
         <div class="field">
-          <label>Model</label>
+          <label>{{ $t('settings.ai_model') }}</label>
           <input v-model="draft.tl_model" type="text" placeholder="deepseek-v4-flash" />
         </div>
         <div class="field">
-          <label>API Key</label>
+          <label>{{ $t('settings.ai_api_key') }}</label>
           <input v-model="draft.tl_api_key" type="password" placeholder="sk-…" />
         </div>
         <div class="field">
-          <label>Target language</label>
+          <label>{{ $t('settings.ai_target_lang') }}</label>
           <input v-model="draft.tl_target_lang" type="text" placeholder="中文" />
         </div>
       </div>
       <div class="checkboxes">
-        <label><input type="checkbox" v-model="draft.tl_thinking" /> Enable thinking</label>
+        <label><input type="checkbox" v-model="draft.tl_thinking" /> {{ $t('settings.ai_thinking') }}</label>
       </div>
     </section>
 
     <section v-if="appData">
-      <div class="section-title">Data</div>
-      <p class="hint">App data directory: <code>{{ appData }}</code></p>
+      <div class="section-title">{{ $t('settings.section_data') }}</div>
+      <p class="hint">{{ $t('settings.app_data_dir') }} <code>{{ appData }}</code></p>
     </section>
   </div>
 </template>

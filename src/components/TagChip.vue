@@ -41,7 +41,7 @@ function onContextmenu(e: MouseEvent) {
   <span
     class="chip"
     :class="[statusClass, { clickable }]"
-    :title="`${tag.type}: ${tag.name} (${tag.count}) — right-click to cycle status`"
+    :title="$t('tags.cycle_hint', { type: tag.type, name: tag.name, count: tag.count })"
     @click="onClick"
     @contextmenu="onContextmenu"
   >

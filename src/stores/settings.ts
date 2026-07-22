@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_api_key: "",
   tl_target_lang: "中文",
   tl_thinking: false,
+  app_language: "",
 };
 
 export const useSettingsStore = defineStore("settings", () => {

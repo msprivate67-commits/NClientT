@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
+
 const props = defineProps<{ page: number; numPages: number }>();
 const emit = defineEmits<{ (e: "change", page: number): void }>();
 
@@ -10,7 +12,7 @@ function go(p: number) {
 
 <template>
   <div class="pager">
-    <button :disabled="page <= 1" @click="go(page - 1)">‹ Prev</button>
+    <button :disabled="page <= 1" @click="go(page - 1)"><ChevronLeft :size="16" /> {{ $t('common.prev') }}</button>
     <span class="info">
       <input
         v-if="numPages > 0"
@@ -23,7 +25,7 @@ function go(p: number) {
       <span v-else>{{ page }}</span>
       <span v-if="numPages > 0" class="total">/ {{ numPages }}</span>
     </span>
-    <button :disabled="numPages > 0 && page >= numPages" @click="go(page + 1)">Next ›</button>
+    <button :disabled="numPages > 0 && page >= numPages" @click="go(page + 1)">{{ $t('common.next') }} <ChevronRight :size="16" /></button>
   </div>
 </template>
 
@@ -42,6 +44,9 @@ button {
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 button:disabled {
   opacity: 0.45;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { localGet, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
+import { BookOpen, Loader, RefreshCw, Languages } from "lucide-vue-next";
 import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
 import type { LocalGallery } from "@/types";
@@ -67,11 +68,11 @@ watch(() => props.folder, load);
 <template>
   <div class="view" :class="{ 'overlay-mode': overlay }">
     <div v-if="overlay" class="overlay-bar">
-      <button class="btn" @click="emit('back')">← Back</button>
+      <button class="btn" @click="emit('back')">{{ $t('localDetail.back') }}</button>
       <span class="overlay-title">{{ title }}</span>
     </div>
 
-    <div v-if="loading" class="loading">Loading…</div>
+    <div v-if="loading" class="loading">{{ $t('localDetail.loading') }}</div>
     <template v-else-if="local">
       <div class="header">
         <div class="cover" v-if="coverSrc">
@@ -84,20 +85,24 @@ watch(() => props.folder, load);
           </div>
           <div v-if="translateError" class="tl-error">{{ translateError }}</div>
           <div class="meta">
-            <span>{{ local.num_pages }} pages</span>
+            <span>{{ local.num_pages }} {{ $t('localDetail.pages') }}</span>
           </div>
           <div class="actions">
-            <button class="btn primary" @click="read">📖 Read</button>
+            <button class="btn primary" @click="read"><BookOpen :size="14" /> {{ $t('localDetail.read') }}</button>
             <button
               class="btn"
               :disabled="translating"
               @click="doTranslate"
-            >{{ translating ? '⏳ Translating…' : translatedTitle || translated ? '🔄 Retranslate' : '🔤 Translate' }}</button>
+            >
+              <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('localDetail.translating') }}</span>
+              <span v-else-if="translatedTitle || translated"><RefreshCw :size="14" /> {{ $t('localDetail.retranslate') }}</span>
+              <span v-else><Languages :size="14" /> {{ $t('localDetail.translate') }}</span>
+            </button>
           </div>
         </div>
       </div>
     </template>
-    <div v-else class="error">Failed to load local gallery.</div>
+    <div v-else class="error">{{ $t('localDetail.load_error') }}</div>
   </div>
 </template>
 

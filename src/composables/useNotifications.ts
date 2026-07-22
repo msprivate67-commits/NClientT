@@ -17,6 +17,22 @@ import {
   removeActive,
 } from "@tauri-apps/plugin-notification";
 import type { DownloadProgress } from "@/types";
+import { getLocale, LOCALE_MESSAGES, type AppLanguage } from "@/i18n";
+
+function tfn(key: string, params?: Record<string, unknown>): string {
+  const locale = getLocale() as AppLanguage;
+  const msgs = LOCALE_MESSAGES[locale] || LOCALE_MESSAGES.en;
+  const parts = key.split(".");
+  let val: unknown = msgs;
+  for (const p of parts) {
+    val = (val as Record<string, unknown>)?.[p];
+  }
+  if (typeof val !== "string") return key;
+  if (params) {
+    return val.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
+  }
+  return val;
+}
 
 let permissionAsked = false;
 
@@ -97,8 +113,8 @@ export async function handleDownloadNotification(p: DownloadProgress) {
     if (ok) {
       notify(
         p.id,
-        "Download complete",
-        `${p.title}\n${p.total_pages} pages saved.`,
+        tfn("notification.download_complete"),
+        `${p.title}\n${tfn("notification.pages_saved", { n: p.total_pages })}`,
         { autoCancel: true },
       );
     }
@@ -128,5 +144,5 @@ export async function handleDownloadNotification(p: DownloadProgress) {
   if (!ok) return;
   // `ongoing` keeps the notification pinned while the download runs and lets
   // Android dismiss it automatically once we cancel it on completion.
-  notify(p.id, `Downloading: ${p.title}`, progressBody(p), { ongoing: true });
+  notify(p.id, tfn("notification.downloading", { title: p.title }), progressBody(p), { ongoing: true });
 }

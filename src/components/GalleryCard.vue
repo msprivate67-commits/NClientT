@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Check, Download, Star } from "lucide-vue-next";
 import { computed } from "vue";
 
 import { imageProxyUrl } from "@/api";
@@ -100,9 +101,9 @@ async function toggleFav(e: MouseEvent) {
   <div class="card" :class="{ selected, selectable }" @click="open">
     <div class="thumb">
       <img v-if="src" :src="src" loading="lazy" :alt="gallery.title" />
-      <div v-else class="placeholder">No cover</div>
+      <div v-else class="placeholder">{{ $t('common.no_cover') }}</div>
       <div v-if="selectable" class="select-check" :class="{ checked: selected }" @click.stop="handleSelect">
-        <span v-if="selected">✓</span>
+        <span v-if="selected"><Check :size="14" /></span>
       </div>
       <span v-if="languageFlag && !selectable" class="flag">{{ languageFlag }}</span>
       <span v-if="gallery.num_pages" class="pages">{{ gallery.num_pages }}p</span>
@@ -114,26 +115,26 @@ async function toggleFav(e: MouseEvent) {
         v-if="isRead && !selectable"
         class="read-mark"
         :class="{ stacked: isDownloaded }"
-        title="You’ve read this"
-      >✓ read</span>
+        :title="$t('galleryCard.read_tooltip')"
+      ><Check :size="12" /> {{ $t('galleryCard.read_badge') }}</span>
       <!-- "Downloaded" badge: this gallery already exists on disk in the local
            library. Sits bottom-left, below the read mark when both show. -->
       <span
         v-if="isDownloaded && !selectable"
         class="downloaded-mark"
-        title="Downloaded"
-      >⬇ downloaded</span>
+        :title="$t('galleryCard.downloaded_tooltip')"
+      ><Download :size="12" /> {{ $t('galleryCard.downloaded_badge') }}</span>
       <button
         class="fav"
         :class="{ active: favorites.ids.has(gallery.id) }"
-        title="Favorite"
+        :title="$t('galleryCard.favorite_tooltip')"
         @click="toggleFav"
       >
-        ★
+        <Star :size="14" :fill="favorites.ids.has(gallery.id) ? 'currentColor' : 'none'" />
       </button>
     </div>
     <div class="meta">
-      <div class="title" :title="gallery.title">{{ gallery.title || "Unnamed" }}</div>
+      <div class="title" :title="gallery.title">{{ gallery.title || $t('common.unnamed') }}</div>
     </div>
   </div>
 </template>

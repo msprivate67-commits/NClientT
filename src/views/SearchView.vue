@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import TagChip from "@/components/TagChip.vue";
+import { RefreshCw, X, CheckSquare } from "lucide-vue-next";
 import { tagsSearch } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
@@ -15,6 +17,7 @@ import type { Language, SimpleGallery, SortType, Tag } from "@/types";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const gallery = useGalleryStore();
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
@@ -145,8 +148,8 @@ async function load() {
 
 function humanizeError(e: any): string {
   const s = String(e?.message ?? e);
-  if (/cloudflare/i.test(s)) return "Cloudflare challenge required. Open Settings → Cloudflare.";
-  if (/401|403|unauthorized/i.test(s)) return "Authentication failed. Check your API key in Settings.";
+  if (/cloudflare/i.test(s)) return t("search.cf_error");
+  if (/401|403|unauthorized/i.test(s)) return t("search.auth_error");
   return s;
 }
 
@@ -219,11 +222,11 @@ watch(() => route.query, () => {
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">Search</div>
+      <div class="view-title">{{ $t('search.title') }}</div>
     </div>
 
     <div v-if="query.trim()" class="current-query">
-      Searching: <strong>{{ query }}</strong>
+      {{ $t('search.searching') }} <strong>{{ query }}</strong>
     </div>
     <div class="form">
       <div class="toolbar">
@@ -251,9 +254,9 @@ watch(() => route.query, () => {
         class="btn"
         :disabled="loading || !hasQuery"
         @click="load"
-        title="Reload results"
+        :title="$t('search.reload_results')"
       >
-        {{ loading ? "Refreshing…" : "🔄 Refresh" }}
+        {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
       </button>
     </div>
 
@@ -262,7 +265,7 @@ watch(() => route.query, () => {
         <input
           v-model="tagQuery"
           type="text"
-          placeholder="Add a tag filter…"
+          :placeholder="$t('search.add_tag')"
           @input="searchSuggestions"
           @keydown.enter.prevent="suggestions[0] && addTag(suggestions[0])"
         />
@@ -272,7 +275,7 @@ watch(() => route.query, () => {
           :disabled="suggestions.length === 0"
           @click="suggestions[0] && addTag(suggestions[0])"
         >
-          + Add
+          {{ $t('search.add') }}
         </button>
       </div>
       <div v-if="suggestions.length" class="suggest">
@@ -300,7 +303,7 @@ watch(() => route.query, () => {
         class="btn small"
         type="button"
         @click="removeTag(t)"
-      >✕</button>
+      ><X :size="12" /></button>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -313,20 +316,20 @@ watch(() => route.query, () => {
           type="button"
           @click="toggleSelectMode"
         >
-          {{ selectMode ? "✕ Cancel" : "☑ Select" }}
+          {{ selectMode ? '' : '' }}<X v-if="selectMode" :size="14" /> {{ selectMode ? $t('common.cancel') : '' }}<CheckSquare v-if="!selectMode" :size="14" /> {{ !selectMode ? $t('common.select') : '' }}
         </button>
         <template v-if="selectMode">
-          <button class="btn" type="button" @click="selectAllIds">Select all</button>
-          <button class="btn" type="button" @click="deselectAllIds">Deselect all</button>
+          <button class="btn" type="button" @click="selectAllIds">{{ $t('common.select_all') }}</button>
+          <button class="btn" type="button" @click="deselectAllIds">{{ $t('common.deselect_all') }}</button>
           <button class="btn primary" type="button" :disabled="selectedIds.size === 0" @click="downloadSelected">
-            Download ({{ selectedIds.size }})
+            {{ $t('common.download') }} ({{ selectedIds.size }})
           </button>
         </template>
       </div>
       <GalleryGrid
         :galleries="items"
         :loading="loading"
-        empty-title="No matches"
+        :empty-title="$t('search.no_matches')"
         :selectable="selectMode"
         :selected="selectedIds"
         @select="toggleSelect"
@@ -335,7 +338,7 @@ watch(() => route.query, () => {
       <Pagination :page="page" :num-pages="numPages" @change="changePage" />
     </div>
     <div v-else class="hint-block">
-      Type a query, pick a language, or add tags above to start searching.
+      {{ $t('search.search_hint') }}
     </div>
   </div>
 </template>

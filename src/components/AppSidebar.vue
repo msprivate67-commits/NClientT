@@ -1,5 +1,24 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
+import { useI18n } from "vue-i18n";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  House,
+  Search,
+  Star,
+  Clock,
+  Download,
+  Folder,
+  Tag,
+  Settings,
+  PackageOpen,
+  MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-vue-next";
+
+const { t } = useI18n();
 
 defineProps<{
   open: boolean;
@@ -9,15 +28,26 @@ defineProps<{
 }>();
 defineEmits<{ (e: "toggle"): void; (e: "navigate"): void }>();
 
+const GITHUB_RELEASES = "https://github.com/msprivate67-commits/NClientT/releases";
+const GITHUB_ISSUES = "https://github.com/msprivate67-commits/NClientT/issues";
+
+function openRelease() {
+  openUrl(GITHUB_RELEASES);
+}
+
+function openIssue() {
+  openUrl(GITHUB_ISSUES);
+}
+
 const items = [
-  { to: { name: "home" }, icon: "🏠", label: "Home" },
-  { to: { name: "search" }, icon: "🔍", label: "Search" },
-  { to: { name: "favorites" }, icon: "★", label: "Favorites" },
-  { to: { name: "history" }, icon: "🕑", label: "History" },
-  { to: { name: "downloads" }, icon: "⬇", label: "Downloads" },
-  { to: { name: "local" }, icon: "📁", label: "Local Library" },
-  { to: { name: "tags" }, icon: "🏷", label: "Tags" },
-  { to: { name: "settings" }, icon: "⚙", label: "Settings" },
+  { to: { name: "home" },      icon: House,          key: "sidebar.home" },
+  { to: { name: "search" },    icon: Search,         key: "sidebar.search" },
+  { to: { name: "favorites" }, icon: Star,           key: "sidebar.favorites" },
+  { to: { name: "history" },   icon: Clock,          key: "sidebar.history" },
+  { to: { name: "downloads" }, icon: Download,       key: "sidebar.downloads" },
+  { to: { name: "local" },     icon: Folder,         key: "sidebar.local_library" },
+  { to: { name: "tags" },      icon: Tag,            key: "sidebar.tags" },
+  { to: { name: "settings" },  icon: Settings,       key: "sidebar.settings" },
 ];
 </script>
 
@@ -35,26 +65,38 @@ const items = [
     :class="{ collapsed: !open && !mobile, 'is-mobile': mobile, 'is-open': mobile && open }"
   >
     <div class="brand">
-      <span class="logo">N</span>
-      <span v-if="open || mobile" class="name">NClientT</span>
+      <span class="logo">{{ t("sidebar.short_brand") }}</span>
+      <span v-if="open || mobile" class="name">{{ t("sidebar.brand") }}</span>
     </div>
     <nav>
       <RouterLink
         v-for="item in items"
-        :key="item.label"
+        :key="item.key"
         :to="item.to"
         class="nav-item"
-        :title="item.label"
+        :title="t(item.key)"
         @click="$emit('navigate')"
       >
-        <span class="icon">{{ item.icon }}</span>
-        <span v-if="open || mobile" class="label">{{ item.label }}</span>
+        <component :is="item.icon" :size="18" class="icon" />
+        <span v-if="open || mobile" class="label">{{ t(item.key) }}</span>
       </RouterLink>
+
+      <div class="nav-sep" />
+
+      <button class="nav-item" :title="t('sidebar.get_latest')" @click="openRelease">
+        <PackageOpen :size="18" class="icon" />
+        <span v-if="open || mobile" class="label">{{ t('sidebar.get_latest') }}</span>
+      </button>
+      <button class="nav-item" :title="t('sidebar.feedback')" @click="openIssue">
+        <MessageCircle :size="18" class="icon" />
+        <span v-if="open || mobile" class="label">{{ t('sidebar.feedback') }}</span>
+      </button>
     </nav>
     <button v-if="!mobile" class="collapse" @click="$emit('toggle')">
-      {{ open ? "‹" : "›" }}
+      <ChevronLeft v-if="open" :size="16" />
+      <ChevronRight v-else :size="16" />
     </button>
-    <button v-else class="collapse" @click="$emit('toggle')">✕</button>
+    <button v-else class="collapse" @click="$emit('toggle')"><X :size="16" /></button>
   </aside>
 </template>
 
@@ -111,6 +153,11 @@ nav {
   text-decoration: none;
   font-size: 0.88rem;
   cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
 }
 .nav-item:hover {
   background: var(--surface-2);
@@ -119,11 +166,18 @@ nav {
   background: var(--accent-soft);
   color: var(--accent);
 }
+.nav-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 12px;
+}
 .icon {
-  font-size: 1rem;
   width: 20px;
   text-align: center;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .collapse {
   margin: 8px;
@@ -133,6 +187,9 @@ nav {
   color: var(--text);
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---- Mobile slide-over drawer ----

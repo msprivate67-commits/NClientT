@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 import { imageProxyUrl, localList, localDelete } from "@/api";
+import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useSettingsStore } from "@/stores/settings";
 import type { LocalGallery } from "@/types";
@@ -20,6 +22,7 @@ const scrollMode = ref<"vertical" | "horizontal">(
   (settings.settings.reader_direction as "vertical" | "horizontal") || "vertical",
 );
 const readProgress = useReadProgressStore();
+const { t } = useI18n();
 
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
@@ -178,7 +181,7 @@ watch(scrollMode, () => {
 
 async function remove() {
   if (!local.value) return;
-  if (!confirm(`Delete "${local.value.title}" from disk?`)) return;
+  if (!confirm(t("reader.confirm_delete", { title: local.value.title }))) return;
   await localDelete(local.value.folder);
   if (props.overlay) {
     emit("back");
@@ -191,13 +194,13 @@ async function remove() {
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`]">
     <header class="bar">
-      <button class="btn" @click="props.overlay ? emit('back') : router.back()">✕ Close</button>
+      <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /> {{ $t('reader.close') }}</button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <button
         class="btn small"
         @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
       >
-        {{ scrollMode === 'vertical' ? '⇔ H' : '⇕ V' }}
+        {{ scrollMode === 'vertical' ? '' : '' }}<ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" /> {{ scrollMode === 'vertical' ? $t('reader.horizontal') : '' }}<ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" /> {{ scrollMode === 'horizontal' ? $t('reader.vertical') : '' }}
       </button>
       <div class="fit">
         <button
@@ -205,28 +208,28 @@ async function remove() {
           :class="{ primary: fitMode === 'height' }"
           @click="fitMode = 'height'"
         >
-          Fit H
+          {{ $t('reader.fit_height') }}
         </button>
         <button
           class="btn small"
           :class="{ primary: fitMode === 'width' }"
           @click="fitMode = 'width'"
         >
-          Fit W
+          {{ $t('reader.fit_width') }}
         </button>
         <button
           class="btn small"
           :class="{ primary: fitMode === 'original' }"
           @click="fitMode = 'original'"
         >
-          1:1
+          {{ $t('reader.fit_original') }}
         </button>
       </div>
-      <button class="btn danger" @click="remove">Delete</button>
+      <button class="btn danger" @click="remove">{{ $t('common.delete') }}</button>
     </header>
 
     <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
-      <div v-if="!total" class="loading">No pages found.</div>
+      <div v-if="!total" class="loading">{{ $t('reader.no_pages') }}</div>
       <div
         v-for="(_p, i) in pages"
         :key="i"
@@ -234,14 +237,14 @@ async function remove() {
       >
         <img
           :src="pageSrc(i)"
-          :alt="`page ${i + 1}`"
+          :alt="$t('common.page_n', { n: i + 1 })"
           loading="lazy"
           decoding="async"
           class="page-thumb"
         />
         <img
           :src="pageSrc(i)"
-          :alt="`page ${i + 1}`"
+          :alt="$t('common.page_n', { n: i + 1 })"
           loading="lazy"
           decoding="async"
           class="page-img"
@@ -249,14 +252,14 @@ async function remove() {
           @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
         />
         <div v-if="failedPages.has(i)" class="page-error">
-          <span>⚠</span>
-          <button class="btn" @click="reloadPage(i)">Reload</button>
+          <AlertTriangle :size="20" />
+          <button class="btn" @click="reloadPage(i)">{{ $t('reader.reload') }}</button>
         </div>
       </div>
     </div>
 
     <footer class="bar">
-      <button class="btn" @click="prev">‹ Prev</button>
+      <button class="btn" @click="prev"><ChevronLeft :size="16" /> {{ $t('reader.prev') }}</button>
       <input
         type="range"
         min="1"
@@ -264,7 +267,7 @@ async function remove() {
         v-model.number="currentPage"
         @change="scrollToPage(currentPage - 1, false)"
       />
-      <button class="btn" @click="next">Next ›</button>
+      <button class="btn" @click="next">{{ $t('reader.next') }} <ChevronRight :size="16" /></button>
     </footer>
   </div>
 </template>

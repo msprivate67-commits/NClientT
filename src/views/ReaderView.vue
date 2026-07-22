@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { imageProxyUrl } from "@/api";
+import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
@@ -252,13 +253,13 @@ watch(scrollMode, () => {
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`, { rtl }]">
     <header class="bar">
-      <button class="btn" @click="props.overlay ? emit('back') : router.back()">✕ Close</button>
+      <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /> {{ $t('reader.close') }}</button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <button
         class="btn small"
         @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
       >
-        {{ scrollMode === 'vertical' ? '⇔ H' : '⇕ V' }}
+        {{ scrollMode === 'vertical' ? '' : '' }}<ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" /> {{ scrollMode === 'vertical' ? $t('reader.horizontal') : '' }}<ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" /> {{ scrollMode === 'horizontal' ? $t('reader.vertical') : '' }}
       </button>
       <div class="fit">
         <button
@@ -266,27 +267,27 @@ watch(scrollMode, () => {
           :class="{ primary: fitMode === 'height' }"
           @click="fitMode = 'height'"
         >
-          Fit H
+          {{ $t('reader.fit_height') }}
         </button>
         <button
           class="btn small"
           :class="{ primary: fitMode === 'width' }"
           @click="fitMode = 'width'"
         >
-          Fit W
+          {{ $t('reader.fit_width') }}
         </button>
         <button
           class="btn small"
           :class="{ primary: fitMode === 'original' }"
           @click="fitMode = 'original'"
         >
-          1:1
+          {{ $t('reader.fit_original') }}
         </button>
       </div>
     </header>
 
     <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
-      <div v-if="!total" class="loading">Loading…</div>
+      <div v-if="!total" class="loading">{{ $t('reader.loading') }}</div>
       <div
         v-for="(_p, i) in pages"
         :key="i"
@@ -295,7 +296,7 @@ watch(scrollMode, () => {
         <img
           v-if="thumbSrc(i)"
           :src="thumbSrc(i)"
-          :alt="`page ${i + 1}`"
+          :alt="$t('common.page_n', { n: i + 1 })"
           loading="lazy"
           decoding="async"
           class="page-thumb"
@@ -303,7 +304,7 @@ watch(scrollMode, () => {
         />
         <img
           :src="pageSrc(i)"
-          :alt="`page ${i + 1}`"
+          :alt="$t('common.page_n', { n: i + 1 })"
           :loading="Math.abs(i - (currentPage - 1)) <= 1 ? 'eager' : 'lazy'"
           decoding="async"
           class="page-img"
@@ -312,14 +313,14 @@ watch(scrollMode, () => {
           @load="(e) => { (e.target as HTMLImageElement).classList.add('loaded'); }"
         />
         <div v-if="failedPages.has(i) && !thumbSrc(i)" class="page-error">
-          <span>⚠</span>
-          <button class="btn" @click="reloadPage(i)">Reload</button>
+          <AlertTriangle :size="20" />
+          <button class="btn" @click="reloadPage(i)">{{ $t('reader.reload') }}</button>
         </div>
       </div>
     </div>
 
     <footer class="bar">
-      <button class="btn" @click="prev">‹ Prev</button>
+      <button class="btn" @click="prev"><ChevronLeft :size="16" /> {{ $t('reader.prev') }}</button>
       <input
         type="range"
         min="1"
@@ -327,7 +328,7 @@ watch(scrollMode, () => {
         v-model.number="currentPage"
         @change="scrollToPage(currentPage - 1, false)"
       />
-      <button class="btn" @click="next">Next ›</button>
+      <button class="btn" @click="next">{{ $t('reader.next') }} <ChevronRight :size="16" /></button>
     </footer>
   </div>
 </template>

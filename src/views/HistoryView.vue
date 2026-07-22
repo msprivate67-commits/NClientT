@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/EmptyState.vue";
+import { RefreshCw } from "lucide-vue-next";
 import { historyClear, historyList, imageProxyUrl } from "@/api";
 import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { HistoryEntry } from "@/types";
 
+const { t } = useI18n();
 const overlay = useOverlayStore();
 const items = ref<HistoryEntry[]>([]);
 const viewRef = ref<HTMLElement | null>(null);
@@ -21,7 +24,7 @@ function open(id: number) {
 }
 
 async function clear() {
-  if (!confirm("Clear all history?")) return;
+  if (!confirm(t("history.confirm_clear"))) return;
   await historyClear();
   items.value = [];
 }
@@ -32,10 +35,10 @@ onMounted(load);
 <template>
   <div ref="viewRef" class="view">
     <div class="view-header">
-      <div class="view-title">History</div>
+      <div class="view-title">{{ $t('history.title') }}</div>
       <div class="toolbar">
-        <button class="btn" @click="load" title="Reload history">🔄 Refresh</button>
-        <button v-if="items.length" class="btn danger" @click="clear">Clear</button>
+        <button class="btn" @click="load" :title="$t('history.reload_history')"><RefreshCw :size="14" /> {{ $t('common.refresh') }}</button>
+        <button v-if="items.length" class="btn danger" @click="clear">{{ $t('history.clear') }}</button>
       </div>
     </div>
     <div v-if="items.length" class="list">
@@ -49,7 +52,7 @@ onMounted(load);
         </div>
       </div>
     </div>
-    <EmptyState v-else title="No history" hint="Read a gallery and it'll show up here." />
+    <EmptyState v-else :title="$t('history.no_history')" :hint="$t('history.no_history_hint')" />
   </div>
 </template>
 
