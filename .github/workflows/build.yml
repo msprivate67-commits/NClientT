@@ -192,14 +192,16 @@ jobs:
           retention-days: 2
           if-no-files-found: error
 
-  # Collects all three platforms' artifacts and publishes a rolling nightly pre-release.
-  # Runs on every push to main, updating the same "nightly" tag in-place.
-  # Official releases are promoted manually from the nightly pre-release.
+  # Collects all three platforms' artifacts and publishes a rolling nightly pre-release,
+  # updating the same "nightly" tag in-place. Triggered by a manual workflow_dispatch run
+  # on the main branch. Official releases are promoted manually from the nightly pre-release.
   release:
     name: Publish nightly pre-release
     runs-on: ubuntu-latest
     needs: [build-android, build-windows, build-linux]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The workflow only has a workflow_dispatch trigger, so we publish whenever it runs on main.
+    # Guarding on github.ref keeps the release on the main branch (e.g. not a tag/other branch run).
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
