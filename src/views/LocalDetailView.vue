@@ -87,8 +87,8 @@ watch(() => props.folder, load);
           <div class="meta">
             <span>{{ local.num_pages }} {{ $t('localDetail.pages') }}</span>
           </div>
-          <div class="actions">
-            <button class="btn primary read-btn" @click="read"><BookOpen :size="16" /> {{ $t('localDetail.read') }}</button>
+          <div class="primary-actions">
+            <button class="btn primary read-btn" @click="read"><BookOpen :size="18" /> {{ $t('localDetail.read') }}</button>
             <button
               class="btn"
               :disabled="translating"
@@ -172,23 +172,24 @@ watch(() => props.folder, load);
 .info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .title {
-  margin: 0 0 8px;
-  font-size: 1.3rem;
-  line-height: 1.3;
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.35;
 }
 .translated-title {
   color: var(--accent);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
-  margin-bottom: 8px;
   font-style: italic;
 }
 .tl-error {
   color: #f08080;
   font-size: 0.82rem;
-  margin-bottom: 8px;
   padding: 6px 10px;
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
@@ -196,45 +197,57 @@ watch(() => props.folder, load);
 .meta {
   color: var(--text-dim);
   font-size: 0.85rem;
-  margin-bottom: 14px;
 }
-.actions {
+.primary-actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
 }
 .read-btn {
+  flex: 1;
   font-size: 1rem;
   font-weight: 700;
-  padding: 10px 28px;
+  padding: 12px 24px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .loading, .error {
   color: var(--text-dim);
   padding: 20px;
 }
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .view {
     max-width: 100%;
   }
   .header {
     flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    align-items: center;
+    gap: 16px;
   }
   .cover {
-    width: 100%;
-    max-width: 220px;
-    align-self: center;
+    width: 200px;
+    max-width: 100%;
     aspect-ratio: 3 / 4;
+  }
+  .info {
+    width: 100%;
+    align-items: stretch;
+    text-align: center;
   }
   .title {
     font-size: 1.15rem;
   }
-  .actions {
-    gap: 6px;
+  .primary-actions {
+    flex-direction: column;
   }
-  .actions .btn {
-    flex: 1 1 auto;
+  .read-btn {
+    font-size: 1.05rem;
+    padding: 14px 20px;
+  }
+  .primary-actions > .btn:not(.read-btn) {
     text-align: center;
   }
 }

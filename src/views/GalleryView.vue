@@ -243,18 +243,29 @@ async function onTagClick(t: any) {
         <img v-if="coverSrc" :src="coverSrc" :alt="title" />
       </div>
       <div class="info">
-        <div class="title-row">
-          <h1 class="title">{{ title }}</h1>
+        <h1 class="title">{{ title }}</h1>
+        <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
+        <div v-if="translateError" class="tl-error">{{ translateError }}</div>
+        <div class="meta">
+          <span>#{{ g.id }}</span>
+          <span>·</span>
+          <span>{{ g.num_pages }} {{ $t('gallery.pages') }}</span>
+          <span>·</span>
+          <span><Heart :size="12" /> {{ g.num_favorites }}</span>
+          <span v-if="g.upload_date">·</span>
+          <span v-if="g.upload_date">{{ new Date(g.upload_date).toLocaleDateString() }}</span>
+        </div>
+        <div class="primary-actions">
           <button
             class="btn primary read-btn"
             @click="read"
             :title="$t('gallery.read')"
           >
-            <BookOpen :size="16" /> {{ $t('gallery.read') }}
+            <BookOpen :size="18" /> {{ $t('gallery.read') }}
           </button>
           <div class="tool-btns">
             <button class="btn" :disabled="loading" @click="load" :title="$t('gallery.reload_gallery')">
-              {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
+              <RefreshCw v-if="!loading" :size="14" />{{ loading ? $t('common.refreshing') : ' ' + $t('common.refresh') }}
             </button>
             <button
               class="btn"
@@ -267,17 +278,6 @@ async function onTagClick(t: any) {
               <span v-else><Languages :size="14" /> {{ $t('gallery.translate') }}</span>
             </button>
           </div>
-        </div>
-        <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
-        <div v-if="translateError" class="tl-error">{{ translateError }}</div>
-        <div class="meta">
-          <span>#{{ g.id }}</span>
-          <span>·</span>
-          <span>{{ g.num_pages }} {{ $t('gallery.pages') }}</span>
-          <span>·</span>
-          <span><Heart :size="12" /> {{ g.num_favorites }}</span>
-          <span v-if="g.upload_date">·</span>
-          <span v-if="g.upload_date">{{ new Date(g.upload_date).toLocaleDateString() }}</span>
         </div>
         <div class="actions">
           <button class="btn" @click="openInBrowser(String(g.id))">{{ $t('gallery.open') }}</button>
@@ -476,45 +476,50 @@ async function onTagClick(t: any) {
 .info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .title {
-  margin: 0 0 8px;
-  font-size: 1.3rem;
-  line-height: 1.3;
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.35;
 }
-.title-row {
+.primary-actions {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
-.title-row .title {
-  flex: 1;
-  min-width: 0;
+  align-items: stretch;
+  gap: 10px;
 }
 .read-btn {
+  flex: 1;
   font-size: 1rem;
   font-weight: 700;
-  padding: 10px 28px;
+  padding: 12px 24px;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .tool-btns {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.tool-btns .btn {
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 .translated-title {
   color: var(--accent);
   font-size: 1.05rem;
   font-weight: 500;
-  margin-bottom: 8px;
   font-style: italic;
 }
 .tl-error {
   color: #f08080;
   font-size: 0.82rem;
-  margin-bottom: 8px;
   padding: 6px 10px;
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
@@ -524,7 +529,6 @@ async function onTagClick(t: any) {
   font-size: 0.85rem;
   display: flex;
   gap: 6px;
-  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 .actions {
@@ -746,38 +750,41 @@ async function onTagClick(t: any) {
 }
 
 /* ---------------------------------------------------------------------------
-   Responsive: on small screens (phones / narrow windows) stack the cover
-   above the info block instead of side-by-side, so nothing overflows. The
-   meta + action rows are already flex-wrap, so they reflow naturally.
+   Responsive
    --------------------------------------------------------------------------- */
-@media (max-width: 640px) {
-  .gallery-view {
-    /* Let the detail page use the full width rather than being centred in a
-       1000px column with huge side margins on a phone. */
-    max-width: 100%;
-  }
+@media (max-width: 768px) {
   .header {
     flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    align-items: center;
+    gap: 16px;
   }
   .cover {
-    /* Cover becomes a banner-ish strip on top instead of a tall left rail. */
-    width: 100%;
-    max-width: 220px;
-    align-self: center;
+    width: 200px;
+    max-width: 100%;
     aspect-ratio: 3 / 4;
   }
-  .title-row {
-    flex-direction: column;
+  .info {
+    width: 100%;
     align-items: stretch;
-    gap: 8px;
+    text-align: center;
   }
-  .title-row .title {
+  .title {
     font-size: 1.15rem;
   }
+  .meta {
+    justify-content: center;
+  }
+  .primary-actions {
+    flex-direction: column;
+  }
+  .read-btn {
+    font-size: 1.05rem;
+    padding: 14px 20px;
+  }
+  .tool-btns {
+    justify-content: center;
+  }
   .actions {
-    /* Each action gets enough room to be tappable; wraps to new rows. */
     gap: 6px;
   }
   .actions .btn {
