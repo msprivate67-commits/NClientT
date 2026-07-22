@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, defineAsyncComponent } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch, defineAsyncComponent } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
+import { onBackButtonPress } from "@tauri-apps/api/app";
+import type { PluginListener } from "@tauri-apps/api/core";
 
 import AppSidebar from "@/components/AppSidebar.vue";
 import { cloudflareOpenChallenge } from "@/api";
@@ -38,6 +40,116 @@ function syncCompact() {
   sidebarOpen.value = !isCompact.value;
 }
 let compactMql: MediaQueryList | null = null;
+
+const overlayPanelRef = ref<HTMLElement | null>(null);
+
+const overlayPanelDrag = reactive({
+  active: false,
+  startX: 0,
+  startY: 0,
+  x: 0,
+  dismissing: false,
+});
+
+function resetOverlayDrag() {
+  overlayPanelDrag.active = false;
+  overlayPanelDrag.x = 0;
+  overlayPanelDrag.dismissing = false;
+}
+
+const overlayPanelStyle = computed(() => {
+  if (!overlayPanelDrag.active && !overlayPanelDrag.dismissing) return {};
+  const x = overlayPanelDrag.dismissing ? "100%" : `${overlayPanelDrag.x}px`;
+  return {
+    transform: `translateX(${x})`,
+    transition: overlayPanelDrag.active ? "none" : "transform 0.28s ease",
+  };
+});
+
+function onOverlayTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return;
+  overlayPanelDrag.startX = e.touches[0].clientX;
+  overlayPanelDrag.startY = e.touches[0].clientY;
+  overlayPanelDrag.active = false;
+  overlayPanelDrag.x = 0;
+  overlayPanelDrag.dismissing = false;
+}
+
+function onOverlayTouchMove(e: TouchEvent) {
+  if (e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - overlayPanelDrag.startX;
+  const dy = e.touches[0].clientY - overlayPanelDrag.startY;
+
+  if (!overlayPanelDrag.active) {
+    if (dx > 8 && Math.abs(dx) > Math.abs(dy)) {
+      overlayPanelDrag.active = true;
+    } else {
+      return;
+    }
+  }
+
+  overlayPanelDrag.x = Math.max(0, dx);
+  e.preventDefault();
+}
+
+function onOverlayTouchEnd() {
+  if (!overlayPanelDrag.active) return;
+
+  if (overlayPanelDrag.x > window.innerWidth * 0.3) {
+    overlayPanelDrag.dismissing = true;
+    overlayPanelDrag.active = false;
+    nextTick(() => {
+      const el = overlayPanelRef.value;
+      if (el) {
+        const onEnd = (e: TransitionEvent) => {
+          if (e.propertyName === "transform") {
+            el.removeEventListener("transitionend", onEnd);
+            overlay.pop();
+            resetOverlayDrag();
+          }
+        };
+        el.addEventListener("transitionend", onEnd);
+      }
+    });
+  } else {
+    overlayPanelDrag.dismissing = false;
+    overlayPanelDrag.active = false;
+    overlayPanelDrag.x = 0;
+  }
+}
+
+const contentEdgeSwipe = reactive({
+  tracking: false,
+  startX: 0,
+});
+
+function onContentTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1 || !isCompact.value || sidebarOpen.value) {
+    contentEdgeSwipe.tracking = false;
+    return;
+  }
+  const x = e.touches[0].clientX;
+  if (x < 30) {
+    contentEdgeSwipe.startX = x;
+    contentEdgeSwipe.tracking = true;
+  } else {
+    contentEdgeSwipe.tracking = false;
+  }
+}
+
+function onContentTouchMove(e: TouchEvent) {
+  if (!contentEdgeSwipe.tracking) return;
+  const dx = e.touches[0].clientX - contentEdgeSwipe.startX;
+  if (dx > 50) {
+    sidebarOpen.value = true;
+    contentEdgeSwipe.tracking = false;
+    e.preventDefault();
+  }
+}
+
+function onContentTouchEnd() {
+  contentEdgeSwipe.tracking = false;
+}
 
 const canGoBack = computed(() => {
   if (overlay.hasAny()) return true;
@@ -81,68 +193,66 @@ async function solveCloudflare() {
 }
 
 
+// Programmatic back triggered by the on-screen ← / Close buttons. On Android
+// this runs inside the SPA only; the hardware back button is handled by
+// `onBackButtonPress` below, which is the single authority that can prevent
+// the app from being closed.
 function goBack() {
   if (overlay.hasAny()) {
     overlay.pop();
     return;
   }
-  // Initiate a programmatic back — let the popstate pass through unblocked.
-  backBlocked = true;
   router.back();
 }
 
-// Track the route before the last popstate so we can decide whether to allow
-// the system back button (only on detail pages with a visible back/close button).
-const previousRouteName = ref<string | null>(null);
-watch(() => route.name, (_, old) => {
-  previousRouteName.value = old ? String(old) : null;
-}, { flush: "sync" });
+// --- Hardware back button (Android) -------------------------------------
+// Tauri routes the Android hardware back button to this JS callback (added in
+// @tauri-apps/api 2.9 / tauri 2.9). Registering it *prevents* the WebView from
+// running its default goBack/exit, so the app can never be kicked to the home
+// screen by the back button — it is fully hijacked here. Desktop is a no-op.
+//
+// Priority: overlay → SPA route back → swallow (stay in app). router.back() is
+// a safe no-op when there is no route history to pop, so on the root screen the
+// press is simply swallowed and the app stays open.
+let backButtonUnlisten: PluginListener | null = null;
 
-let backBlocked = false;
-
-function onPopstate() {
-  // Overlay back handling — the overlay system manages its own pushState/popState cycle.
+function handleBackButton() {
+  // An open overlay always closes first (reader/gallery slide-over panel).
   if (overlay.hasAny()) {
     overlay.pop();
-    if (overlay.hasAny()) {
-      history.pushState(null, "", window.location.href);
-    }
     return;
   }
-
-  // Programmatic back (from goBack) — let it through without blocking.
-  if (backBlocked) {
-    backBlocked = false;
-    return;
-  }
-
-  // System back button — block by default.
-  history.pushState(null, "", window.location.href);
-
-  // Only allow the back to proceed when the user was on a detail page
-  // that has a visible back/close button.
-  const detailRoutes = ["gallery", "reader", "reader-local"];
-  if (previousRouteName.value && detailRoutes.includes(previousRouteName.value)) {
-    backBlocked = true;
-    window.history.back();
-  }
+  router.back();
 }
 
-watch(
-  () => overlay.hasAny(),
-  (has, prev) => {
-    if (has && !prev) {
-      history.pushState(null, "", window.location.href);
-    }
-  },
-);
+// NOTE: the overlay (reader/gallery slide-over) is not a router route, so we do
+// NOT push placeholder history entries for it. The hardware back button closes
+// it via `onBackButtonPress` above, and the on-screen buttons / drag gestures
+// close it directly via `overlay.pop()`. Keeping the history stack clean avoids
+// leftover entries that would make `router.back()` feel stuck (needing extra
+// presses to actually navigate).
 
 onMounted(() => {
-  window.addEventListener("popstate", onPopstate);
+  // Hijack the Android hardware back button globally. Registering this callback
+  // prevents the WebView from running its default goBack/exit, so the app can
+  // never be kicked to the home screen by the back button — it is fully
+  // hijacked here. The promise rejects on desktop (no such event), which we
+  // ignore — desktop uses the on-screen ← button and Esc keys instead.
+  onBackButtonPress(() => handleBackButton())
+    .then((listener) => {
+      backButtonUnlisten = listener;
+    })
+    .catch(() => {
+      // Not Android (or plugin unavailable) — nothing to do.
+    });
+});
+
+onBeforeUnmount(() => {
+  backButtonUnlisten?.unregister();
+  backButtonUnlisten = null;
 });
 
 onUnmounted(() => {
-  window.removeEventListener("popstate", onPopstate);
   compactMql?.removeEventListener("change", syncCompact);
 });
 
@@ -192,7 +302,12 @@ function doSearch() {
       />
     </template>
 
-    <main class="content">
+    <main
+      class="content"
+      @touchstart="onContentTouchStart"
+      @touchmove="onContentTouchMove"
+      @touchend="onContentTouchEnd"
+    >
       <header class="topbar">
         <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" title="Back">
           ←
@@ -229,13 +344,31 @@ function doSearch() {
     </main>
 
     <Transition name="slide-in">
-      <div v-if="overlay.galleryId !== null" :key="'gallery-' + overlay.galleryId" class="overlay-panel">
-        <GalleryView :id="overlay.galleryId" overlay @back="overlay.pop()" />
+      <div v-if="overlay.galleryId !== null" :key="'gallery-' + overlay.galleryId" class="overlay-wrapper">
+        <div
+          ref="overlayPanelRef"
+          class="overlay-panel"
+          :style="overlayPanelStyle"
+          @touchstart="onOverlayTouchStart"
+          @touchmove="onOverlayTouchMove"
+          @touchend="onOverlayTouchEnd"
+        >
+          <GalleryView :id="overlay.galleryId" overlay @back="overlay.pop()" />
+        </div>
       </div>
     </Transition>
     <Transition name="slide-in">
-      <div v-if="overlay.readerId !== null" :key="'reader-' + overlay.readerId" class="overlay-panel overlay-panel--full">
-        <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
+      <div v-if="overlay.readerId !== null" :key="'reader-' + overlay.readerId" class="overlay-wrapper overlay-wrapper--full">
+        <div
+          ref="overlayPanelRef"
+          class="overlay-panel overlay-panel--full"
+          :style="overlayPanelStyle"
+          @touchstart="onOverlayTouchStart"
+          @touchmove="onOverlayTouchMove"
+          @touchend="onOverlayTouchEnd"
+        >
+          <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
+        </div>
       </div>
     </Transition>
 
@@ -328,17 +461,24 @@ function doSearch() {
   cursor: pointer;
 }
 
-.overlay-panel {
+.overlay-wrapper {
   position: fixed;
   inset: 0;
   z-index: 1000;
+}
+.overlay-wrapper--full {
+  z-index: 1001;
+}
+.overlay-panel {
+  width: 100%;
+  height: 100%;
   background: var(--bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  touch-action: pan-y;
 }
 .overlay-panel--full {
-  z-index: 1001;
   background: #000;
 }
 

@@ -23,15 +23,15 @@ name = "nclientt-bin"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build = { version = "2.0.3", features = [] }
+tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.1.1", features = ["protocol-asset"] }
-tauri-plugin-fs = "2.0.3"
-tauri-plugin-dialog = "2.0.1"
-tauri-plugin-opener = "2.0.0"
-tauri-plugin-os = "2.0.0"
-tauri-plugin-shell = "2.0.2"
+tauri = { version = "2.9", features = ["protocol-asset"] }
+tauri-plugin-fs = "2.5"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-opener = "2.5"
+tauri-plugin-os = "2.3"
+tauri-plugin-shell = "2.3"
 
 # Async runtime
 tokio = { version = "1.41", features = ["full"] }
