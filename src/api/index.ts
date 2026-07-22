@@ -314,6 +314,69 @@ export async function translateTitle(
   return content.trim();
 }
 
+// --- AI connection test ---
+// Probes the configured chat-completions endpoint with a minimal 1-token
+// request so the user can verify (in Settings) that base URL / model / API key
+// are correct before relying on it. Distinct from translateTitle: this never
+// throws — it returns an ok/fail result with a human-readable message, so the
+// UI can show the reason inline.
+export interface TranslationConnectionResult {
+  ok: boolean;
+  /** Human-readable status; shown verbatim to the user on failure. */
+  message: string;
+}
+
+export async function testTranslationConnection(
+  baseUrl: string,
+  model: string,
+  apiKey: string,
+): Promise<TranslationConnectionResult> {
+  if (!baseUrl.trim()) {
+    return { ok: false, message: "Base URL is empty" };
+  }
+  if (!model.trim()) {
+    return { ok: false, message: "Model is empty" };
+  }
+  const url = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+  const body: Record<string, unknown> = {
+    model,
+    messages: [{ role: "user", content: "ping" }],
+    max_tokens: 1,
+  };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      return { ok: true, message: "" };
+    }
+    // Try to surface the provider's error text for context (401, 404, etc.).
+    let detail = "";
+    try {
+      detail = (await resp.text()).slice(0, 200);
+    } catch { /* ignore body read failure */ }
+    return {
+      ok: false,
+      message: `HTTP ${resp.status}${detail ? ` — ${detail}` : ""}`,
+    };
+  } catch (e: any) {
+    // fetch() rejects on network errors (DNS, connection refused, CORS, abort).
+    const name = String(e?.name ?? "");
+    if (name === "AbortError") {
+      return { ok: false, message: "Timed out" };
+    }
+    return { ok: false, message: String(e?.message ?? e) };
+  }
+}
+
 // Re-exports for convenience.
 export type {
   AuthCredentials,

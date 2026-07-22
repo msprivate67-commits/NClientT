@@ -127,37 +127,91 @@ function onOverlayTouchEnd() {
   }
 }
 
+// Edge-swipe / edge-drag to open the sidebar from the left edge of the content
+// area. Works for both touch (mobile + touch laptops) and mouse (desktop): the
+// gesture starts within EDGE_START_PX of the left edge and, once the horizontal
+// travel crosses EDGE_OPEN_PX, opens the sidebar. Guarded by `!sidebarOpen` so
+// it only fires when the sidebar is hidden (collapsed rail on desktop, hidden
+// drawer on mobile). Overlay panels sit above <main> and have their own gesture
+// handlers, so the reader's horizontal scroll mode is unaffected.
+const EDGE_START_PX = 40;
+const EDGE_OPEN_PX = 50;
 const contentEdgeSwipe = reactive({
   tracking: false,
   startX: 0,
+  startY: 0,
 });
 
-function onContentTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 1 || !isCompact.value || sidebarOpen.value) {
+function beginEdgeSwipe(clientX: number, clientY: number) {
+  // Only initiate when the sidebar is currently closed.
+  if (sidebarOpen.value) {
     contentEdgeSwipe.tracking = false;
     return;
   }
-  const x = e.touches[0].clientX;
-  if (x < 30) {
-    contentEdgeSwipe.startX = x;
+  if (clientX < EDGE_START_PX) {
+    contentEdgeSwipe.startX = clientX;
+    contentEdgeSwipe.startY = clientY;
     contentEdgeSwipe.tracking = true;
   } else {
     contentEdgeSwipe.tracking = false;
   }
 }
 
-function onContentTouchMove(e: TouchEvent) {
-  if (!contentEdgeSwipe.tracking) return;
-  const dx = e.touches[0].clientX - contentEdgeSwipe.startX;
-  if (dx > 50) {
+function moveEdgeSwipe(clientX: number, clientY: number): boolean {
+  if (!contentEdgeSwipe.tracking) return false;
+  const dx = clientX - contentEdgeSwipe.startX;
+  // Ignore gestures that are clearly more vertical than horizontal (e.g. a
+  // list scroll starting near the edge) so we don't hijack normal scrolling.
+  const dy = clientY - contentEdgeSwipe.startY;
+  if (dx < 0 && Math.abs(dy) > Math.abs(dx)) {
+    contentEdgeSwipe.tracking = false;
+    return false;
+  }
+  if (dx > EDGE_OPEN_PX) {
     sidebarOpen.value = true;
     contentEdgeSwipe.tracking = false;
+    return true; // caller should preventDefault
+  }
+  return false;
+}
+
+function endEdgeSwipe() {
+  contentEdgeSwipe.tracking = false;
+}
+
+function onContentTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) {
+    contentEdgeSwipe.tracking = false;
+    return;
+  }
+  beginEdgeSwipe(e.touches[0].clientX, e.touches[0].clientY);
+}
+
+function onContentTouchMove(e: TouchEvent) {
+  if (e.touches.length !== 1) return;
+  if (moveEdgeSwipe(e.touches[0].clientX, e.touches[0].clientY)) {
     e.preventDefault();
   }
 }
 
 function onContentTouchEnd() {
-  contentEdgeSwipe.tracking = false;
+  endEdgeSwipe();
+}
+
+// Desktop / mouse: press near the left edge and drag right to open. Bound to
+// the same <main> element as the touch handlers below.
+function onContentMouseDown(e: MouseEvent) {
+  // Only the primary button starts a drag.
+  if (e.button !== 0) return;
+  beginEdgeSwipe(e.clientX, e.clientY);
+}
+
+function onContentMouseMove(e: MouseEvent) {
+  moveEdgeSwipe(e.clientX, e.clientY);
+}
+
+function onContentMouseUp() {
+  endEdgeSwipe();
 }
 
 const canGoBack = computed(() => {
@@ -312,9 +366,94 @@ const globalSpeedLabel = computed(() => {
   const bps = downloads.totalSpeed;
   if (bps <= 0) return "";
   if (bps >= 1024 * 1024) return `↓ ${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
-  if (bps >= 1024) return `↓ ${(bps / 1024).toFixed(0)} KB/s`;
+  if (bps >= 1024) return `↓ ${(bps / (1024)).toFixed(0)} KB/s`;
   return `↓ ${bps.toFixed(0)} B/s`;
 });
+
+// --- Draggable download-speed float ------------------------------------------
+// The corner speed badge can be grabbed and repositioned. Its last position is
+// persisted to localStorage so it survives restarts. `null` (or a failed
+// parse) means "use the default bottom-left corner".
+const SPEED_FLOAT_KEY = "nclientt:speedFloat:pos";
+const speedPos = ref<{ x: number; y: number } | null>(loadSpeedPos());
+const speedDrag = reactive({
+  active: false,
+  pointerId: -1,
+  startX: 0,
+  startY: 0,
+  originX: 0,
+  originY: 0,
+});
+
+function loadSpeedPos(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(SPEED_FLOAT_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (p && typeof p.x === "number" && typeof p.y === "number") {
+      return { x: p.x, y: p.y };
+    }
+  } catch { /* ignore corrupt entry */ }
+  return null;
+}
+
+function clampSpeedPos(x: number, y: number): { x: number; y: number } {
+  // Keep the badge fully inside the viewport. Approximate its size so it can't
+  // be dragged off-screen; re-clamped on drop in case the window resized.
+  const w = Math.max(40, window.innerWidth - 80);
+  const h = Math.max(20, window.innerHeight - 32);
+  return {
+    x: Math.max(0, Math.min(x, w)),
+    y: Math.max(0, Math.min(y, h)),
+  };
+}
+
+function speedFloatStyle() {
+  const p = speedPos.value;
+  if (!p) return {};
+  return { left: `${p.x}px`, top: `${p.y}px`, bottom: "auto" };
+}
+
+function onSpeedDown(e: PointerEvent) {
+  // Only the primary button starts a drag.
+  if (e.button !== 0) return;
+  // Use the element's current rendered position as the drag origin so a drag
+  // started from the default (CSS) corner works even before a pos is saved.
+  const el = e.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  const origin = speedPos.value ?? { x: rect.left, y: rect.top };
+  speedPos.value = origin;
+  speedDrag.active = true;
+  speedDrag.pointerId = e.pointerId;
+  speedDrag.startX = e.clientX;
+  speedDrag.startY = e.clientY;
+  speedDrag.originX = origin.x;
+  speedDrag.originY = origin.y;
+  el.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+}
+
+function onSpeedMove(e: PointerEvent) {
+  if (!speedDrag.active) return;
+  const dx = e.clientX - speedDrag.startX;
+  const dy = e.clientY - speedDrag.startY;
+  speedPos.value = clampSpeedPos(speedDrag.originX + dx, speedDrag.originY + dy);
+}
+
+function onSpeedUp(e: PointerEvent) {
+  if (!speedDrag.active) return;
+  speedDrag.active = false;
+  const el = e.currentTarget as HTMLElement;
+  el.releasePointerCapture?.(speedDrag.pointerId);
+  speedDrag.pointerId = -1;
+  // Re-clamp at drop time (window may have resized since) then persist.
+  if (speedPos.value) {
+    speedPos.value = clampSpeedPos(speedPos.value.x, speedPos.value.y);
+    try {
+      localStorage.setItem(SPEED_FLOAT_KEY, JSON.stringify(speedPos.value));
+    } catch { /* storage might be unavailable; non-fatal */ }
+  }
+}
 
 // Local search-box model. Kept deliberately separate from the route so typing
 // does NOT trigger a search on every keystroke — the user must press Enter or
@@ -362,9 +501,13 @@ function doSearch() {
 
     <main
       class="content"
+      :class="{ 'edge-swiping': contentEdgeSwipe.tracking }"
       @touchstart="onContentTouchStart"
       @touchmove="onContentTouchMove"
       @touchend="onContentTouchEnd"
+      @mousedown="onContentMouseDown"
+      @mousemove="onContentMouseMove"
+      @mouseup="onContentMouseUp"
     >
       <header class="topbar">
         <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" :title="$t('common.back')">
@@ -459,7 +602,16 @@ function doSearch() {
       </div>
     </Transition>
 
-    <div v-if="globalSpeedLabel" class="global-speed">{{ globalSpeedLabel }}</div>
+    <div
+      v-if="globalSpeedLabel"
+      class="global-speed"
+      :class="{ dragging: speedDrag.active }"
+      :style="speedFloatStyle()"
+      @pointerdown="onSpeedDown"
+      @pointermove="onSpeedMove"
+      @pointerup="onSpeedUp"
+      @pointercancel="onSpeedUp"
+    >{{ globalSpeedLabel }}</div>
   </div>
 </template>
 
@@ -476,6 +628,12 @@ function doSearch() {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+}
+/* While an edge-drag-to-open is in progress, suppress text selection so the
+   mouse drag doesn't start highlighting content. */
+.content.edge-swiping {
+  user-select: none;
+  -webkit-user-select: none;
 }
 .topbar {
   display: flex;
@@ -607,7 +765,15 @@ function doSearch() {
   border-radius: 6px;
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
-  pointer-events: none;
+  /* Draggable: must receive pointer events. A hint cursor tells the user it
+     can be grabbed. */
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.global-speed.dragging {
+  cursor: grabbing;
 }
 
 /* Dimmed backdrop behind the mobile drawer; tap to close. Sits above content

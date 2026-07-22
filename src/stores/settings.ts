@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_base_url: "https://api.deepseek.com",
   tl_model: "deepseek-v4-flash",
   tl_api_key: "",
-  tl_target_lang: "中文",
+  tl_target_lang: "简体中文，尽量用古典章回体小说标题风格",
   tl_thinking: false,
   app_language: "",
 };

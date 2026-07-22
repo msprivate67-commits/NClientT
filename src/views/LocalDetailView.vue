@@ -100,6 +100,15 @@ function onTagClick(t: Tag) {
   router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
 
+function goToSettings() {
+  // From an overlay panel, close it first so the settings route renders full
+  // screen (same pattern as onTagClick).
+  if (props.overlay) {
+    overlayStore.closeAll();
+  }
+  router.push({ name: "settings" });
+}
+
 onMounted(load);
 watch(() => props.folder, load);
 </script>
@@ -123,6 +132,10 @@ watch(() => props.folder, load);
             {{ translated || translatedTitle }}
           </div>
           <div v-if="translateError" class="tl-error">{{ translateError }}</div>
+          <div v-if="translateError" class="tl-error-hint">
+            {{ $t('localDetail.translate_error_hint') }}
+            <button class="link-btn" @click="goToSettings">{{ $t('localDetail.go_to_ai_settings') }}</button>
+          </div>
           <div class="meta">
             <span>{{ local.num_pages }} {{ $t('localDetail.pages') }}</span>
           </div>
@@ -282,6 +295,23 @@ watch(() => props.folder, load);
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
   overflow-wrap: anywhere;
+}
+.tl-error-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
 }
 .meta {
   color: var(--text-dim);

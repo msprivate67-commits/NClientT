@@ -112,7 +112,9 @@
     "section_related": "関連作品",
     "hide_comments": "コメントを隠す",
     "show_comments": "コメントを表示",
-    "no_comments": "コメントはありません。"
+    "no_comments": "コメントはありません。",
+    "translate_error_hint": "翻訳に失敗しました — AI 設定を確認してください。",
+    "go_to_ai_settings": "AI 設定へ"
   },
   "reader": {
     "close": "閉じる",
@@ -138,7 +140,9 @@
     "translating": "翻訳中…",
     "retranslate": "再翻訳",
     "translate": "翻訳",
-    "load_error": "ローカルギャラリーの読み込みに失敗しました。"
+    "load_error": "ローカルギャラリーの読み込みに失敗しました。",
+    "translate_error_hint": "翻訳に失敗しました — AI 設定を確認してください。",
+    "go_to_ai_settings": "AI 設定へ"
   },
   "favorites": {
     "title": "お気に入り",
@@ -210,7 +214,16 @@
     "deselect_all": "選択解除",
     "delete_selected": "削除（{n}）",
     "no_local": "ローカルギャラリーがありません",
-    "no_local_hint": "ギャラリーをダウンロードすると自動的にここに表示されます。再スキャンをクリックして更新することもできます。"
+    "no_local_hint": "ギャラリーをダウンロードすると自動的にここに表示されます。再スキャンをクリックして更新することもできます。",
+    "translate_all": "すべて翻訳",
+    "translate_all_hint": "未翻訳のタイトルをすべて翻訳（一度に4つ）",
+    "translating_progress": "翻訳中 {done}/{total}",
+    "translate_all_confirm": "未翻訳のタイトル {n} 件をバックグラウンドで翻訳しますか？",
+    "translate_all_none": "すべてのタイトルは翻訳済みです。",
+    "translate_all_done": "完了：翻訳 {done}、失敗 {failed}、スキップ {skipped}。",
+    "show_translated": "翻訳後",
+    "show_original": "原題",
+    "show_translated_hint": "翻訳がある場合は翻訳後タイトルを表示"
   },
   "settings": {
     "title": "設定",
@@ -285,7 +298,11 @@
     "export_lang": "現在の言語 JSON をエクスポート",
     "export_lang_hint": "現在の言語ファイルをダウンロードして編集や再翻訳に使用できます。",
     "import_lang": "言語 JSON をインポート",
-    "import_lang_hint": "カスタム言語ファイルを読み込みます。不足しているキーは英語にフォールバックします。"
+    "import_lang_hint": "カスタム言語ファイルを読み込みます。不足しているキーは英語にフォールバックします。",
+    "ai_test_connection": "接続テスト",
+    "ai_testing": "テスト中…",
+    "ai_connection_ok": "接続済み",
+    "ai_connection_fail": "失敗"
   },
   "notification": {
     "download_complete": "ダウンロード完了",

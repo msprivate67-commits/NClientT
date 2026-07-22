@@ -256,7 +256,7 @@ impl Default for Settings {
             tl_base_url: "https://api.deepseek.com".into(),
             tl_model: "deepseek-v4-flash".into(),
             tl_api_key: String::new(),
-            tl_target_lang: "中文".into(),
+            tl_target_lang: "简体中文，尽量用古典章回体小说标题风格".into(),
             tl_thinking: false,
         }
     }

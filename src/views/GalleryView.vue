@@ -201,6 +201,15 @@ function goBack() {
   }
 }
 
+function goToSettings() {
+  // From an overlay panel, close it first so the settings route renders full
+  // screen (same pattern as onTagClick).
+  if (props.overlay) {
+    overlay.closeAll();
+  }
+  router.push({ name: "settings" });
+}
+
 onMounted(load);
 watch(id, load);
 onUnmounted(() => preloadCancel?.());
@@ -246,6 +255,10 @@ async function onTagClick(t: any) {
         <h1 class="title">{{ title }}</h1>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
+        <div v-if="translateError" class="tl-error-hint">
+          {{ $t('gallery.translate_error_hint') }}
+          <button class="link-btn" @click="goToSettings">{{ $t('gallery.go_to_ai_settings') }}</button>
+        </div>
         <div class="meta">
           <span>#{{ g.id }}</span>
           <span>·</span>
@@ -558,6 +571,23 @@ async function onTagClick(t: any) {
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
   overflow-wrap: anywhere;
+}
+.tl-error-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
 }
 .meta {
   color: var(--text-dim);

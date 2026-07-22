@@ -16,6 +16,7 @@ import {
   settingsGetPaths,
   settingsPickDirectory,
   settingsListDownloadCandidates,
+  testTranslationConnection,
 } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -38,6 +39,25 @@ const importError = ref("");
 const langSaved = ref(false);
 
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(settings.settings));
+
+// AI connection test state. Based on the live draft values, so the user can
+// tweak base URL / model / key and re-test without saving first.
+const tlTesting = ref(false);
+const tlResult = ref<{ ok: boolean; message: string } | null>(null);
+
+async function testAiConnection() {
+  tlTesting.value = true;
+  tlResult.value = null;
+  try {
+    tlResult.value = await testTranslationConnection(
+      draft.value.tl_base_url,
+      draft.value.tl_model,
+      draft.value.tl_api_key,
+    );
+  } finally {
+    tlTesting.value = false;
+  }
+}
 
 async function save() {
   await settings.save(draft.value);
@@ -336,11 +356,22 @@ onMounted(async () => {
         </div>
         <div class="field">
           <label>{{ $t('settings.ai_target_lang') }}</label>
-          <input v-model="draft.tl_target_lang" type="text" placeholder="中文" />
+          <input v-model="draft.tl_target_lang" type="text" placeholder="简体中文，尽量用古典章回体小说标题风格" />
         </div>
       </div>
       <div class="checkboxes">
         <label><input type="checkbox" v-model="draft.tl_thinking" /> {{ $t('settings.ai_thinking') }}</label>
+      </div>
+      <div class="row" style="margin-top: 10px;">
+        <button class="btn" :disabled="tlTesting" @click="testAiConnection">
+          {{ tlTesting ? $t('settings.ai_testing') : $t('settings.ai_test_connection') }}
+        </button>
+        <strong v-if="tlResult" :class="{ ok: tlResult.ok, warn: !tlResult.ok }">
+          {{ tlResult.ok ? $t('settings.ai_connection_ok') : $t('settings.ai_connection_fail') }}
+        </strong>
+        <span v-if="tlResult && !tlResult.ok && tlResult.message" class="tl-error" style="margin: 0;">
+          {{ tlResult.message }}
+        </span>
       </div>
     </section>
 
@@ -432,6 +463,14 @@ section:last-child {
 }
 .warn {
   color: #ffce80;
+}
+.tl-error {
+  color: #f08080;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  background: rgba(220, 60, 60, 0.1);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
 }
 .save-bar {
   display: flex;
