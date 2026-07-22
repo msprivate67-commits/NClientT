@@ -164,6 +164,8 @@ export const localScan = (): Promise<LocalGallery[]> => invoke("local_scan");
 export const localList = (): Promise<LocalGallery[]> => invoke("local_list");
 export const localIds = (): Promise<number[]> => invoke("local_ids");
 export const localGet = (galleryId: number): Promise<LocalGallery | null> => invoke("local_get", { galleryId });
+export const localSetTranslatedTitle = (galleryId: number, title: string): Promise<void> =>
+  invoke("local_set_translated_title", { galleryId, title });
 export const localDelete = (folder: string): Promise<void> => invoke("local_delete", { folder });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +222,54 @@ export const imageProxyUrl = (url: string): string => {
 export const readLocalImage = (path: string): Promise<string | null> =>
   invoke("read_local_image", { path });
 export const registerApp = (): Promise<void> => invoke("register_app");
+
+// --- AI Translation ---
+
+export async function translateTitle(
+  baseUrl: string,
+  model: string,
+  apiKey: string,
+  title: string,
+  targetLang: string,
+  thinking: boolean,
+): Promise<string> {
+  const url = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+  const body: Record<string, unknown> = {
+    model,
+    messages: [
+      {
+        role: "system",
+        content: `You are a translator. The following text is a hentai manga title. The original language is either Japanese or English. Translate it to ${targetLang}. Output ONLY the translated title, nothing else — no quotes, no extra words, no explanations.`,
+      },
+      { role: "user", content: title },
+    ],
+    temperature: 0.1,
+  };
+  if (thinking) {
+    body["reasoning_effort"] = "medium";
+  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  const resp = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Translation API error (${resp.status}): ${text}`);
+  }
+  const json = await resp.json();
+  const content = json?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("Empty translation response");
+  }
+  return content.trim();
+}
 
 // Re-exports for convenience.
 export type {

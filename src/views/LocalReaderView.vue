@@ -7,7 +7,8 @@ import { useReadProgressStore } from "@/stores/readProgress";
 import { useSettingsStore } from "@/stores/settings";
 import type { LocalGallery } from "@/types";
 
-const props = defineProps<{ folder: number | string }>();
+const props = defineProps<{ folder: number | string; overlay?: boolean }>();
+const emit = defineEmits<{ back: [] }>();
 const router = useRouter();
 
 const local = ref<LocalGallery | null>(null);
@@ -132,7 +133,7 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault();
     prev();
   } else if (e.key === "Escape") {
-    router.back();
+    props.overlay ? emit("back") : router.back();
   }
 }
 
@@ -179,14 +180,18 @@ async function remove() {
   if (!local.value) return;
   if (!confirm(`Delete "${local.value.title}" from disk?`)) return;
   await localDelete(local.value.folder);
-  router.push({ name: "local" });
+  if (props.overlay) {
+    emit("back");
+  } else {
+    router.push({ name: "local" });
+  }
 }
 </script>
 
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`]">
     <header class="bar">
-      <button class="btn" @click="router.back()">✕ Close</button>
+      <button class="btn" @click="props.overlay ? emit('back') : router.back()">✕ Close</button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <button
         class="btn small"

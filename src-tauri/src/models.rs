@@ -350,6 +350,7 @@ pub struct LocalGallery {
     pub page_files: Vec<String>,
     pub media_id: i64,
     pub scanned_at: String,
+    pub translated_title: String,
 }
 
 /// Tag groupings for the UI: `tag -> tag` list, `artist -> tag` list, ...

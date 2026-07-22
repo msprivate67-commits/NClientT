@@ -149,6 +149,7 @@ export interface LocalGallery {
   page_files: string[];
   media_id: number;
   scanned_at: string;
+  translated_title: string;
 }
 
 export interface HistoryEntry {
@@ -206,6 +207,12 @@ export interface Settings {
 
   lock_screen: boolean;
   pin: string;
+
+  tl_base_url: string;
+  tl_model: string;
+  tl_api_key: string;
+  tl_target_lang: string;
+  tl_thinking: boolean;
 }
 
 export interface FavoriteRow {

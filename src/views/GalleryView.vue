@@ -7,6 +7,7 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import {
   imageProxyUrl,
   openInBrowser,
+  translateTitle,
 } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useFavoritesStore } from "@/stores/favorites";
@@ -45,6 +46,27 @@ const viewRef = ref<HTMLElement | null>(null);
 // button is disabled — re-downloading would just duplicate the folder.
 const isDownloaded = computed(() => (g.value ? downloaded.has(g.value.id) : false));
 useScrollCache(viewRef);
+
+const translating = ref(false);
+const translatedTitle = ref("");
+const translateError = ref("");
+
+async function doTranslate() {
+  if (!g.value) return;
+  translating.value = true;
+  translateError.value = "";
+  const s = settings.settings;
+  try {
+    translatedTitle.value = await translateTitle(
+      s.tl_base_url, s.tl_model, s.tl_api_key,
+      title.value, s.tl_target_lang, s.tl_thinking,
+    );
+  } catch (e: any) {
+    translateError.value = String(e?.message ?? e);
+  } finally {
+    translating.value = false;
+  }
+}
 
 const g = computed(() => gallery.current);
 
@@ -211,7 +233,15 @@ async function onTagClick(t: any) {
           <button class="btn" :disabled="loading" @click="load" title="Reload gallery">
             {{ loading ? "Refreshing…" : "🔄 Refresh" }}
           </button>
+          <button
+            class="btn"
+            :disabled="translating"
+            @click="doTranslate"
+            :title="translatedTitle ? 'Retranslate' : 'Translate title'"
+          >{{ translating ? '⏳' : translatedTitle ? '🔄' : '🔤' }}</button>
         </div>
+        <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
+        <div v-if="translateError" class="tl-error">{{ translateError }}</div>
         <div class="meta">
           <span>#{{ g.id }}</span>
           <span>·</span>
@@ -433,6 +463,21 @@ async function onTagClick(t: any) {
 .title-row .title {
   flex: 1;
   min-width: 0;
+}
+.translated-title {
+  color: var(--accent);
+  font-size: 1.05rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+.tl-error {
+  color: #f08080;
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: rgba(220, 60, 60, 0.1);
+  border-radius: 6px;
 }
 .meta {
   color: var(--text-dim);

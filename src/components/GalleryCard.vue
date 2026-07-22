@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useRouter } from "vue-router";
 
 import { imageProxyUrl } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
@@ -26,7 +25,6 @@ const emit = defineEmits<{
   (e: "deselect", id: number): void;
 }>();
 
-const router = useRouter();
 const favorites = useFavoritesStore();
 const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
@@ -73,7 +71,7 @@ function open() {
     return;
   }
   if (props.local) {
-    router.push({ name: "reader-local", params: { folder: encodeURIComponent(props.gallery.id.toString()) } });
+    overlay.openLocalDetail(String(props.gallery.id));
   } else {
     overlay.openGallery(props.gallery.id);
   }

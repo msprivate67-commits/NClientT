@@ -480,6 +480,11 @@ pub fn local_get(state: State<'_, AppState>, gallery_id: i64) -> AppResult<Optio
 }
 
 #[tauri::command]
+pub fn local_set_translated_title(state: State<'_, AppState>, gallery_id: i64, title: String) -> AppResult<()> {
+    state.db.local_set_translated_title(gallery_id, &title)
+}
+
+#[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     let mut items = state.db.local_all().unwrap_or_default();
     // Quick scan of download dir: add folders on disk but missing from DB.
@@ -602,6 +607,7 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
         page_files,
         media_id,
         scanned_at: Utc::now().to_rfc3339(),
+        translated_title: String::new(),
     })
 }
 

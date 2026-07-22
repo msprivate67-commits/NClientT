@@ -468,6 +468,7 @@ impl DownloadManager {
             page_files,
             media_id: 0,
             scanned_at: chrono::Utc::now().to_rfc3339(),
+            translated_title: String::new(),
         };
         let _ = self.db.local_upsert(&lg);
         let _ = self.db.download_remove(task.id);

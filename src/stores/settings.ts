@@ -44,6 +44,11 @@ const DEFAULT_SETTINGS: Settings = {
   parallel_pages: 8,
   lock_screen: false,
   pin: "",
+  tl_base_url: "https://api.deepseek.com",
+  tl_model: "deepseek-v4-flash",
+  tl_api_key: "",
+  tl_target_lang: "中文",
+  tl_thinking: false,
 };
 
 export const useSettingsStore = defineStore("settings", () => {

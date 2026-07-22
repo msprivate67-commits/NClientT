@@ -17,6 +17,8 @@ import { ensureNotificationPermission, handleDownloadNotification } from "@/comp
 
 const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
 const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
+const LocalDetailView = defineAsyncComponent(() => import("@/views/LocalDetailView.vue"));
+const LocalReaderView = defineAsyncComponent(() => import("@/views/LocalReaderView.vue"));
 
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
@@ -400,6 +402,20 @@ function doSearch() {
       </div>
     </Transition>
     <Transition name="slide-in">
+      <div v-if="overlay.localDetailFolder !== null" :key="'local-detail-' + overlay.localDetailFolder" class="overlay-wrapper">
+        <div
+          ref="overlayPanelRef"
+          class="overlay-panel"
+          :style="overlayPanelStyle"
+          @touchstart="onOverlayTouchStart"
+          @touchmove="onOverlayTouchMove"
+          @touchend="onOverlayTouchEnd"
+        >
+          <LocalDetailView :folder="overlay.localDetailFolder" overlay @back="overlay.pop()" />
+        </div>
+      </div>
+    </Transition>
+    <Transition name="slide-in">
       <div v-if="overlay.readerId !== null" :key="'reader-' + overlay.readerId" class="overlay-wrapper overlay-wrapper--full">
         <div
           ref="overlayPanelRef"
@@ -407,6 +423,17 @@ function doSearch() {
           :style="overlayPanelStyle"
         >
           <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
+        </div>
+      </div>
+    </Transition>
+    <Transition name="slide-in">
+      <div v-if="overlay.localReaderFolder !== null" :key="'local-' + overlay.localReaderFolder" class="overlay-wrapper overlay-wrapper--full">
+        <div
+          ref="overlayPanelRef"
+          class="overlay-panel overlay-panel--full"
+          :style="overlayPanelStyle"
+        >
+          <LocalReaderView :folder="overlay.localReaderFolder" overlay @back="overlay.pop()" />
         </div>
       </div>
     </Transition>

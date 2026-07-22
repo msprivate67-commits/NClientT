@@ -276,6 +276,8 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     for stmt in MIGRATIONS {
         conn.execute_batch(stmt)?;
     }
+    // Non-fatal: add column for DBs from older versions.
+    conn.execute_batch("ALTER TABLE local_meta ADD COLUMN translated_title TEXT NOT NULL DEFAULT '';").ok();
     Ok(())
 }
 
@@ -324,7 +326,8 @@ const MIGRATIONS: &[&str] = &[
         thumbnail    TEXT NOT NULL DEFAULT '',
         num_pages    INTEGER NOT NULL DEFAULT 0,
         page_files   TEXT NOT NULL DEFAULT '[]',
-        scanned_at   TEXT NOT NULL
+        scanned_at   TEXT NOT NULL,
+        translated_title TEXT NOT NULL DEFAULT ''
     );",
     // Read progress: per-gallery furthest page reached + total pages known at
     // the time. `read` is 1 when the user has seen >= 50% of the gallery.
@@ -595,6 +598,16 @@ impl Database {
         })
     }
 
+    pub fn local_set_translated_title(&self, gallery_id: i64, translated_title: &str) -> AppResult<()> {
+        self.with_conn(|c| {
+            c.execute(
+                "UPDATE local_meta SET translated_title = ?1 WHERE gallery_id = ?2",
+                params![translated_title, gallery_id],
+            )?;
+            Ok(())
+        })
+    }
+
     /// IDs of galleries that exist on disk in the local library (downloaded).
     /// Only rows with a non-zero `gallery_id` count — folders without an id
     /// marker can't be matched against online galleries anyway.
@@ -613,7 +626,7 @@ impl Database {
         self.with_conn(|c| {
             let mut stmt = c.prepare(
                 "SELECT folder, gallery_id, title, media_id, thumbnail,
-                        num_pages, page_files, scanned_at
+                        num_pages, page_files, scanned_at, translated_title
                  FROM local_meta WHERE gallery_id = ?1",
             )?;
             let mut rows = stmt
@@ -630,6 +643,7 @@ impl Database {
                         num_pages: r.get::<_, i64>(5)? as usize,
                         page_files,
                         scanned_at: r.get(7)?,
+                        translated_title: r.get(8)?,
                     })
                 })?;
             Ok(rows.next().transpose()?)
@@ -640,7 +654,7 @@ impl Database {
         self.with_conn(|c| {
             let mut stmt = c.prepare(
                 "SELECT folder, gallery_id, title, media_id, thumbnail,
-                        num_pages, page_files, scanned_at
+                        num_pages, page_files, scanned_at, translated_title
                  FROM local_meta ORDER BY title COLLATE NOCASE ASC",
             )?;
             let rows = stmt
@@ -657,6 +671,7 @@ impl Database {
                         num_pages: r.get::<_, i64>(5)? as usize,
                         page_files,
                         scanned_at: r.get(7)?,
+                        translated_title: r.get(8)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;

@@ -302,6 +302,31 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section>
+      <div class="section-title">AI Translation</div>
+      <div class="fields">
+        <div class="field">
+          <label>Base URL</label>
+          <input v-model="draft.tl_base_url" type="text" placeholder="https://api.deepseek.com" />
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input v-model="draft.tl_model" type="text" placeholder="deepseek-v4-flash" />
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input v-model="draft.tl_api_key" type="password" placeholder="sk-…" />
+        </div>
+        <div class="field">
+          <label>Target language</label>
+          <input v-model="draft.tl_target_lang" type="text" placeholder="中文" />
+        </div>
+      </div>
+      <div class="checkboxes">
+        <label><input type="checkbox" v-model="draft.tl_thinking" /> Enable thinking</label>
+      </div>
+    </section>
+
     <section v-if="appData">
       <div class="section-title">Data</div>
       <p class="hint">App data directory: <code>{{ appData }}</code></p>

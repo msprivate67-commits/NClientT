@@ -190,6 +190,13 @@ pub struct Settings {
     // --- security -----------------------------------------------------------
     pub lock_screen: bool,
     pub pin: String,
+
+    // --- ai translation ------------------------------------------------------
+    pub tl_base_url: String,
+    pub tl_model: String,
+    pub tl_api_key: String,
+    pub tl_target_lang: String,
+    pub tl_thinking: bool,
 }
 
 impl Default for Settings {
@@ -227,6 +234,11 @@ impl Default for Settings {
             parallel_pages: 8,
             lock_screen: false,
             pin: String::new(),
+            tl_base_url: "https://api.deepseek.com".into(),
+            tl_model: "deepseek-v4-flash".into(),
+            tl_api_key: String::new(),
+            tl_target_lang: "中文".into(),
+            tl_thinking: false,
         }
     }
 }
