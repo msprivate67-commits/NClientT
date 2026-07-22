@@ -25,7 +25,8 @@
   <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/i18n-multi--lang-8B8B8B?style=flat-square&logo=weblate&logoColor=white" alt="i18n" />
 </p>
-
+### Download Link
+You can download win, android, linux program here:
 <p align="center">
   <a href="https://github.com/msprivate67-commits/NClientT/releases/latest">
     <strong>📥 Download Latest Release</strong>
