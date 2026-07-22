@@ -664,6 +664,11 @@ pub async fn download_cancel(state: State<'_, AppState>, id: i64) -> AppResult<(
 }
 
 #[tauri::command]
+pub fn download_delete(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    state.downloads.delete_download(id)
+}
+
+#[tauri::command]
 pub fn download_pause(state: State<'_, AppState>, id: i64) -> AppResult<()> {
     state.downloads.pause(id)
 }
@@ -683,6 +688,27 @@ pub fn download_clear(state: State<'_, AppState>) -> AppResult<()> {
 #[tauri::command]
 pub fn download_rows(state: State<'_, AppState>) -> AppResult<Vec<DownloadRow>> {
     state.db.downloads_all()
+}
+
+#[tauri::command]
+pub fn download_pause_ids(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<()> {
+    state.downloads.pause_ids(&ids)
+}
+
+#[tauri::command]
+pub async fn download_resume_ids(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<()> {
+    let api = api(&state);
+    state.downloads.clone().resume_ids(api, &ids)
+}
+
+#[tauri::command]
+pub fn download_cancel_ids(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<()> {
+    state.downloads.cancel_ids(&ids)
+}
+
+#[tauri::command]
+pub fn download_delete_ids(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<()> {
+    state.downloads.delete_ids(&ids)
 }
 
 // ===========================================================================

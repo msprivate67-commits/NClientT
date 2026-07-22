@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -316,10 +316,26 @@ impl DownloadManager {
     }
 
     async fn run_task(self: Arc<Self>, api: ApiClient, task: Arc<DownloadTask>) {
-        // Acquire one of the limited download slots.
-        let _permit = match self.sem.clone().acquire_owned().await {
-            Ok(p) => p,
-            Err(_) => return,
+        // Poll pause/cancel flags while waiting for a download slot so queued
+        // tasks can be interrupted immediately.
+        let _permit = loop {
+            if *task.cancel_flag.lock() {
+                let info = self.task_info(&task);
+                self.tasks.write().remove(&task.id);
+                self.emit_canceled(&info);
+                self.cleanup_canceled_by_info(&info);
+                return;
+            }
+            if *task.pause_flag.lock() {
+                self.set_status(&task, DownloadStatus::Paused);
+                self.emit_progress(task.id, DownloadStatus::Paused, task.done_count(), task.pages.len(), None, None);
+                return;
+            }
+            match tokio::time::timeout(Duration::from_millis(300), self.sem.clone().acquire_owned()).await {
+                Ok(Ok(p)) => break p,
+                Ok(Err(_)) => return,
+                Err(_) => continue,
+            }
         };
         {
             let mut s = task.status.write();
@@ -349,6 +365,7 @@ impl DownloadManager {
                 self.set_status(&task, DownloadStatus::Canceled);
                 self.emit_progress(task.id, DownloadStatus::Canceled, task.done_count(), task.pages.len(), None, None);
                 self.cleanup_canceled(&task);
+                self.tasks.write().remove(&task.id);
                 return;
             }
             if *task.pause_flag.lock() {
@@ -543,6 +560,15 @@ impl DownloadManager {
     pub fn cancel(&self, id: i64) -> AppResult<()> {
         if let Some(t) = self.tasks.read().get(&id).cloned() {
             *t.cancel_flag.lock() = true;
+            let status = *t.status.read();
+            // If the task is not actively running (paused / pending / failed),
+            // run_task won't process the flag — clean up immediately.
+            if status != DownloadStatus::Downloading {
+                let info = self.task_info(&t);
+                self.tasks.write().remove(&id);
+                self.emit_canceled(&info);
+                self.cleanup_canceled_by_info(&info);
+            }
         } else {
             // Not in memory: drop the persisted row + folder.
             if let Ok(rows) = self.db.downloads_all() {
@@ -551,6 +577,89 @@ impl DownloadManager {
                     let _ = self.db.download_remove(id);
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// Cancel the download AND delete local files — works for any status.
+    pub fn delete_download(&self, id: i64) -> AppResult<()> {
+        if let Some(t) = self.tasks.read().get(&id).cloned() {
+            *t.cancel_flag.lock() = true;
+            let info = self.task_info(&t);
+            self.tasks.write().remove(&id);
+            self.emit_canceled(&info);
+            self.cleanup_canceled_by_info(&info);
+        } else if let Ok(rows) = self.db.downloads_all() {
+            if let Some(r) = rows.into_iter().find(|r| r.id == id) {
+                let _ = std::fs::remove_dir_all(&r.folder);
+                let _ = self.db.download_remove(id);
+            }
+        }
+        Ok(())
+    }
+
+    fn task_info(&self, t: &DownloadTask) -> DownloadEntry {
+        DownloadEntry {
+            id: t.id,
+            title: t.title.clone(),
+            folder: t.folder.to_string_lossy().to_string(),
+            thumbnail: t.thumbnail.clone(),
+            status: *t.status.read(),
+            done_pages: t.done_count(),
+            total_pages: t.pages.len(),
+        }
+    }
+
+    fn emit_canceled(&self, entry: &DownloadEntry) {
+        let app_opt = self.app.lock();
+        if let Some(app) = app_opt.as_ref() {
+            let _ = app.emit("download:progress", DownloadProgress {
+                id: entry.id,
+                title: entry.title.clone(),
+                folder: entry.folder.clone(),
+                status: DownloadStatus::Canceled,
+                done_pages: entry.done_pages,
+                total_pages: entry.total_pages,
+                current_page: None,
+                error: None,
+                bytes_per_second: None,
+                total_bytes: None,
+            });
+        }
+    }
+
+    fn cleanup_canceled_by_info(&self, info: &DownloadEntry) {
+        let path = PathBuf::from(&info.folder);
+        let _ = std::fs::remove_dir_all(&path);
+        let _ = self.db.download_remove(info.id);
+    }
+
+    // --- batch operations ---------------------------------------------------
+
+    pub fn pause_ids(&self, ids: &[i64]) -> AppResult<()> {
+        for &id in ids {
+            self.pause(id)?;
+        }
+        Ok(())
+    }
+
+    pub fn resume_ids(self: Arc<Self>, api: ApiClient, ids: &[i64]) -> AppResult<()> {
+        for &id in ids {
+            self.clone().resume(api.clone(), id)?;
+        }
+        Ok(())
+    }
+
+    pub fn cancel_ids(&self, ids: &[i64]) -> AppResult<()> {
+        for &id in ids {
+            self.cancel(id)?;
+        }
+        Ok(())
+    }
+
+    pub fn delete_ids(&self, ids: &[i64]) -> AppResult<()> {
+        for &id in ids {
+            self.delete_download(id)?;
         }
         Ok(())
     }

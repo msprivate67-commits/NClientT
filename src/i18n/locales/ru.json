@@ -168,7 +168,12 @@
     "pause": "Пауза",
     "resume": "Продолжить",
     "cancel": "Отмена",
-    "open_folder": "Открыть папку"
+    "delete": "Удалить+файлы",
+    "delete_tooltip": "Отменить и удалить файлы",
+    "open_folder": "Открыть папку",
+    "select_all": "Выбрать всё",
+    "deselect_all": "Снять выделение",
+    "selected_count": "Выбрано: {n}"
   },
   "tags": {
     "title": "Теги",

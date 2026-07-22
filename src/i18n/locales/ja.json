@@ -168,7 +168,12 @@
     "pause": "一時停止",
     "resume": "再開",
     "cancel": "キャンセル",
-    "open_folder": "フォルダを開く"
+    "delete": "削除+ファイル",
+    "delete_tooltip": "キャンセルしてファイルを削除",
+    "open_folder": "フォルダを開く",
+    "select_all": "すべて選択",
+    "deselect_all": "選択解除",
+    "selected_count": "{n}件選択中"
   },
   "tags": {
     "title": "タグ",

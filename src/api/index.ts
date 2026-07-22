@@ -185,9 +185,15 @@ export const downloadRange = (
 export const downloadList = (): Promise<DownloadEntry[]> => invoke("download_list");
 export const downloadRows = (): Promise<DownloadRow[]> => invoke("download_rows");
 export const downloadCancel = (id: number): Promise<void> => invoke("download_cancel", { id });
+export const downloadDelete = (id: number): Promise<void> => invoke("download_delete", { id });
 export const downloadPause = (id: number): Promise<void> => invoke("download_pause", { id });
 export const downloadResume = (id: number): Promise<void> => invoke("download_resume", { id });
 export const downloadClear = (): Promise<void> => invoke("download_clear");
+
+export const downloadPauseIds = (ids: number[]): Promise<void> => invoke("download_pause_ids", { ids });
+export const downloadResumeIds = (ids: number[]): Promise<void> => invoke("download_resume_ids", { ids });
+export const downloadCancelIds = (ids: number[]): Promise<void> => invoke("download_cancel_ids", { ids });
+export const downloadDeleteIds = (ids: number[]): Promise<void> => invoke("download_delete_ids", { ids });
 
 export function onDownloadProgress(cb: (p: DownloadProgress) => void): Promise<UnlistenFn> {
   return listen<DownloadProgress>("download:progress", (e) => cb(e.payload));

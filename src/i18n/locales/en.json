@@ -168,7 +168,12 @@
     "pause": "Pause",
     "resume": "Resume",
     "cancel": "Cancel",
-    "open_folder": "Open folder"
+    "delete": "Delete + files",
+    "delete_tooltip": "Cancel and delete local files",
+    "open_folder": "Open folder",
+    "select_all": "Select all",
+    "deselect_all": "Deselect all",
+    "selected_count": "{n} selected"
   },
   "tags": {
     "title": "Tags",

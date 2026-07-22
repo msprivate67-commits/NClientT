@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
-import { imageProxyUrl, localList, localDelete } from "@/api";
+import { imageProxyUrl, localList, localDelete, readProgressGet } from "@/api";
 import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useSettingsStore } from "@/stores/settings";
@@ -151,6 +151,18 @@ async function load() {
   currentPage.value = 1;
   if (scrollRef.value) {
     scrollRef.value.scrollTop = 0;
+  }
+
+  if (local.value && local.value.id > 0) {
+    try {
+      const progress = await readProgressGet(local.value.id);
+      if (progress && progress.last_page > 1 && progress.last_page <= total.value) {
+        reportedMax = progress.last_page;
+        await nextTick();
+        currentPage.value = progress.last_page;
+        scrollToPage(currentPage.value - 1, false);
+      }
+    } catch { /* ignore — resume is best-effort */ }
   }
 }
 

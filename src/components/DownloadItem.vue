@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Pause, Play, X, Folder } from "lucide-vue-next";
+import { Pause, Play, X, Folder, Trash2 } from "lucide-vue-next";
 
 import type { DownloadEntry } from "@/types";
 
 const { t: $t } = useI18n();
 
-const props = defineProps<{ entry: DownloadEntry }>();
+const props = defineProps<{
+  entry: DownloadEntry;
+  selected?: boolean;
+  showCheckbox?: boolean;
+}>();
 const emit = defineEmits<{
   (e: "pause", id: number): void;
   (e: "resume", id: number): void;
   (e: "cancel", id: number): void;
+  (e: "delete", id: number): void;
   (e: "open", folder: string): void;
+  (e: "toggleSelect", id: number): void;
 }>();
 
 const pct = computed(() => {
@@ -48,6 +54,13 @@ const speedLabel = computed(() => {
 
 <template>
   <div class="item">
+    <div v-if="showCheckbox" class="check-col">
+      <button
+        class="check-btn"
+        :class="{ on: selected }"
+        @click="emit('toggleSelect', entry.id)"
+      ></button>
+    </div>
     <div class="info">
       <div class="title" :title="entry.title">{{ entry.title }}</div>
       <div class="sub">
@@ -76,6 +89,12 @@ const speedLabel = computed(() => {
         @click="emit('cancel', entry.id)"
       ><X :size="14" /></button>
       <button
+        v-if="entry.status === 'paused' || entry.status === 'failed'"
+        :title="$t('downloads.delete')"
+        class="danger"
+        @click="emit('delete', entry.id)"
+      ><Trash2 :size="14" /></button>
+      <button
         v-if="entry.status === 'finished'"
         :title="$t('downloads.open_folder')"
         @click="emit('open', entry.folder)"
@@ -92,6 +111,33 @@ const speedLabel = computed(() => {
   background: var(--surface);
   border-radius: 8px;
   border: 1px solid var(--border);
+}
+.check-col {
+  display: flex;
+  align-items: center;
+}
+.check-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.check-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.check-btn.on::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin: 1px auto 0;
 }
 .info {
   flex: 1;
@@ -154,5 +200,12 @@ const speedLabel = computed(() => {
 }
 .actions button:hover {
   background: var(--surface-3);
+}
+.actions button.danger {
+  border-color: #ff8e8e55;
+  color: #ff8e8e;
+}
+.actions button.danger:hover {
+  background: #ff8e8e22;
 }
 </style>

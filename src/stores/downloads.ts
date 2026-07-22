@@ -3,12 +3,17 @@ import { ref, computed } from "vue";
 
 import {
   downloadClear,
+  downloadDelete,
   downloadGallery,
   downloadList,
   downloadPause,
   downloadRange,
   downloadResume,
   downloadCancel,
+  downloadPauseIds,
+  downloadResumeIds,
+  downloadCancelIds,
+  downloadDeleteIds,
   onDownloadProgress,
   type DownloadEntry,
   type DownloadProgress,
@@ -18,9 +23,40 @@ import {
 export const useDownloadsStore = defineStore("downloads", () => {
   const items = ref<DownloadEntry[]>([]);
   const initialized = ref(false);
+  const selected = ref<Set<number>>(new Set());
   let unlisten: (() => void) | null = null;
 
+  const selectable = computed(() =>
+    items.value.filter((i) => i.status !== "finished" && i.status !== "canceled")
+  );
+  const allSelected = computed(() => {
+    const sel = selectable.value;
+    return sel.length > 0 && sel.every((i) => selected.value.has(i.id));
+  });
+  const selectedCount = computed(() => selected.value.size);
+
+  function toggleSelect(id: number) {
+    const s = new Set(selected.value);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
+    selected.value = s;
+  }
+  function selectAll() {
+    if (allSelected.value) {
+      selected.value = new Set();
+    } else {
+      selected.value = new Set(selectable.value.map((i) => i.id));
+    }
+  }
+  function clearSelection() {
+    selected.value = new Set();
+  }
+
   function applyProgress(p: DownloadProgress) {
+    if (p.status === "canceled") {
+      items.value = items.value.filter((i) => i.id !== p.id);
+      return;
+    }
     const idx = items.value.findIndex((i) => i.id === p.id);
     const entry: DownloadEntry = {
       id: p.id,
@@ -82,10 +118,41 @@ export const useDownloadsStore = defineStore("downloads", () => {
   async function cancel(id: number) {
     await downloadCancel(id);
     items.value = items.value.filter((i) => i.id !== id);
+    selected.value = new Set();
+  }
+  async function deleteDownload(id: number) {
+    await downloadDelete(id);
+    items.value = items.value.filter((i) => i.id !== id);
+    selected.value = new Set();
   }
   async function clear() {
     await downloadClear();
     items.value = items.value.filter((i) => i.status !== "finished");
+    selected.value = new Set();
+  }
+
+  // ── batch operations ────────────────────────────────────────────────
+  async function batchPause() {
+    const ids = [...selected.value];
+    await downloadPauseIds(ids);
+    clearSelection();
+  }
+  async function batchResume() {
+    const ids = [...selected.value];
+    await downloadResumeIds(ids);
+    clearSelection();
+  }
+  async function batchCancel() {
+    const ids = [...selected.value];
+    await downloadCancelIds(ids);
+    items.value = items.value.filter((i) => !ids.includes(i.id));
+    clearSelection();
+  }
+  async function batchDelete() {
+    const ids = [...selected.value];
+    await downloadDeleteIds(ids);
+    items.value = items.value.filter((i) => !ids.includes(i.id));
+    clearSelection();
   }
 
   const hasActive = computed(() => items.value.some((i) => i.status === "downloading"));
@@ -101,6 +168,10 @@ export const useDownloadsStore = defineStore("downloads", () => {
 
   return {
     items,
+    selected,
+    selectable,
+    allSelected,
+    selectedCount,
     hasActive,
     totalSpeed,
     init,
@@ -108,9 +179,17 @@ export const useDownloadsStore = defineStore("downloads", () => {
     refresh,
     enqueue,
     enqueueRange,
+    toggleSelect,
+    selectAll,
+    clearSelection,
     pause,
     resume,
     cancel,
+    deleteDownload,
     clear,
+    batchPause,
+    batchResume,
+    batchCancel,
+    batchDelete,
   };
 });
