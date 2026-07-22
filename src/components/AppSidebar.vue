@@ -19,6 +19,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-vue-next";
+import { getLatestRelease, type LatestRelease } from "@/api";
 
 const { t } = useI18n();
 
@@ -42,6 +43,10 @@ function openIssue() {
 }
 
 const appVersion = ref("");
+// `undefined`  = not checked yet (or the request failed) — show nothing.
+// `null`       = GitHub has no published release yet — nothing to show.
+// `LatestRelease` = we got one; render its tag + "newer?" state.
+const latest = ref<LatestRelease | null | undefined>(undefined);
 
 onMounted(async () => {
   try {
@@ -49,7 +54,23 @@ onMounted(async () => {
   } catch {
     appVersion.value = "";
   }
+  // Best-effort, fire-and-forget: a failure here must never block the UI —
+  // the sidebar just stays on the current-version line.
+  getLatestRelease()
+    .then((r) => {
+      latest.value = r;
+    })
+    .catch(() => {
+      latest.value = undefined;
+    });
 });
+
+// The version-line tag the user should tap to grab the update: the specific
+// latest release page if we have it, otherwise the generic releases list.
+function openLatest() {
+  const url = latest.value?.html_url || GITHUB_RELEASES;
+  openUrl(url);
+}
 
 const items = [
   { to: { name: "home" },      icon: House,          key: "sidebar.home" },
@@ -105,8 +126,21 @@ const items = [
       </button>
 
       <div v-if="appVersion" class="version-row">
-        <span v-if="open || mobile" class="version-label">v{{ appVersion }}</span>
+        <span v-if="open || mobile" class="version-label">{{ $t('sidebar.current_version') }} v{{ appVersion }}</span>
         <span v-else class="version-label-mini">v{{ appVersion }}</span>
+        <!-- Latest release line. Two cases:
+             • newer available → tappable link to the release page (highlighted).
+             • up to date / not newer → muted confirmation line.
+             Rendered only when expanded (the collapsed icon rail has no room). -->
+        <template v-if="(open || mobile) && latest">
+          <a
+            v-if="latest.is_newer"
+            class="version-latest version-latest--new"
+            :title="latest.html_url"
+            @click="openLatest"
+          >{{ $t('sidebar.latest_version') }} v{{ latest.tag.replace(/^v/i, '') }} →</a>
+          <span v-else class="version-latest">{{ $t('sidebar.up_to_date') }}</span>
+        </template>
       </div>
     </nav>
     <button v-if="!mobile" class="collapse" @click="$emit('toggle')">
@@ -229,6 +263,9 @@ nav {
 }
 .version-row {
   padding: 6px 12px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .version-label {
   font-size: 0.72rem;
@@ -240,5 +277,19 @@ nav {
   font-size: 0.65rem;
   color: var(--text-muted, #888);
   margin-top: 4px;
+}
+.version-latest {
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+}
+.version-latest--new {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.version-latest--new:hover {
+  text-decoration: underline;
 }
 </style>

@@ -247,6 +247,25 @@ export const readLocalImage = (path: string): Promise<string | null> =>
   invoke("read_local_image", { path });
 export const registerApp = (): Promise<void> => invoke("register_app");
 
+// --- Latest release check (GitHub) ---
+// Runs once on startup so the sidebar can show whether a newer version is out.
+// `null` = no release has been published yet; `undefined` = not checked / failed.
+export interface LatestRelease {
+  /** Release tag, e.g. "v0.1.3". */
+  tag: string;
+  /** Release name / title (may be empty). */
+  name: string;
+  /** HTML URL of the release page. */
+  html_url: string;
+  /** True when the remote tag is strictly newer than the running app. */
+  is_newer: boolean;
+  /** Whether this release is marked as a pre-release. */
+  prerelease: boolean;
+}
+
+export const getLatestRelease = (): Promise<LatestRelease | null> =>
+  invoke("get_latest_release");
+
 // --- AI Translation ---
 
 export async function translateTitle(

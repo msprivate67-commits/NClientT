@@ -11,7 +11,10 @@
     "get_latest": "获取最新版",
     "feedback": "问题反馈",
     "brand": "NClientT",
-    "short_brand": "N"
+    "short_brand": "N",
+    "current_version": "当前",
+    "latest_version": "最新",
+    "up_to_date": "已是最新版"
   },
   "common": {
     "back": "返回",

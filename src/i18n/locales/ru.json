@@ -11,7 +11,10 @@
     "get_latest": "Новая версия",
     "feedback": "Обратная связь",
     "brand": "NClientT",
-    "short_brand": "N"
+    "short_brand": "N",
+    "current_version": "Текущая",
+    "latest_version": "Последняя",
+    "up_to_date": "Актуальная версия"
   },
   "common": {
     "back": "Назад",

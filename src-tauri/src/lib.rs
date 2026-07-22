@@ -162,6 +162,7 @@ pub fn run() {
             export_zip,
             // version
             get_app_version,
+            get_latest_release,
             // misc
             open_in_browser,
             open_path,

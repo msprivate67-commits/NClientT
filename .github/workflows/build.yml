@@ -36,12 +36,14 @@ jobs:
           echo "ANDROID_NDK_HOME=$NDK" >> $GITHUB_ENV
           echo "NDK_HOME=$NDK" >> $GITHUB_ENV
 
-      # Only build ARM targets — this is a phone-only app, so the x86/i686
-      # ABIs (emulators / rare Intel tablets) are dead weight that bloat the
-      # APK. aarch64 = arm64-v8a (modern phones), armv7 = armeabi-v7a (legacy).
+      # Only build the ARMv8 (arm64-v8a / aarch64) target — this is a
+      # phone-only app and essentially every modern Android phone is 64-bit
+      # ARM. The other ABIs (armv7 legacy, x86/i686 emulators / Intel tablets)
+      # are dead weight that bloat the release and double CI time, so we ship
+      # only arm64-v8a.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi
+          targets: aarch64-linux-android
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -72,11 +74,11 @@ jobs:
             echo "src-tauri/gen/android already exists, skipping init"
           fi
 
-      # --target aarch64 armv7 limits the build to ARM ABIs.
+      # --target aarch64 limits the build to the single arm64-v8a ABI.
       # --split-per-abi produces one APK per ABI instead of a fat universal
       # APK, so users download only what their device needs.
-      - name: Build Android APK (ARM only, split per ABI)
-        run: npx tauri android build --apk --target aarch64 armv7 --split-per-abi
+      - name: Build Android APK (arm64-v8a only)
+        run: npx tauri android build --apk --target aarch64 --split-per-abi
 
       - name: Sign APKs
         if: hashFiles('src-tauri/nclientt.keystore') != ''
@@ -236,9 +238,10 @@ jobs:
           fi
           for apk in "${apks[@]}"; do
             base=$(basename "$apk")
+            # Only arm64-v8a is built now; fall back to the detected ABI in
+            # case Tauri's filename scheme changes.
             if [[ "$base" == *arm64* ]]; then abi="arm64-v8a"
-            elif [[ "$base" == *armv7* ]] || [[ "$base" == *armeabi* ]]; then abi="armeabi-v7a"
-            else abi="universal"; fi
+            else abi="arm64-v8a"; fi
             cp "$apk" "release/NClientT-${SHORT_SHA}-android-${abi}.apk"
           done
 
@@ -266,12 +269,11 @@ jobs:
             ### Linux
             - `NClientT-${GITHUB_SHA:0:7}-linux.deb` — Debian/Ubuntu 安装包
 
-            ### Android (仅 ARM)
+            ### Android (仅 arm64-v8a)
             - `NClientT-${GITHUB_SHA:0:7}-android-arm64-v8a.apk` — 64 位 ARM（现代手机，推荐）
-            - `NClientT-${GITHUB_SHA:0:7}-android-armeabi-v7a.apk` — 32 位 ARM（旧设备）
 
             ## 说明
-            - 安卓 APK 已签名，仅包含 ARM 架构（手机专用）。
+            - 安卓 APK 已签名，仅包含 arm64-v8a 架构（手机专用）。
             - 桌面端安装包未做代码签名，Windows 首次运行可能弹出 SmartScreen 警告，点「仍要运行」即可。
           files: release/*
           fail_on_unmatched_files: true

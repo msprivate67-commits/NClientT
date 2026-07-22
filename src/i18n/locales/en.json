@@ -11,7 +11,10 @@
     "get_latest": "Get Latest Version",
     "feedback": "Feedback",
     "brand": "NClientT",
-    "short_brand": "N"
+    "short_brand": "N",
+    "current_version": "Current",
+    "latest_version": "Latest",
+    "up_to_date": "Up to date"
   },
   "common": {
     "back": "Back",

@@ -786,6 +786,102 @@ pub fn get_app_version() -> String {
 }
 
 // ===========================================================================
+// Latest release (GitHub)
+// ===========================================================================
+
+/// Repo whose releases we check. Hardcoded — it is also the target of the
+/// sidebar's "Get Latest Version" link, so they must stay in sync.
+const RELEASE_REPO: &str = "msprivate67-commits/NClientT";
+
+/// Latest release info surfaced to the frontend.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LatestRelease {
+    /// Release tag, e.g. "v0.1.3".
+    pub tag: String,
+    /// Release name / title (may be empty).
+    pub name: String,
+    /// HTML URL of the release page.
+    pub html_url: String,
+    /// True when the remote tag is strictly newer than the running app.
+    pub is_newer: bool,
+    /// Whether this release is marked as a pre-release.
+    pub prerelease: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    name: Option<String>,
+    html_url: String,
+    prerelease: bool,
+}
+
+/// Parse a version string like "v0.1.3" / "0.1.3" / "0.1.3-rc1" into a
+/// (major, minor, patch) triple. Non-numeric / trailing parts are ignored so
+/// pre-release suffixes don't break the comparison.
+fn parse_version(s: &str) -> (u64, u64, u64) {
+    let s = s.trim().trim_start_matches(|c| c == 'v' || c == 'V');
+    let mut it = s.split('.');
+    let major = it.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    let minor = it.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    let patch = it
+        .next()
+        .and_then(|p| p.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(0);
+    (major, minor, patch)
+}
+
+/// Fetch the latest published (non-prerelease) release from GitHub and compare
+/// it against the running app version. Runs on startup in the background; any
+/// network failure is surfaced as an error and the frontend simply shows the
+/// current version. Returns `None` when no release has been published yet
+/// (GitHub answers 404 for `/releases/latest`).
+#[tauri::command]
+pub async fn get_latest_release() -> AppResult<Option<LatestRelease>> {
+    let url = format!(
+        "https://api.github.com/repos/{}/releases/latest",
+        RELEASE_REPO
+    );
+
+    // A standalone client: we deliberately do NOT reuse the app's nhentai
+    // HttpClient, which carries a nhentai referer / cookies / proxy tuned for
+    // the mirror. GitHub requires a User-Agent header or it answers 403.
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("NClientT/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(12))
+        .build()?;
+
+    let resp = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await?;
+    let status = resp.status();
+    // 404 means no (stable) release has been published yet — not an error.
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        return Err(AppError::Http {
+            status: status.as_u16(),
+            body: resp.text().await.unwrap_or_default(),
+        });
+    }
+
+    let rel: GithubRelease = resp.json().await?;
+    let current = parse_version(env!("CARGO_PKG_VERSION"));
+    let latest = parse_version(&rel.tag_name);
+    Ok(Some(LatestRelease {
+        tag: rel.tag_name,
+        name: rel.name.unwrap_or_default(),
+        html_url: rel.html_url,
+        is_newer: latest > current,
+        prerelease: rel.prerelease,
+    }))
+}
+
+// ===========================================================================
 // Misc: open URLs / paths, asset resolution, image proxy
 // ===========================================================================
 
