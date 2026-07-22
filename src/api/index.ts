@@ -163,6 +163,7 @@ export const readProgressIds = (): Promise<number[]> =>
 export const localScan = (): Promise<LocalGallery[]> => invoke("local_scan");
 export const localList = (): Promise<LocalGallery[]> => invoke("local_list");
 export const localIds = (): Promise<number[]> => invoke("local_ids");
+export const localGet = (galleryId: number): Promise<LocalGallery | null> => invoke("local_get", { galleryId });
 export const localDelete = (folder: string): Promise<void> => invoke("local_delete", { folder });
 
 // ---------------------------------------------------------------------------

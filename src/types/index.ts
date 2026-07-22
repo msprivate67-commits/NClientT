@@ -148,6 +148,7 @@ export interface LocalGallery {
   num_pages: number;
   page_files: string[];
   media_id: number;
+  scanned_at: string;
 }
 
 export interface HistoryEntry {

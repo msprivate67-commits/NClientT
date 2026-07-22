@@ -9,16 +9,59 @@ import {
   apiGetUser,
   apiRandom,
   apiSearch,
+  localGet,
 } from "@/api";
 import type {
   Comment,
   FavoritesPage,
   Gallery,
+  LocalGallery,
+  Page,
   SearchPage,
   SearchQuery,
   SortType,
   User,
 } from "@/types";
+
+function localToGallery(lg: LocalGallery): Gallery {
+  const pageFiles = lg.page_files || [];
+  const pages: Page[] = pageFiles.map((path, i) => ({
+    index: i + 1,
+    path,
+    thumbnail: path,
+    width: 0,
+    height: 0,
+  }));
+  const fallbackPage: Page = {
+    index: 1,
+    path: null,
+    thumbnail: null,
+    width: 0,
+    height: 0,
+  };
+  return {
+    id: lg.id,
+    media_id: lg.media_id,
+    upload_date: null,
+    num_favorites: 0,
+    num_pages: lg.num_pages,
+    titles: {
+      english: lg.title,
+      pretty: lg.title,
+      japanese: "",
+    },
+    tags: [],
+    cover: lg.thumbnail_path
+      ? { index: 1, path: lg.thumbnail_path, thumbnail: lg.thumbnail_path, width: 0, height: 0 }
+      : pages[0] || fallbackPage,
+    thumbnail: lg.thumbnail_path
+      ? { index: 1, path: lg.thumbnail_path, thumbnail: lg.thumbnail_path, width: 0, height: 0 }
+      : pages[0] || fallbackPage,
+    pages,
+    is_favorited: false,
+    related: [],
+  };
+}
 
 export const useGalleryStore = defineStore("gallery", () => {
   const loading = ref(false);
@@ -70,6 +113,11 @@ export const useGalleryStore = defineStore("gallery", () => {
     error.value = null;
     current.value = null;
     try {
+      const local = await localGet(id);
+      if (local && local.page_files.length > 0) {
+        current.value = localToGallery(local);
+        return current.value;
+      }
       current.value = await apiGetGallery(id);
       return current.value;
     } catch (e: any) {

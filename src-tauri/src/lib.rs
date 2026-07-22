@@ -136,6 +136,7 @@ pub fn run() {
             local_scan,
             local_list,
             local_ids,
+            local_get,
             local_delete,
             local_import_folder,
             // downloader

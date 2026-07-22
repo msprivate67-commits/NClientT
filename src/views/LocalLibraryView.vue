@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import { localScan } from "@/api";
+import { localScan, localDelete } from "@/api";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { LocalGallery, SimpleGallery } from "@/types";
@@ -13,6 +13,75 @@ const scanning = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
 const downloaded = useDownloadedStore();
+
+type SortField = "name" | "date";
+const sortField = ref<SortField>("date");
+const sortAsc = ref(false);
+const selectMode = ref(false);
+const selectedIds = ref(new Set<number>());
+
+const sorted = computed(() => {
+  const arr = [...items.value];
+  arr.sort((a, b) => {
+    let cmp: number;
+    if (sortField.value === "name") {
+      cmp = (a.title || "").localeCompare(b.title || "");
+    } else {
+      cmp = (a.scanned_at || "").localeCompare(b.scanned_at || "");
+    }
+    return sortAsc.value ? cmp : -cmp;
+  });
+  return arr;
+});
+
+const allSelected = computed(() =>
+  sorted.value.length > 0 && sorted.value.every((l) => selectedIds.value.has(l.id)),
+);
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value;
+  if (!selectMode.value) {
+    selectedIds.value = new Set();
+  }
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set();
+  } else {
+    selectedIds.value = new Set(sorted.value.map((l) => l.id));
+  }
+}
+
+async function deleteSelected() {
+  const idsToDelete = [...selectedIds.value];
+  if (!idsToDelete.length) return;
+  // Find the corresponding folder for each selected ID.
+  const folders = idsToDelete
+    .map((id) => items.value.find((l) => l.id === id)?.folder)
+    .filter(Boolean) as string[];
+  selectedIds.value = new Set();
+  // Delete one by one — the backend removes the folder from disk.
+  for (const folder of folders) {
+    try {
+      await localDelete(folder);
+    } catch { /* ignore individual failures */ }
+  }
+  // Remove deleted items from the local list and re-sync the downloaded set.
+  const deletedSet = new Set(folders);
+  items.value = items.value.filter((l) => !deletedSet.has(l.folder));
+  await downloaded.refresh();
+}
+
+function onSelect(id: number) {
+  selectedIds.value = new Set(selectedIds.value).add(id);
+}
+
+function onDeselect(id: number) {
+  const next = new Set(selectedIds.value);
+  next.delete(id);
+  selectedIds.value = next;
+}
 
 function toSimple(l: LocalGallery): SimpleGallery {
   return {
@@ -30,9 +99,7 @@ async function scan() {
   scanning.value = true;
   try {
     items.value = await localScan();
-    // A scan may pick up galleries newly placed in the download dir (or
-    // remove deleted ones), so re-sync the "downloaded" id set that badges
-    // online covers.
+    selectedIds.value = new Set();
     await downloaded.refresh();
   } finally {
     scanning.value = false;
@@ -53,13 +120,55 @@ onMounted(scan);
       </div>
     </div>
 
-    <div v-if="items.length" class="grid">
+    <div class="sort-row">
+      <div class="sort-group">
+        <span class="sort-label">Sort:</span>
+        <button
+          class="btn small"
+          :class="{ active: sortField === 'name' }"
+          @click="sortField = 'name'"
+        >Name</button>
+        <button
+          class="btn small"
+          :class="{ active: sortField === 'date' }"
+          @click="sortField = 'date'"
+        >Date</button>
+        <button class="btn small icon" @click="sortAsc = !sortAsc" :title="sortAsc ? 'Ascending' : 'Descending'">
+          {{ sortAsc ? "↑" : "↓" }}
+        </button>
+      </div>
+      <div class="select-group">
+        <button
+          class="btn small"
+          :class="{ active: selectMode }"
+          @click="toggleSelectMode"
+        >{{ selectMode ? "Cancel" : "Select" }}</button>
+        <template v-if="selectMode">
+          <button class="btn small" @click="toggleSelectAll">
+            {{ allSelected ? "Deselect All" : "Select All" }}
+          </button>
+          <button
+            class="btn small danger"
+            :disabled="selectedIds.size === 0"
+            @click="deleteSelected"
+          >
+            Delete ({{ selectedIds.size }})
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="sorted.length" class="grid">
       <GalleryCard
-        v-for="l in items"
+        v-for="l in sorted"
         :key="l.folder"
         :gallery="toSimple(l)"
         local
         :thumbnail-override="l.thumbnail_path"
+        :selectable="selectMode"
+        :selected="selectedIds.has(l.id)"
+        @select="onSelect"
+        @deselect="onDeselect"
       />
     </div>
     <EmptyState
@@ -71,12 +180,55 @@ onMounted(scan);
 </template>
 
 <style scoped>
+.sort-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sort-group,
+.select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sort-label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+.btn.small {
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  border-radius: 5px;
+}
+.btn.small.icon {
+  padding: 3px 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.btn.small.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn.small.danger {
+  background: rgba(220, 60, 60, 0.15);
+  border-color: rgba(220, 60, 60, 0.5);
+  color: #f08080;
+}
+.btn.small.danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
 }
-/* Match GalleryGrid: two covers per row on phones. */
 @media (max-width: 560px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);

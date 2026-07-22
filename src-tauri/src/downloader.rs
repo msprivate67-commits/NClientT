@@ -467,6 +467,7 @@ impl DownloadManager {
             num_pages: page_files.len(),
             page_files,
             media_id: 0,
+            scanned_at: chrono::Utc::now().to_rfc3339(),
         };
         let _ = self.db.local_upsert(&lg);
         let _ = self.db.download_remove(task.id);

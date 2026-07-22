@@ -609,11 +609,38 @@ impl Database {
         })
     }
 
+    pub fn local_get(&self, gallery_id: i64) -> AppResult<Option<LocalGallery>> {
+        self.with_conn(|c| {
+            let mut stmt = c.prepare(
+                "SELECT folder, gallery_id, title, media_id, thumbnail,
+                        num_pages, page_files, scanned_at
+                 FROM local_meta WHERE gallery_id = ?1",
+            )?;
+            let mut rows = stmt
+                .query_map(params![gallery_id], |r| {
+                    let page_files_json: String = r.get(6)?;
+                    let page_files: Vec<String> =
+                        serde_json::from_str(&page_files_json).unwrap_or_default();
+                    Ok(LocalGallery {
+                        folder: r.get(0)?,
+                        id: r.get(1)?,
+                        title: r.get(2)?,
+                        media_id: r.get(3)?,
+                        thumbnail_path: r.get(4)?,
+                        num_pages: r.get::<_, i64>(5)? as usize,
+                        page_files,
+                        scanned_at: r.get(7)?,
+                    })
+                })?;
+            Ok(rows.next().transpose()?)
+        })
+    }
+
     pub fn local_all(&self) -> AppResult<Vec<LocalGallery>> {
         self.with_conn(|c| {
             let mut stmt = c.prepare(
                 "SELECT folder, gallery_id, title, media_id, thumbnail,
-                        num_pages, page_files
+                        num_pages, page_files, scanned_at
                  FROM local_meta ORDER BY title COLLATE NOCASE ASC",
             )?;
             let rows = stmt
@@ -629,6 +656,7 @@ impl Database {
                         thumbnail_path: r.get(4)?,
                         num_pages: r.get::<_, i64>(5)? as usize,
                         page_files,
+                        scanned_at: r.get(7)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;

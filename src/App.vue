@@ -405,9 +405,6 @@ function doSearch() {
           ref="overlayPanelRef"
           class="overlay-panel overlay-panel--full"
           :style="overlayPanelStyle"
-          @touchstart="onOverlayTouchStart"
-          @touchmove="onOverlayTouchMove"
-          @touchend="onOverlayTouchEnd"
         >
           <ReaderView :id="overlay.readerId" overlay @back="overlay.pop()" />
         </div>

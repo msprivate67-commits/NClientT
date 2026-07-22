@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use chrono::Utc;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
@@ -474,6 +475,11 @@ pub fn local_ids(state: State<'_, AppState>) -> AppResult<Vec<i64>> {
 }
 
 #[tauri::command]
+pub fn local_get(state: State<'_, AppState>, gallery_id: i64) -> AppResult<Option<LocalGallery>> {
+    state.db.local_get(gallery_id)
+}
+
+#[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     let mut items = state.db.local_all().unwrap_or_default();
     // Quick scan of download dir: add folders on disk but missing from DB.
@@ -595,6 +601,7 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
         num_pages: page_files.len(),
         page_files,
         media_id,
+        scanned_at: Utc::now().to_rfc3339(),
     })
 }
 

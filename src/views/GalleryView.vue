@@ -222,7 +222,7 @@ async function onTagClick(t: any) {
           <span v-if="g.upload_date">{{ new Date(g.upload_date).toLocaleDateString() }}</span>
         </div>
         <div class="actions">
-          <button class="btn primary" @click="read">📖 Read</button>
+          <button class="btn" @click="openInBrowser(String(g.id))">🌐 Open</button>
           <button
             class="btn"
             :disabled="downloadState !== null || isDownloaded"
@@ -241,7 +241,7 @@ async function onTagClick(t: any) {
           >
             ★ Favorite
           </button>
-          <button class="btn" @click="openInBrowser(String(g.id))">🌐 Open</button>
+          <button class="btn primary" @click="read">📖 Read</button>
         </div>
       </div>
     </div>
