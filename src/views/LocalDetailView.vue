@@ -203,6 +203,9 @@ watch(() => props.folder, load);
   padding: 20px;
 }
 @media (max-width: 640px) {
+  .view {
+    max-width: 100%;
+  }
   .header {
     flex-direction: column;
     align-items: stretch;
@@ -212,6 +215,17 @@ watch(() => props.folder, load);
     width: 100%;
     max-width: 220px;
     align-self: center;
+    aspect-ratio: 3 / 4;
+  }
+  .title {
+    font-size: 1.15rem;
+  }
+  .actions {
+    gap: 6px;
+  }
+  .actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
   }
 }
 </style>

@@ -238,7 +238,7 @@ async function onTagClick(t: any) {
             :disabled="translating"
             @click="doTranslate"
             :title="translatedTitle ? 'Retranslate' : 'Translate title'"
-          >{{ translating ? '⏳' : translatedTitle ? '🔄' : '🔤' }}</button>
+          >{{ translating ? '⏳ Translating…' : translatedTitle ? '🔄 Retranslate' : '🔤 Translate' }}</button>
         </div>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
