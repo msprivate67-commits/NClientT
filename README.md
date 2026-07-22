@@ -1,22 +1,62 @@
 # NClientT
 
-[![License](https://img.shields.io/github/license/maxwai/NClientT?color=blue)](https://github.com/maxwai/NClientT/blob/main/LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.77%2B-orange)](https://www.rust-lang.org/)
-[![Tauri](https://img.shields.io/badge/tauri-2.0-67b5d1)](https://tauri.app/)
-[![Vue](https://img.shields.io/badge/vue-3.5-42b883)](https://vuejs.org/)
+[![Release](https://img.shields.io/github/v/release/msprivate67-commits/NClientT?color=green)](https://github.com/msprivate67-commits/NClientT/releases/latest)
+[![License](https://img.shields.io/github/license/msprivate67-commits/NClientT?color=blue)](LICENSE)
 
-An **unofficial** [nhentai](https://nhentai.net) client — a full cross-platform
-rewrite of [NClientV3](https://github.com/maxwai/NClientV3) using
-**Tauri 2** (Rust backend) + **Vue 3** (TypeScript frontend).
+**NClientT** is an unofficial [nhentai](https://nhentai.net) cross-platform client — browse, search, read, and download doujinshi galleries with a modern native experience. Available on Android, Windows, macOS, and Linux. A full rewrite of [NClientV3](https://github.com/maxwai/NClientV3).
 
-> NClientV3 was an Android-only app built with OkHttp, JSoup, and Glide.
-> NClientT brings the same experience to **Windows**, **macOS**, and **Linux**
-> as a native desktop application.
+> ⚠️ This is a hobbyist project for personal use only. Respect nhentai's Terms of Service and your local laws.
 
-> ⚠️ This is an **unofficial, hobbyist client** for personal use only.
-> Respect nhentai's Terms of Service and your local laws.
+### Supported Platforms
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android" />
+  <img src="https://img.shields.io/badge/Windows-10%2B-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/macOS-12%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS" />
+  <img src="https://img.shields.io/badge/Linux-x86__64-FCC624?style=flat-square&logo=linux&logoColor=black" alt="Linux" />
+</p>
+
+### Tech Stack
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Rust-1.77%2B-DEA584?style=flat-square&logo=rust&logoColor=black" alt="Rust" />
+  <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/Tauri-2.0-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri" />
+  <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/i18n-multi--lang-8B8B8B?style=flat-square&logo=weblate&logoColor=white" alt="i18n" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/msprivate67-commits/NClientT/releases/latest">
+    <strong>📥 Download Latest Release</strong>
+  </a>
+</p>
+
+---
+
+## 📱 Phone Screenshots
+
+<div align="center">
+  <img src="screenshoot/gallery.jpg" alt="Gallery" width="30%" />
+  <img src="screenshoot/manga-info-page.jpg" alt="Manga Info" width="30%" />
+  <img src="screenshoot/manga-info-thumbs.jpg" alt="Thumbnail View" width="30%" />
+</div>
+
+<div align="center">
+  <img src="screenshoot/reader-phone-adaptive.jpg" alt="Phone Reader" width="60%" />
+</div>
+
+## 📟 Tablet Screenshots
+
+<div align="center">
+  <img src="screenshoot/reader-pad-adaptive.jpg" alt="Tablet Reader" width="60%" />
+  <br/>
+  <img src="screenshoot/setings-pad.jpg" alt="Tablet Settings" width="60%" />
+</div>
+
+---
+
+## ✨ Features
 
 - 🏠 **Browse** — recent, popular (today / week / month / all-time)
 - 🔍 **Search** — by title, keyword, or tag; include/exclude tags; filter by language and page range
@@ -32,13 +72,17 @@ rewrite of [NClientV3](https://github.com/maxwai/NClientV3) using
 - 🍪 **Persistent cookies** — session and CF tokens survive restarts
 - ⚙️ **Settings** — mirror, User-Agent, timeouts, grid columns, zoom, RTL, download directory
 - 📦 **Export** — convert downloaded galleries to PDF or ZIP
-- 🖥️ **Cross-platform** — native builds for Windows, macOS, and Linux
 
-## Quick start
+---
 
-### Prerequisites
-- **Rust** (1.77+) — [rustup.rs](https://rustup.rs/)
-- **Node.js** (18+) — [nodejs.org](https://nodejs.org/)
+## 🛠️ For Developers
+
+### 🚀 Quick Start
+
+#### Prerequisites
+
+- 🦀 **Rust** (1.77+) — [rustup.rs](https://rustup.rs/)
+- 📦 **Node.js** (18+) — [nodejs.org](https://nodejs.org/)
 - Platform-specific dependencies — see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
 ```bash
@@ -59,17 +103,17 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
-### Platform notes
+### Platform Notes
 
-| Platform | Extra dependencies |
+| Platform | Extra Dependencies |
 |----------|--------------------|
-| **Windows** | Visual Studio Build Tools ("Desktop development with C++"), WebView2 (preinstalled on Win 10/11) |
-| **macOS** | `xcode-select --install` |
-| **Linux** | `webkit2gtk`, `libssl-dev`, `librsvg2`, etc. (see [Tauri docs](https://tauri.app/start/prerequisites/)) |
+| 🪟 **Windows** | Visual Studio Build Tools ("Desktop development with C++"), WebView2 (preinstalled on Win 10/11) |
+| 🍎 **macOS** | `xcode-select --install` |
+| 🐧 **Linux** | `webkit2gtk`, `libssl-dev`, `librsvg2`, etc. (see [Tauri docs](https://tauri.app/start/prerequisites/)) |
 
 First build compiles all Rust crates (5–15 minutes); subsequent builds are fast.
 
-## Project structure
+## 📂 Project Structure
 
 ```
 NClientT/
@@ -94,27 +138,20 @@ NClientT/
 └── package.json
 ```
 
-## API key (optional)
+## 🔑 API Key (Optional)
 
-Browsing, searching, reading, and downloading all work without an API key.
-An API key enables online favorites and comments.
+Browsing, searching, reading, and downloading all work without an API key. An API key enables online favorites and comments. Add yours under **Settings → API Key Authentication**.
 
-Add yours under **Settings → API Key Authentication**.
+## ☁️ Cloudflare
 
-## Cloudflare
+When nhentai is behind Cloudflare, a banner prompts you to solve the challenge. Click **Solve now** — a webview opens, complete the captcha, and the `cf_clearance` cookie is captured for all subsequent requests.
 
-When nhentai is behind Cloudflare, a banner prompts you to solve the challenge.
-Click **Solve now** — a webview opens, complete the captcha, and the
-`cf_clearance` cookie is captured for all subsequent requests.
+## 🔄 Migration from NClientV3
 
-## Migration from NClientV3
-
-NClientT is a **ground-up rewrite**, not an upgrade. The same API endpoints and
-download folder layout are used, so downloaded galleries are compatible.
-Settings and favorites do not migrate automatically — re-add them in NClientT.
+NClientT is a **ground-up rewrite**, not an upgrade. The same API endpoints and download folder layout are used, so downloaded galleries are compatible. Settings and favorites do not migrate automatically — re-add them in NClientT.
 
 For the full module-by-module porting reference, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-## License
+## 📄 License
 
 [Apache-2.0](LICENSE) — same as NClientV3.
