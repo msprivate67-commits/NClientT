@@ -3,10 +3,17 @@ import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
-import { imageProxyUrl, localList, localDelete, readProgressGet } from "@/api";
+import {
+  imageProxyUrl,
+  localList,
+  localDelete,
+  localReaderProgressGet,
+  localReaderProgressSet,
+} from "@/api";
 import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useSettingsStore } from "@/stores/settings";
+import { useDownloadsStore } from "@/stores/downloads";
 import type { LocalGallery } from "@/types";
 
 const props = defineProps<{ folder: number | string; overlay?: boolean }>();
@@ -22,10 +29,19 @@ const scrollMode = ref<"vertical" | "horizontal">(
   (settings.settings.reader_direction as "vertical" | "horizontal") || "vertical",
 );
 const readProgress = useReadProgressStore();
+const downloads = useDownloadsStore();
 const { t } = useI18n();
 
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
+
+// The active download entry for this gallery, if it is still being
+// downloaded. The downloads store only retains non-finished entries, so
+// presence here means the comic is incomplete on disk.
+const activeDownload = computed(() =>
+  local.value ? downloads.items.find((d) => d.id === local.value!.id) ?? null : null,
+);
+const isDownloading = computed(() => !!activeDownload.value);
 
 const scrollRef = ref<HTMLElement | null>(null);
 const currentPage = ref(1);
@@ -99,20 +115,30 @@ function onScroll() {
 }
 
 /**
- * Report the page the user is actually looking at. We avoid the
- * high-water-mark approach used by the online reader because in the
- * local reader `computeCurrentPage()` can be inaccurate before page
- * images finish loading (empty elements collapse to zero height).
- * Instead we only report after nearby images are confirmed loaded.
+ * Persist the user's reading position.
+ *
+ * Two separate concerns are recorded:
+ *  1. `local_reader_progress` — the *exact* page the user is on (the resume
+ *     point). Overwrites every time, so scrolling backwards is remembered.
+ *     This is what `load()` reads to reopen at the right page.
+ *  2. The shared `readProgress` store — a furthest-reached high-water mark
+ *     that drives the "read" cover badge (>= 50%). Only moves forward.
+ *
+ * Both are guarded by `pagesLoaded`: page elements collapse to ~1px until
+ * their image decodes, so `computeCurrentPage()` returns garbage before then.
+ * Recording that bogus value is what made reopen jump to the wrong page.
  */
 function reportProgress() {
   const totalVal = total.value;
   if (!totalVal || !local.value) return;
-  const page = currentPage.value;
   const gid = local.value.id;
+  const page = currentPage.value;
   if (gid <= 0 || page <= 0) return;
-  // Don't report if the image we think we're on hasn't loaded yet.
+  // Refuse to persist until the page we think we're on has actually loaded —
+  // otherwise we'd write a settle-time phantom page.
   if (pagesLoaded.value < page) return;
+  void localReaderProgressSet(gid, page, totalVal);
+  // High-water mark for the cover badge; the store enforces forward-only.
   void readProgress.report(gid, page, totalVal);
 }
 
@@ -162,11 +188,15 @@ async function load() {
 
   if (local.value && local.value.id > 0) {
     try {
-      const progress = await readProgressGet(local.value.id);
-      if (progress && progress.last_page > 1 && progress.last_page <= total.value) {
+      const resume = await localReaderProgressGet(local.value.id);
+      if (resume && resume > 1 && resume <= total.value) {
+        // Jump to the saved page. Scroll first (instantly), then pin the
+        // counter once layout has settled; the guard in reportProgress()
+        // keeps us from overwriting the saved value with a settle-time
+        // phantom until the target page's image has actually loaded.
+        scrollToPage(resume - 1, false);
         await nextTick();
-        currentPage.value = progress.last_page;
-        scrollToPage(currentPage.value - 1, false);
+        currentPage.value = resume;
       }
     } catch { /* ignore — resume is best-effort */ }
   }
@@ -182,9 +212,19 @@ watch(() => props.folder, () => {
 });
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
-  // Always flush the exact page on exit, bypassing the loaded guard.
-  if (local.value && local.value.id > 0 && currentPage.value > 0) {
-    void readProgress.report(local.value.id, currentPage.value, total.value);
+  // Flush the exact page on exit. We recompute from the live scroll position
+  // (the debounce-based currentPage can lag) and only persist when we can
+  // trust the geometry — i.e. the page we landed on has actually decoded.
+  // This avoids both stale values and settle-time phantom pages, which were
+  // why reopening jumped to the wrong spot.
+  const gid = local.value?.id;
+  if (gid && gid > 0 && total.value > 0) {
+    computeCurrentPage();
+    const page = currentPage.value;
+    if (page > 0 && pagesLoaded.value >= page) {
+      void localReaderProgressSet(gid, page, total.value);
+      void readProgress.report(gid, page, total.value);
+    }
   }
 });
 
@@ -281,6 +321,14 @@ async function remove() {
       </div>
     </div>
 
+    <div v-if="isDownloading" class="downloading-tag" :title="$t('reader.downloading_hint')">
+      <span class="downloading-dot"></span>
+      <span>{{ $t('reader.downloading') }}</span>
+      <span v-if="activeDownload && activeDownload.total_pages" class="downloading-count">
+        {{ activeDownload.done_pages }}/{{ activeDownload.total_pages }}
+      </span>
+    </div>
+
     <footer class="bar">
       <button class="btn" @click="prev"><ChevronLeft :size="16" /> {{ $t('reader.prev') }}</button>
       <input
@@ -297,6 +345,7 @@ async function remove() {
 
 <style scoped>
 .reader {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -454,5 +503,45 @@ async function remove() {
 input[type="range"] {
   flex: 1;
   min-width: 60px;
+}
+
+.downloading-tag {
+  position: absolute;
+  left: 14px;
+  bottom: 64px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #ffd27a;
+  font-size: 0.75rem;
+  font-weight: 500;
+  z-index: 3;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+.downloading-tag .downloading-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd27a;
+  box-shadow: 0 0 6px rgba(255, 210, 122, 0.9);
+  animation: downloading-pulse 1.4s ease-in-out infinite;
+}
+
+.downloading-tag .downloading-count {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+}
+
+@keyframes downloading-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
 }
 </style>
