@@ -123,7 +123,9 @@
     "prev": "Назад",
     "next": "Вперёд",
     "no_pages": "Страницы не найдены.",
-    "confirm_delete": "Удалить \"{title}\" с диска?"
+    "confirm_delete": "Удалить \"{title}\" с диска?",
+    "downloading": "Загрузка",
+    "downloading_hint": "Этот комикс ещё скачивается — чтение сейчас может быть неполным."
   },
   "localDetail": {
     "back": "Назад",

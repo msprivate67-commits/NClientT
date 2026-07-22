@@ -123,7 +123,9 @@
     "prev": "上一页",
     "next": "下一页",
     "no_pages": "未找到页面。",
-    "confirm_delete": "从磁盘删除 \"{title}\" ？"
+    "confirm_delete": "从磁盘删除 \"{title}\" ？",
+    "downloading": "下载中",
+    "downloading_hint": "这部漫画仍在下载中，现在阅读可能不完整。"
   },
   "localDetail": {
     "back": "返回",

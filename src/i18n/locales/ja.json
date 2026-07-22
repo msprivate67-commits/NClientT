@@ -123,7 +123,9 @@
     "prev": "前へ",
     "next": "次へ",
     "no_pages": "ページが見つかりません。",
-    "confirm_delete": "\"{title}\" をディスクから削除しますか？"
+    "confirm_delete": "\"{title}\" をディスクから削除しますか？",
+    "downloading": "ダウンロード中",
+    "downloading_hint": "この漫画はまだダウンロード中です。今読むと不完全な場合があります。"
   },
   "localDetail": {
     "back": "戻る",

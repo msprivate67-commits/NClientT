@@ -123,7 +123,9 @@
     "prev": "Prev",
     "next": "Next",
     "no_pages": "No pages found.",
-    "confirm_delete": "Delete \"{title}\" from disk?"
+    "confirm_delete": "Delete \"{title}\" from disk?",
+    "downloading": "Downloading",
+    "downloading_hint": "This comic is still downloading — reading now may be incomplete."
   },
   "localDetail": {
     "back": "Back",
