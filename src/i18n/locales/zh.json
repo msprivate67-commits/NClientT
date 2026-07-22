@@ -112,7 +112,9 @@
     "section_related": "相关作品",
     "hide_comments": "隐藏评论",
     "show_comments": "显示评论",
-    "no_comments": "暂无评论。"
+    "no_comments": "暂无评论。",
+    "translate_error_hint": "翻译失败，请前往设置检查 AI 配置。",
+    "go_to_ai_settings": "前往 AI 设置"
   },
   "reader": {
     "close": "关闭",
@@ -138,7 +140,9 @@
     "translating": "翻译中…",
     "retranslate": "重新翻译",
     "translate": "翻译",
-    "load_error": "加载本地画廊失败。"
+    "load_error": "加载本地画廊失败。",
+    "translate_error_hint": "翻译失败，请前往设置检查 AI 配置。",
+    "go_to_ai_settings": "前往 AI 设置"
   },
   "favorites": {
     "title": "收藏",
@@ -210,7 +214,16 @@
     "deselect_all": "取消全选",
     "delete_selected": "删除（{n}）",
     "no_local": "无本地画廊",
-    "no_local_hint": "下载画廊后它们会自动出现在这里。您也可以点击重新扫描来刷新。"
+    "no_local_hint": "下载画廊后它们会自动出现在这里。您也可以点击重新扫描来刷新。",
+    "translate_all": "翻译全部",
+    "translate_all_hint": "翻译所有尚未翻译的标题（每次 4 个）",
+    "translating_progress": "翻译中 {done}/{total}",
+    "translate_all_confirm": "将在后台翻译 {n} 个未翻译的标题？",
+    "translate_all_none": "所有标题都已翻译。",
+    "translate_all_done": "完成：已翻译 {done}，失败 {failed}，跳过 {skipped}。",
+    "show_translated": "翻译后",
+    "show_original": "原标题",
+    "show_translated_hint": "有翻译时显示翻译后标题"
   },
   "settings": {
     "title": "设置",
@@ -285,7 +298,11 @@
     "export_lang": "导出当前语言 JSON",
     "export_lang_hint": "下载当前语言文件以进行编辑或重新翻译。",
     "import_lang": "导入语言 JSON",
-    "import_lang_hint": "加载自定义语言文件。缺失的键将回退到英语。"
+    "import_lang_hint": "加载自定义语言文件。缺失的键将回退到英语。",
+    "ai_test_connection": "测试连接",
+    "ai_testing": "测试中…",
+    "ai_connection_ok": "已连接",
+    "ai_connection_fail": "失败"
   },
   "notification": {
     "download_complete": "下载完成",

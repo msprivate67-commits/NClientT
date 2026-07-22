@@ -15,6 +15,9 @@ const props = defineProps<{
   local?: boolean;
   /** Optional override thumbnail (used for local galleries). */
   thumbnailOverride?: string | null;
+  /** Optional override for the displayed title (e.g. a local translated title).
+   *  When omitted, falls back to gallery.title. */
+  displayTitle?: string;
   /** When true, the card shows a selection checkbox. */
   selectable?: boolean;
   /** Whether this card is currently selected. */
@@ -33,6 +36,11 @@ const downloaded = useDownloadedStore();
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
+);
+// Title shown on the card: prefers the override (e.g. a translated title) and
+// falls back to the gallery's own title when none is supplied.
+const displayTitle = computed(
+  () => props.displayTitle ?? props.gallery.title,
 );
 const src = computed(() => {
   if (!thumb.value) return "";
@@ -134,7 +142,7 @@ async function toggleFav(e: MouseEvent) {
       </button>
     </div>
     <div class="meta">
-      <div class="title" :title="gallery.title">{{ gallery.title || $t('common.unnamed') }}</div>
+      <div class="title" :title="displayTitle">{{ displayTitle || $t('common.unnamed') }}</div>
     </div>
   </div>
 </template>

@@ -112,7 +112,9 @@
     "section_related": "Related",
     "hide_comments": "Hide comments",
     "show_comments": "Show comments",
-    "no_comments": "No comments."
+    "no_comments": "No comments.",
+    "translate_error_hint": "Translation failed — check the AI settings.",
+    "go_to_ai_settings": "Go to AI settings"
   },
   "reader": {
     "close": "Close",
@@ -138,7 +140,9 @@
     "translating": "Translating…",
     "retranslate": "Retranslate",
     "translate": "Translate",
-    "load_error": "Failed to load local gallery."
+    "load_error": "Failed to load local gallery.",
+    "translate_error_hint": "Translation failed — check the AI settings.",
+    "go_to_ai_settings": "Go to AI settings"
   },
   "favorites": {
     "title": "Favorites",
@@ -210,7 +214,16 @@
     "deselect_all": "Deselect All",
     "delete_selected": "Delete ({n})",
     "no_local": "No local galleries",
-    "no_local_hint": "Download galleries and they'll appear here automatically. You can also click Rescan to refresh."
+    "no_local_hint": "Download galleries and they'll appear here automatically. You can also click Rescan to refresh.",
+    "translate_all": "Translate all",
+    "translate_all_hint": "Translate every title that has no translation yet (4 at a time)",
+    "translating_progress": "Translating {done}/{total}",
+    "translate_all_confirm": "Translate {n} untranslated titles in the background?",
+    "translate_all_none": "All titles are already translated.",
+    "translate_all_done": "Done: {done} translated, {failed} failed, {skipped} skipped.",
+    "show_translated": "Translated",
+    "show_original": "Original",
+    "show_translated_hint": "Show translated titles when available"
   },
   "settings": {
     "title": "Settings",
@@ -285,7 +298,11 @@
     "export_lang": "Export current language JSON",
     "export_lang_hint": "Download the current language file for editing or retranslation.",
     "import_lang": "Import language JSON",
-    "import_lang_hint": "Load a custom language file. Missing keys fall back to English."
+    "import_lang_hint": "Load a custom language file. Missing keys fall back to English.",
+    "ai_test_connection": "Test connection",
+    "ai_testing": "Testing…",
+    "ai_connection_ok": "Connected",
+    "ai_connection_fail": "Failed"
   },
   "notification": {
     "download_complete": "Download complete",

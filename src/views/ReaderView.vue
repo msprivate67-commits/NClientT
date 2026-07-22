@@ -255,15 +255,15 @@ watch(scrollMode, () => {
     <header class="bar">
       <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /></button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
-      <button
-        class="btn small icon-only"
-        :title="scrollMode === 'vertical' ? $t('reader.horizontal') : $t('reader.vertical')"
-        @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
-      >
-        <ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" />
-        <ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" />
-      </button>
       <div class="fit">
+        <button
+          class="btn small icon-only"
+          :title="scrollMode === 'vertical' ? $t('reader.horizontal') : $t('reader.vertical')"
+          @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
+        >
+          <ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" />
+          <ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" />
+        </button>
         <button
           class="btn small"
           :class="{ primary: fitMode === 'height' }"
