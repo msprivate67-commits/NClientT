@@ -132,6 +132,8 @@ pub fn run() {
             read_progress_reset,
             read_progress_get,
             read_progress_ids,
+            local_reader_progress_set,
+            local_reader_progress_get,
             // local library
             local_scan,
             local_list,

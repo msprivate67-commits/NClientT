@@ -186,6 +186,47 @@ impl Database {
             Ok(rows)
         })
     }
+
+    // ── local reader resume position ──────────────────────────────────────
+
+    /// Remember the exact page the user stopped at in the local reader.
+    /// Unlike `read_progress_upsert` this *overwrites* on every call so the
+    /// resume point tracks the user's real position (scrolling back is
+    /// remembered), rather than a furthest-reached high-water mark.
+    pub fn local_reader_progress_set(
+        &self,
+        gallery_id: i64,
+        page: usize,
+        total_pages: usize,
+    ) -> AppResult<()> {
+        self.with_conn(|c| {
+            let now = Utc::now().to_rfc3339();
+            c.execute(
+                "INSERT INTO local_reader_progress (gallery_id, page, total_pages, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(gallery_id) DO UPDATE SET
+                    page        = excluded.page,
+                    total_pages = excluded.total_pages,
+                    updated_at  = excluded.updated_at",
+                params![gallery_id, page as i64, total_pages as i64, now],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Fetch the saved resume page for a gallery (1-based), if any.
+    pub fn local_reader_progress_get(&self, gallery_id: i64) -> AppResult<Option<usize>> {
+        self.with_conn(|c| {
+            let mut stmt = c.prepare(
+                "SELECT page FROM local_reader_progress WHERE gallery_id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![gallery_id], |r| r.get::<_, i64>(0))?;
+            match rows.next().transpose()? {
+                Some(page) => Ok(Some(page.max(1) as usize)),
+                None => Ok(None),
+            }
+        })
+    }
 }
 
 /// One row of read-progress state. `read` mirrors the SQL boolean (0/1).
@@ -339,6 +380,17 @@ const MIGRATIONS: &[&str] = &[
         updated_at   TEXT NOT NULL
     );",
     "CREATE INDEX IF NOT EXISTS idx_read_progress_read ON read_progress(read);",
+    // Local reader resume position: the *exact* page the user stopped at, not a
+    // furthest-reached high-water mark. Distinct from `read_progress` (which
+    // feeds the online reader + "read" cover badge and only ever moves
+    // forward) so that scrolling backwards in the local reader is correctly
+    // remembered on reopen.
+    "CREATE TABLE IF NOT EXISTS local_reader_progress (
+        gallery_id INTEGER PRIMARY KEY,
+        page       INTEGER NOT NULL DEFAULT 1,
+        total_pages INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    );",
 ];
 
 // ---------------------------------------------------------------------------

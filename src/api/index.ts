@@ -156,6 +156,20 @@ export const readProgressGet = (
 export const readProgressIds = (): Promise<number[]> =>
   invoke("read_progress_ids");
 
+// Local reader resume position — the exact page the user stopped at (not a
+// furthest-reached high-water mark). Distinct from readProgress* above, which
+// only ever moves forward and feeds the "read" cover badge.
+export const localReaderProgressSet = (
+  galleryId: number,
+  page: number,
+  totalPages: number,
+): Promise<void> =>
+  invoke("local_reader_progress_set", { galleryId, page, totalPages });
+export const localReaderProgressGet = (
+  galleryId: number,
+): Promise<number | null> =>
+  invoke("local_reader_progress_get", { galleryId });
+
 // ---------------------------------------------------------------------------
 // Local library
 // ---------------------------------------------------------------------------

@@ -424,6 +424,28 @@ pub fn read_progress_ids(state: State<'_, AppState>) -> AppResult<Vec<i64>> {
     state.db.read_progress_ids()
 }
 
+/// Save the exact page the user stopped at in the local reader (resume point).
+#[tauri::command]
+pub fn local_reader_progress_set(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+    page: usize,
+    total_pages: usize,
+) -> AppResult<()> {
+    state
+        .db
+        .local_reader_progress_set(gallery_id, page, total_pages)
+}
+
+/// Fetch the saved resume page (1-based) for a gallery in the local reader.
+#[tauri::command]
+pub fn local_reader_progress_get(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+) -> AppResult<Option<usize>> {
+    state.db.local_reader_progress_get(gallery_id)
+}
+
 // ===========================================================================
 // Local library
 // ===========================================================================
