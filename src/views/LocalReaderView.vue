@@ -194,13 +194,15 @@ async function remove() {
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`]">
     <header class="bar">
-      <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /> {{ $t('reader.close') }}</button>
+      <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /></button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <button
-        class="btn small"
+        class="btn small icon-only"
+        :title="scrollMode === 'vertical' ? $t('reader.horizontal') : $t('reader.vertical')"
         @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
       >
-        {{ scrollMode === 'vertical' ? '' : '' }}<ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" /> {{ scrollMode === 'vertical' ? $t('reader.horizontal') : '' }}<ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" /> {{ scrollMode === 'horizontal' ? $t('reader.vertical') : '' }}
+        <ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" />
+        <ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" />
       </button>
       <div class="fit">
         <button
@@ -318,6 +320,9 @@ async function remove() {
 .btn.small {
   padding: 2px 8px;
   font-size: 0.72rem;
+}
+.btn.icon-only {
+  padding: 4px 6px;
 }
 .btn.danger {
   color: #ff8e8e;

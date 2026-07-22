@@ -152,6 +152,8 @@ pub fn run() {
             // export
             export_pdf,
             export_zip,
+            // version
+            get_app_version,
             // misc
             open_in_browser,
             open_path,

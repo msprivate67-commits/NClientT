@@ -146,11 +146,14 @@ pub struct DownloadManager {
     db: Database,
     /// Per-gallery active tasks.
     tasks: RwLock<HashMap<i64, Arc<DownloadTask>>>,
-        /// Limit concurrent downloads (separate from per-gallery page parallelism).
-    ///
-    /// NOTE: Keep this at 1 to reduce server pressure. Increasing this value
-    /// will download multiple galleries in parallel, which significantly
-    /// increases load on the source server. Change with caution.
+    /// -----------------------------------------------------------------------
+    /// WARNING — SERVER-SIDE RATE LIMITING
+    /// -----------------------------------------------------------------------
+    /// This semaphore limits concurrent gallery downloads. It MUST remain at 1.
+    /// Increasing this value will download multiple galleries in parallel,
+    /// opening excessive TCP connections to the source server and triggering
+    /// IP bans / Cloudflare throttling. **DO NOT CHANGE without maintainer approval.**
+    /// -----------------------------------------------------------------------
     sem: Arc<Semaphore>,
     /// App handle used to emit progress events.
     app: Mutex<Option<AppHandle>>,
@@ -170,7 +173,7 @@ impl DownloadManager {
             http,
             db,
             tasks: RwLock::new(HashMap::new()),
-            sem: Arc::new(Semaphore::new(1)), // Keep at 1 to reduce server load — do not raise without careful consideration
+            sem: Arc::new(Semaphore::new(1)), // MUST stay at 1 to avoid server IP bans / rate limiting. DO NOT CHANGE.
             app: Mutex::new(None),
         }
     }
@@ -327,7 +330,9 @@ impl DownloadManager {
         }
         self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), None, None);
 
-        // Per-gallery page-fetch semaphore.
+        // Per-gallery page-fetch semaphore. Must remain at 8 to avoid
+        // request spikes that the server may treat as abuse.
+        // DO NOT increase without maintainer approval.
         let page_sem = Arc::new(Semaphore::new(api.config.get().parallel_pages as usize));
         let http = self.http.clone();
         let settings = api.config.get();

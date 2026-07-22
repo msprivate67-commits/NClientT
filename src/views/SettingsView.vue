@@ -19,7 +19,6 @@ import {
 } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
-import type { Language, SortType, TitleType } from "@/types";
 
 const i18n = useI18n();
 
@@ -37,26 +36,6 @@ const currentLang = ref<string>(getLocale());
 const importMissing = ref<string[] | null>(null);
 const importError = ref("");
 const langSaved = ref(false);
-
-const sorts: { value: SortType; label: string }[] = [
-  { value: "recent_all_time", label: "home.sort_recent" },
-  { value: "popular_all_time", label: "home.sort_popular_all" },
-  { value: "popular_week", label: "home.sort_popular_week" },
-  { value: "popular_day", label: "home.sort_popular_day" },
-  { value: "popular_month", label: "home.sort_popular_month" },
-];
-const langs: { value: Language; label: string }[] = [
-  { value: "all", label: "settings.lang_all" },
-  { value: "english", label: "settings.lang_english" },
-  { value: "japanese", label: "settings.lang_japanese" },
-  { value: "chinese", label: "settings.lang_chinese" },
-];
-const titleTypes: { value: TitleType; label: string }[] = [
-  { value: "auto", label: "settings.title_auto" },
-  { value: "pretty", label: "settings.title_pretty" },
-  { value: "english", label: "settings.title_english" },
-  { value: "japanese", label: "settings.title_japanese" },
-];
 
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(settings.settings));
 
@@ -196,11 +175,6 @@ onMounted(async () => {
   <div ref="viewRef" class="view settings">
     <div class="view-header">
       <div class="view-title">{{ $t('settings.title') }}</div>
-      <div class="toolbar">
-        <button class="btn primary" :disabled="!dirty" @click="save">
-          {{ saved ? $t('common.saved') : $t('common.save') }}
-        </button>
-      </div>
     </div>
 
     <section>
@@ -314,37 +288,6 @@ onMounted(async () => {
     </section>
 
     <section>
-      <div class="section-title">{{ $t('settings.section_browsing') }}</div>
-      <div class="fields">
-        <div class="field">
-          <label>{{ $t('settings.default_sort') }}</label>
-          <select v-model="draft.sort_type">
-            <option v-for="s in sorts" :key="s.value" :value="s.value">{{ $t(s.label) }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>{{ $t('settings.default_lang_filter') }}</label>
-          <select v-model="draft.only_language">
-            <option v-for="l in langs" :key="l.value" :value="l.value">{{ $t(l.label) }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>{{ $t('settings.title_preference') }}</label>
-          <select v-model="draft.title_type">
-            <option v-for="t in titleTypes" :key="t.value" :value="t.value">{{ $t(t.label) }}</option>
-          </select>
-        </div>
-      </div>
-      <div class="checkboxes">
-        <label><input type="checkbox" v-model="draft.show_titles" /> {{ $t('settings.show_titles') }}</label>
-        <label><input type="checkbox" v-model="draft.exact_tag_match" /> {{ $t('settings.exact_tag_match') }}</label>
-        <label><input type="checkbox" v-model="draft.remove_avoided_galleries" /> {{ $t('settings.hide_avoided') }}</label>
-        <label><input type="checkbox" v-model="draft.use_rtl" /> {{ $t('settings.rtl_reader') }}</label>
-        <label><input type="checkbox" v-model="draft.keep_history" /> {{ $t('settings.keep_history') }}</label>
-      </div>
-    </section>
-
-    <section>
       <div class="section-title">{{ $t('settings.section_display') }}</div>
       <div class="fields">
         <div class="field">
@@ -372,16 +315,6 @@ onMounted(async () => {
         <div class="row">
           <input v-model="draft.download_dir" type="text" :placeholder="$t('settings.download_dir_placeholder')" />
           <button class="btn" @click="pickDownloadDir">{{ $t('settings.browse') }}</button>
-        </div>
-      </div>
-      <div class="fields">
-        <div class="field">
-          <label>{{ $t('settings.parallel_galleries') }}</label>
-          <input v-model.number="draft.parallel_downloads" type="number" min="1" max="10" />
-        </div>
-        <div class="field">
-          <label>{{ $t('settings.parallel_pages') }}</label>
-          <input v-model.number="draft.parallel_pages" type="number" min="1" max="32" />
         </div>
       </div>
     </section>
@@ -415,6 +348,12 @@ onMounted(async () => {
       <div class="section-title">{{ $t('settings.section_data') }}</div>
       <p class="hint">{{ $t('settings.app_data_dir') }} <code>{{ appData }}</code></p>
     </section>
+
+    <div class="save-bar">
+      <button class="btn primary" :disabled="!dirty" @click="save">
+        {{ saved ? $t('common.saved') : $t('common.save') }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -481,5 +420,15 @@ section:last-child {
 }
 .warn {
   color: #ffce80;
+}
+.save-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 0 8px;
+}
+.save-bar .btn {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 32px;
 }
 </style>

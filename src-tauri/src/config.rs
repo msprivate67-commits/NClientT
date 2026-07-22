@@ -184,7 +184,14 @@ pub struct Settings {
 
     // --- downloads ----------------------------------------------------------
     pub download_dir: PathBuf,
+    /// Number of parallel gallery downloads. Must remain at 1 to avoid
+    /// overloading the source server. Increasing this will cause excessive
+    /// concurrent connections and may result in the server blocking the
+    /// client IP. **DO NOT CHANGE without maintainer approval.**
     pub parallel_downloads: u32,
+    /// Number of parallel page fetches *within* a single gallery download.
+    /// Must remain at 8. Higher values risk server-side rate limiting.
+    /// **DO NOT CHANGE without maintainer approval.**
     pub parallel_pages: u32,
 
     // --- security -----------------------------------------------------------
@@ -230,7 +237,19 @@ impl Default for Settings {
             max_history: 100,
             favorite_limit: 100,
             download_dir: PathBuf::new(), // filled in by ConfigStore::load_or_init
-            parallel_downloads: 1, // Keep at 1 to reduce server load — do not raise without careful consideration
+            // -----------------------------------------------------------------------
+            // WARNING — SERVER-SIDE RATE LIMITING
+            // -----------------------------------------------------------------------
+            // parallel_downloads MUST remain at 1. Downloading multiple galleries
+            // concurrently opens too many TCP connections to the source server and
+            // will trigger IP bans / Cloudflare throttling. Do NOT increase this.
+            // -----------------------------------------------------------------------
+            // parallel_pages MUST remain at 8. This is the number of page images
+            // fetched in parallel within a single gallery download. Higher values
+            // (e.g. 16 or 32) create request spikes that the server may treat as
+            // abuse. Do NOT increase this.
+            // -----------------------------------------------------------------------
+            parallel_downloads: 1,
             parallel_pages: 8,
             lock_screen: false,
             pin: String::new(),

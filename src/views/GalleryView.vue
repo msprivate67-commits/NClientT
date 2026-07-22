@@ -225,7 +225,7 @@ async function onTagClick(t: any) {
 <template>
   <div ref="viewRef" class="view gallery-view" :class="{ 'overlay-mode': overlay }">
     <div v-if="overlay" class="overlay-bar">
-      <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /> {{ $t('gallery.back') }}</button>
+      <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /></button>
       <span class="overlay-title">{{ title }}</span>
     </div>
 
@@ -245,19 +245,28 @@ async function onTagClick(t: any) {
       <div class="info">
         <div class="title-row">
           <h1 class="title">{{ title }}</h1>
-          <button class="btn" :disabled="loading" @click="load" :title="$t('gallery.reload_gallery')">
-            {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
-          </button>
           <button
-            class="btn"
-            :disabled="translating"
-            @click="doTranslate"
-            :title="translatedTitle ? $t('gallery.retranslate') : $t('gallery.translate_title')"
+            class="btn primary read-btn"
+            @click="read"
+            :title="$t('gallery.read')"
           >
-            <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('gallery.translating') }}</span>
-            <span v-else-if="translatedTitle"><RefreshCw :size="14" /> {{ $t('gallery.retranslate') }}</span>
-            <span v-else><Languages :size="14" /> {{ $t('gallery.translate') }}</span>
+            <BookOpen :size="16" /> {{ $t('gallery.read') }}
           </button>
+          <div class="tool-btns">
+            <button class="btn" :disabled="loading" @click="load" :title="$t('gallery.reload_gallery')">
+              {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
+            </button>
+            <button
+              class="btn"
+              :disabled="translating"
+              @click="doTranslate"
+              :title="translatedTitle ? $t('gallery.retranslate') : $t('gallery.translate_title')"
+            >
+              <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('gallery.translating') }}</span>
+              <span v-else-if="translatedTitle"><RefreshCw :size="14" /> {{ $t('gallery.retranslate') }}</span>
+              <span v-else><Languages :size="14" /> {{ $t('gallery.translate') }}</span>
+            </button>
+          </div>
         </div>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
@@ -291,7 +300,6 @@ async function onTagClick(t: any) {
           >
             {{ '' }}<Star :size="14" :fill="g.is_favorited || favorites.ids.has(g.id) ? 'currentColor' : 'none'" /> {{ $t('gallery.favorite') }}
           </button>
-          <button class="btn primary" @click="read"><BookOpen :size="14" /> {{ $t('gallery.read') }}</button>
         </div>
       </div>
     </div>
@@ -479,10 +487,22 @@ async function onTagClick(t: any) {
   align-items: flex-start;
   gap: 12px;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 .title-row .title {
   flex: 1;
   min-width: 0;
+}
+.read-btn {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 28px;
+  white-space: nowrap;
+}
+.tool-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .translated-title {
   color: var(--accent);

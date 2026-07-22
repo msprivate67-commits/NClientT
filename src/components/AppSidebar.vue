@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { ref, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   House,
@@ -38,6 +40,16 @@ function openRelease() {
 function openIssue() {
   openUrl(GITHUB_ISSUES);
 }
+
+const appVersion = ref("");
+
+onMounted(async () => {
+  try {
+    appVersion.value = await invoke<string>("get_app_version");
+  } catch {
+    appVersion.value = "";
+  }
+});
 
 const items = [
   { to: { name: "home" },      icon: House,          key: "sidebar.home" },
@@ -91,6 +103,11 @@ const items = [
         <MessageCircle :size="18" class="icon" />
         <span v-if="open || mobile" class="label">{{ t('sidebar.feedback') }}</span>
       </button>
+
+      <div v-if="appVersion" class="version-row">
+        <span v-if="open || mobile" class="version-label">v{{ appVersion }}</span>
+        <span v-else class="version-label-mini">v{{ appVersion }}</span>
+      </div>
     </nav>
     <button v-if="!mobile" class="collapse" @click="$emit('toggle')">
       <ChevronLeft v-if="open" :size="16" />
@@ -209,5 +226,19 @@ nav {
 }
 .sidebar.is-mobile.is-open {
   transform: translateX(0);
+}
+.version-row {
+  padding: 6px 12px 12px 12px;
+}
+.version-label {
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+}
+.version-label-mini {
+  display: block;
+  text-align: center;
+  font-size: 0.65rem;
+  color: var(--text-muted, #888);
+  margin-top: 4px;
 }
 </style>

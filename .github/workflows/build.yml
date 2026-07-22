@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed by the release job to create the GitHub pre-release
+  contents: write   # needed by the release job to create/update the nightly pre-release
 
 jobs:
   build-android:
@@ -50,6 +50,18 @@ jobs:
           workspaces: src-tauri
 
       - run: npm ci
+
+      # Regenerate all icons from the source icon.png so CI never ships
+      # stale/default Tauri icons. This includes both desktop and Android
+      # mipmap assets.
+      - name: Generate all icons from source
+        run: |
+          if [ -f src-tauri/icons/icon.png ]; then
+            node scripts/make-icons.mjs
+            node scripts/make-android-icons.mjs
+          else
+            echo "No icon.png found, using committed icons"
+          fi
 
       # gen/android (with the storage-permission AndroidManifest.xml) is
       # committed to the repo, so we only scaffold it when missing — running
@@ -180,11 +192,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # Collects all three platforms' artifacts and publishes a GitHub pre-release.
-  # Runs only after every build job succeeds. Marked as a pre-release so you
-  # can review/promote it to a full release manually.
+  # Collects all three platforms' artifacts and publishes a rolling nightly pre-release.
+  # Runs on every push to main, updating the same "nightly" tag in-place.
+  # Official releases are promoted manually from the nightly pre-release.
   release:
-    name: Publish pre-release
+    name: Publish nightly pre-release
     runs-on: ubuntu-latest
     needs: [build-android, build-windows, build-linux]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -200,39 +212,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          # Flatten every installable file into release/ and give it a clean
-          # <product>-<version>-<platform>.<ext> name so users can tell them
-          # apart at a glance.
-          #
-          # NOTE: we use `find` instead of bash `**` globs. Recursive globs
-          # need `shopt -s globstar` (off by default) and, more importantly,
-          # only match fixed path depths per pattern — so a `.deb` two dirs
-          # deep (NClientT-linux/.../x.deb) silently didn't match the
-          # one-deep `**` and got dropped from the release. `find` is
-          # depth-agnostic and always catches the file regardless of how the
-          # upload-artifact action nested it.
-          VERSION="0.1.0"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
 
           cp_windows () {
             local ext="$1" out="$2"
-            # `head -n1` + explicit error: if there is more than one candidate
-            # we want to know, and if there are zero we fail loudly below.
             local f
             f=$(find artifacts/NClientT-windows -type f -name "*.${ext}" | head -n1 || true)
             [ -n "$f" ] || { echo "ERROR: no .${ext} found for Windows"; exit 1; }
             cp "$f" "release/${out}"
           }
-          cp_windows msi "NClientT-${VERSION}-windows.msi"
-          cp_windows exe "NClientT-${VERSION}-windows-setup.exe"
+          cp_windows msi "NClientT-${SHORT_SHA}-windows.msi"
+          cp_windows exe "NClientT-${SHORT_SHA}-windows-setup.exe"
 
-          # Linux (.deb)
           deb=$(find artifacts/NClientT-linux -type f -name "*.deb" | head -n1 || true)
           [ -n "$deb" ] || { echo "ERROR: no .deb found for Linux"; exit 1; }
-          cp "$deb" "release/NClientT-${VERSION}-linux.deb"
+          cp "$deb" "release/NClientT-${SHORT_SHA}-linux.deb"
 
-          # Android (split-per-abi → one APK per ABI, name includes the ABI).
-          # Unlike the desktop bundles there can legitimately be several APKs,
-          # so we loop and name each by its ABI.
           shopt -s nullglob
           apks=( $(find artifacts/NClientT-android -type f -name "*.apk") )
           if [ ${#apks[@]} -eq 0 ]; then
@@ -243,36 +238,37 @@ jobs:
             if [[ "$base" == *arm64* ]]; then abi="arm64-v8a"
             elif [[ "$base" == *armv7* ]] || [[ "$base" == *armeabi* ]]; then abi="armeabi-v7a"
             else abi="universal"; fi
-            cp "$apk" "release/NClientT-${VERSION}-android-${abi}.apk"
+            cp "$apk" "release/NClientT-${SHORT_SHA}-android-${abi}.apk"
           done
 
           echo "=== staged release assets ===" && ls -la release/
 
-      - name: Create or update GitHub pre-release
+      - name: Create or update GitHub nightly pre-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: NClientT v0.1.0 (pre-release)
+          tag_name: nightly
+          name: Nightly Build
           prerelease: true
           body: |
-            ⚠️ **预发布版本 (Pre-release)** — 自动构建产物，验证无误后可手动转为正式版。
+            🏗️ **Nightly Build** — 自动构建产物，每次 main 分支推送更新。
+
+            Commit: [`${GITHUB_SHA:0:7}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
 
             ## 下载
 
             ### Windows
-            - `NClientT-0.1.0-windows.msi` — MSI 安装包（推荐）
-            - `NClientT-0.1.0-windows-setup.exe` — NSIS 安装程序
+            - `NClientT-${GITHUB_SHA:0:7}-windows.msi` — MSI 安装包（推荐）
+            - `NClientT-${GITHUB_SHA:0:7}-windows-setup.exe` — NSIS 安装程序
 
             ### Linux
-            - `NClientT-0.1.0-linux.deb` — Debian/Ubuntu 安装包
+            - `NClientT-${GITHUB_SHA:0:7}-linux.deb` — Debian/Ubuntu 安装包
 
             ### Android (仅 ARM)
-            - `NClientT-0.1.0-android-arm64-v8a.apk` — 64 位 ARM（现代手机，推荐）
-            - `NClientT-0.1.0-android-armeabi-v7a.apk` — 32 位 ARM（旧设备）
+            - `NClientT-${GITHUB_SHA:0:7}-android-arm64-v8a.apk` — 64 位 ARM（现代手机，推荐）
+            - `NClientT-${GITHUB_SHA:0:7}-android-armeabi-v7a.apk` — 32 位 ARM（旧设备）
 
             ## 说明
-            - 安卓 APK 已用 keystore 签名，仅包含 ARM 架构（手机专用）。
+            - 安卓 APK 已签名，仅包含 ARM 架构（手机专用）。
             - 桌面端安装包未做代码签名，Windows 首次运行可能弹出 SmartScreen 警告，点「仍要运行」即可。
-            - 完整变更记录：https://github.com/${{ github.repository }}/commits/main
           files: release/*
           fail_on_unmatched_files: true

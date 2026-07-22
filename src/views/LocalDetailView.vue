@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { localGet, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
-import { BookOpen, Loader, RefreshCw, Languages } from "lucide-vue-next";
+import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft } from "lucide-vue-next";
 import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
 import type { LocalGallery } from "@/types";
@@ -68,7 +68,7 @@ watch(() => props.folder, load);
 <template>
   <div class="view" :class="{ 'overlay-mode': overlay }">
     <div v-if="overlay" class="overlay-bar">
-      <button class="btn" @click="emit('back')">{{ $t('localDetail.back') }}</button>
+      <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /></button>
       <span class="overlay-title">{{ title }}</span>
     </div>
 
@@ -88,7 +88,7 @@ watch(() => props.folder, load);
             <span>{{ local.num_pages }} {{ $t('localDetail.pages') }}</span>
           </div>
           <div class="actions">
-            <button class="btn primary" @click="read"><BookOpen :size="14" /> {{ $t('localDetail.read') }}</button>
+            <button class="btn primary read-btn" @click="read"><BookOpen :size="16" /> {{ $t('localDetail.read') }}</button>
             <button
               class="btn"
               :disabled="translating"
@@ -202,6 +202,11 @@ watch(() => props.folder, load);
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.read-btn {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 28px;
 }
 .loading, .error {
   color: var(--text-dim);

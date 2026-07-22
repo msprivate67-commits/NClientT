@@ -708,6 +708,15 @@ pub fn export_zip(folder: String, out: Option<String>) -> AppResult<String> {
 }
 
 // ===========================================================================
+// Version
+// ===========================================================================
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    crate::config::APP_VERSION.to_string()
+}
+
+// ===========================================================================
 // Misc: open URLs / paths, asset resolution, image proxy
 // ===========================================================================
 

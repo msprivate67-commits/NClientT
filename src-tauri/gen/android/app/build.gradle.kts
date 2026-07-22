@@ -13,6 +13,16 @@ val tauriProperties = Properties().apply {
     }
 }
 
+fun readVersionFromTauriConf(): String {
+    val confFile = file("../../../tauri.conf.json")
+    if (confFile.exists()) {
+        val content = confFile.readText()
+        val regex = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"")
+        return regex.find(content)?.groupValues?.get(1) ?: "0.1.0"
+    }
+    return "0.1.0"
+}
+
 android {
     compileSdk = 34
     namespace = "com.nclientt.app"
@@ -22,7 +32,10 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        versionName = tauriProperties.getProperty(
+            "tauri.android.versionName",
+            readVersionFromTauriConf()
+        )
     }
     buildTypes {
         getByName("debug") {
