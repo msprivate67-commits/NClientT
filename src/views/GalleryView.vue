@@ -420,6 +420,11 @@ async function onTagClick(t: any) {
      scrolls. */
   width: 100%;
   max-width: 1000px;
+  /* min-width:0 is essential: without it a long unbreakable title (or any
+     intrinsic-content child) would make this flex/block item grow to its
+     content's min-content width, so the whole page would visibly track the
+     title length. With it the page width follows the window, not the title. */
+  min-width: 0;
   height: 100%;
   margin: 0 auto;
   padding: 14px;
@@ -496,6 +501,12 @@ async function onTagClick(t: any) {
 }
 .title {
   margin: 0;
+  /* Explicitly constrain to the info column so the heading's own intrinsic
+     (max-content) width can never push the column/page wider than the window.
+     This is what keeps the detail page width driven by the window, not by the
+     title length. */
+  width: 100%;
+  max-width: 100%;
   font-size: 1.35rem;
   line-height: 1.35;
   /* Long titles (no spaces, e.g. long romanized/japanese strings) must wrap
@@ -530,10 +541,15 @@ async function onTagClick(t: any) {
   white-space: nowrap;
 }
 .translated-title {
+  /* Constrain + wrap so a long translated line can't inflate the column. */
+  width: 100%;
+  max-width: 100%;
   color: var(--accent);
   font-size: 1.05rem;
   font-weight: 500;
   font-style: italic;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .tl-error {
   color: #f08080;
@@ -541,6 +557,7 @@ async function onTagClick(t: any) {
   padding: 6px 10px;
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
+  overflow-wrap: anywhere;
 }
 .meta {
   color: var(--text-dim);

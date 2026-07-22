@@ -108,7 +108,11 @@ watch(() => props.folder, load);
 
 <style scoped>
 .view {
+  width: 100%;
   max-width: 1000px;
+  /* min-width:0 keeps the page width driven by the window rather than by the
+     title's intrinsic (max-content) width — see GalleryView for the same rule. */
+  min-width: 0;
   margin: 0 auto;
   padding: 14px;
   overflow-y: auto;
@@ -182,6 +186,10 @@ watch(() => props.folder, load);
 }
 .title {
   margin: 0;
+  /* Constrain to the info column so a long title can't push the page wider
+     than the window — page width follows the window, not the title length. */
+  width: 100%;
+  max-width: 100%;
   font-size: 1.35rem;
   line-height: 1.35;
   /* Long titles must wrap rather than inflate the info column and overflow. */
@@ -189,10 +197,14 @@ watch(() => props.folder, load);
   word-break: break-word;
 }
 .translated-title {
+  width: 100%;
+  max-width: 100%;
   color: var(--accent);
   font-size: 1.05rem;
   font-weight: 500;
   font-style: italic;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .tl-error {
   color: #f08080;
@@ -200,6 +212,7 @@ watch(() => props.folder, load);
   padding: 6px 10px;
   background: rgba(220, 60, 60, 0.1);
   border-radius: 6px;
+  overflow-wrap: anywhere;
 }
 .meta {
   color: var(--text-dim);
