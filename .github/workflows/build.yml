@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed by the release job to create/update the nightly pre-release
+  contents: write
 
 jobs:
   build-android:
-    name: Build (android)
+    name: Build (Android arm64-v8a)
     runs-on: ubuntu-22.04
     env:
-      NDK_VERSION: '27.0.12077973'
+      NDK_VERSION: "27.0.12077973"
     steps:
       - uses: actions/checkout@v4
 
@@ -27,20 +27,15 @@ jobs:
 
       - uses: android-actions/setup-android@v4
         with:
-          packages: 'tools platform-tools build-tools;34.0.0 platforms;android-34 ndk;${{ env.NDK_VERSION }}'
+          packages: "tools platform-tools build-tools;34.0.0 platforms;android-34 ndk;${{ env.NDK_VERSION }}"
 
-      - name: Export Android env vars
+      - name: Export Android environment variables
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           NDK="$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}"
-          echo "ANDROID_NDK_HOME=$NDK" >> $GITHUB_ENV
-          echo "NDK_HOME=$NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$NDK" >> "$GITHUB_ENV"
 
-      # Only build the ARMv8 (arm64-v8a / aarch64) target — this is a
-      # phone-only app and essentially every modern Android phone is 64-bit
-      # ARM. The other ABIs (armv7 legacy, x86/i686 emulators / Intel tablets)
-      # are dead weight that bloat the release and double CI time, so we ship
-      # only arm64-v8a.
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -51,10 +46,7 @@ jobs:
 
       - run: npm ci
 
-      # Regenerate all icons from the source icon.png so CI never ships
-      # stale/default Tauri icons. This includes both desktop and Android
-      # mipmap assets.
-      - name: Generate all icons from source
+      - name: Generate icons
         run: |
           if [ -f src-tauri/icons/icon.png ]; then
             node scripts/make-icons.mjs
@@ -63,10 +55,7 @@ jobs:
             echo "No icon.png found, using committed icons"
           fi
 
-      # gen/android (with the storage-permission AndroidManifest.xml) is
-      # committed to the repo, so we only scaffold it when missing — running
-      # `tauri android init` unconditionally would overwrite our manifest.
-      - name: Init Tauri Android project (only if not scaffolded)
+      - name: Initialize Tauri Android project when missing
         run: |
           if [ ! -d src-tauri/gen/android ]; then
             npx tauri android init --ci
@@ -74,23 +63,17 @@ jobs:
             echo "src-tauri/gen/android already exists, skipping init"
           fi
 
-      # --target aarch64 limits the build to the single arm64-v8a ABI.
-      # --split-per-abi produces one APK per ABI instead of a fat universal
-      # APK, so users download only what their device needs.
-      - name: Build Android APK (arm64-v8a only)
+      - name: Build Android APK
         run: npx tauri android build --apk --target aarch64 --split-per-abi
 
-      - name: Sign APKs
+      - name: Sign Android APK
         if: hashFiles('src-tauri/nclientt.keystore') != ''
         run: |
+          set -euo pipefail
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/34.0.0"
           APK_DIR="src-tauri/gen/android/app/build/outputs/apk"
-          # With --split-per-abi the APKs live under per-ABI release dirs:
-          #   arm64-v8a/release/*.apk, armeabi-v7a/release/*.apk
           shopt -s nullglob
-          for apk in "$APK_DIR"/*/release/*.apk; do
-            # Skip already-signed APKs (re-runs).
-            [[ "$apk" == *-unsigned.apk ]] || continue
+          for apk in "$APK_DIR"/*/release/*-unsigned.apk; do
             signed="${apk%-unsigned.apk}.apk"
             "$BUILD_TOOLS/apksigner" sign \
               --ks src-tauri/nclientt.keystore \
@@ -99,22 +82,19 @@ jobs:
               --key-pass pass:nclientt \
               --out "$signed" \
               --in "$apk"
-            echo "Signed: $signed"
             rm -f "$apk"
           done
 
-      - name: Upload artifacts
+      - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: NClientT-android
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
           retention-days: 2
           if-no-files-found: error
 
   build-windows:
-    name: Build (windows)
+    name: Build (Windows exe + msi)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -132,21 +112,21 @@ jobs:
 
       - run: npm ci
 
-      - name: Build Tauri app (msi + nsis)
-        run: npx tauri build --bundles msi,nsis
+      - name: Build portable executable and MSI
+        run: npx tauri build --bundles msi
 
-      - name: Upload artifacts
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: NClientT-windows
           path: |
+            src-tauri/target/release/nclientt-bin.exe
             src-tauri/target/release/bundle/msi/**/*.msi
-            src-tauri/target/release/bundle/nsis/**/*.exe
           retention-days: 2
           if-no-files-found: error
 
   build-linux:
-    name: Build (linux)
+    name: Build (Linux executable)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -178,34 +158,26 @@ jobs:
 
       - run: npm ci
 
-      # deb only — AppImage was dropped because it doubles the artifact size
-      # (bundles its own runtime) for little benefit over the .deb.
-      - name: Build Tauri app (deb)
-        run: npx tauri build --bundles deb
+      - name: Build portable Linux executable
+        run: npx tauri build --no-bundle
 
-      - name: Upload artifacts
+      - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: NClientT-linux
-          path: |
-            src-tauri/target/release/bundle/deb/**/*.deb
+          path: src-tauri/target/release/nclientt-bin
           retention-days: 2
           if-no-files-found: error
 
-  # Collects all three platforms' artifacts and publishes a rolling nightly pre-release,
-  # updating the same "nightly" tag in-place. Triggered by a manual workflow_dispatch run
-  # on the main branch. Official releases are promoted manually from the nightly pre-release.
   release:
-    name: Publish nightly pre-release
+    name: Replace pre-release
     runs-on: ubuntu-latest
     needs: [build-android, build-windows, build-linux]
-    # The workflow only has a workflow_dispatch trigger, so we publish whenever it runs on main.
-    # Guarding on github.ref keeps the release on the main branch (e.g. not a tag/other branch run).
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -215,67 +187,70 @@ jobs:
           set -euo pipefail
           mkdir -p release
           SHORT_SHA="${GITHUB_SHA:0:7}"
-          # Capture the build time (UTC, ISO 8601) to stamp into the release
-          # notes below. Written to $GITHUB_ENV so later steps can read it.
           echo "BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=prerelease-${GITHUB_RUN_NUMBER}-${SHORT_SHA}" >> "$GITHUB_ENV"
 
-          cp_windows () {
-            local ext="$1" out="$2"
-            local f
-            f=$(find artifacts/NClientT-windows -type f -name "*.${ext}" | head -n1 || true)
-            [ -n "$f" ] || { echo "ERROR: no .${ext} found for Windows"; exit 1; }
-            cp "$f" "release/${out}"
-          }
-          cp_windows msi "NClientT-${SHORT_SHA}-windows.msi"
-          cp_windows exe "NClientT-${SHORT_SHA}-windows-setup.exe"
+          windows_exe=$(find artifacts/NClientT-windows -type f -name "nclientt-bin.exe" | head -n1 || true)
+          [ -n "$windows_exe" ] || { echo "ERROR: no portable Windows executable found"; exit 1; }
+          cp "$windows_exe" "release/NClientT-${SHORT_SHA}-windows.exe"
 
-          deb=$(find artifacts/NClientT-linux -type f -name "*.deb" | head -n1 || true)
-          [ -n "$deb" ] || { echo "ERROR: no .deb found for Linux"; exit 1; }
-          cp "$deb" "release/NClientT-${SHORT_SHA}-linux.deb"
+          windows_msi=$(find artifacts/NClientT-windows -type f -name "*.msi" | head -n1 || true)
+          [ -n "$windows_msi" ] || { echo "ERROR: no Windows MSI found"; exit 1; }
+          cp "$windows_msi" "release/NClientT-${SHORT_SHA}-windows.msi"
 
-          shopt -s nullglob
-          apks=( $(find artifacts/NClientT-android -type f -name "*.apk") )
-          if [ ${#apks[@]} -eq 0 ]; then
-            echo "ERROR: no .apk found for Android"; exit 1
-          fi
-          for apk in "${apks[@]}"; do
-            base=$(basename "$apk")
-            # Only arm64-v8a is built now; fall back to the detected ABI in
-            # case Tauri's filename scheme changes.
-            if [[ "$base" == *arm64* ]]; then abi="arm64-v8a"
-            else abi="arm64-v8a"; fi
-            cp "$apk" "release/NClientT-${SHORT_SHA}-android-${abi}.apk"
+          linux_bin=$(find artifacts/NClientT-linux -type f -name "nclientt-bin" | head -n1 || true)
+          [ -n "$linux_bin" ] || { echo "ERROR: no portable Linux executable found"; exit 1; }
+          cp "$linux_bin" "release/NClientT-${SHORT_SHA}-linux-x86_64"
+          chmod +x "release/NClientT-${SHORT_SHA}-linux-x86_64"
+
+          android_apk=$(find artifacts/NClientT-android -type f -name "*.apk" | head -n1 || true)
+          [ -n "$android_apk" ] || { echo "ERROR: no Android arm64-v8a APK found"; exit 1; }
+          cp "$android_apk" "release/NClientT-${SHORT_SHA}-android-arm64-v8a.apk"
+
+          echo "Staged release assets:"
+          ls -la release/
+
+      - name: Delete all existing pre-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t prerelease_tags < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.prerelease) | .tag_name'
+          )
+          for tag in "${prerelease_tags[@]}"; do
+            echo "Deleting pre-release: $tag"
+            gh release delete "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --cleanup-tag \
+              --yes
           done
 
-          echo "=== staged release assets ===" && ls -la release/
+      - name: Create new pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<EOF
+          Automated pre-release build from commit [${GITHUB_SHA:0:7}](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}).
 
-      - name: Create or update GitHub nightly pre-release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: nightly
-          name: Nightly Build
-          prerelease: true
-          body: |
-            🏗️ **Nightly Build** — 自动构建产物，每次 main 分支推送更新。
+          Build time: ${BUILD_TIME}
 
-            Commit: [`${GITHUB_SHA:0:7}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          ## Downloads
+          - Android: arm64-v8a APK
+          - Windows: portable executable and MSI installer
+          - Linux: portable x86_64 executable
+          EOF
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Pre-release ${GITHUB_SHA:0:7}" \
+            --notes-file release-notes.md \
+            --prerelease
 
-            编译时间: ${{ env.BUILD_TIME }}
-
-            ## 下载
-
-            ### Windows
-            - `NClientT-${GITHUB_SHA:0:7}-windows.msi` — MSI 安装包（推荐）
-            - `NClientT-${GITHUB_SHA:0:7}-windows-setup.exe` — NSIS 安装程序
-
-            ### Linux
-            - `NClientT-${GITHUB_SHA:0:7}-linux.deb` — Debian/Ubuntu 安装包
-
-            ### Android (仅 arm64-v8a)
-            - `NClientT-${GITHUB_SHA:0:7}-android-arm64-v8a.apk` — 64 位 ARM（现代手机，推荐）
-
-            ## 说明
-            - 安卓 APK 已签名，仅包含 arm64-v8a 架构（手机专用）。
-            - 桌面端安装包未做代码签名，Windows 首次运行可能弹出 SmartScreen 警告，点「仍要运行」即可。
-          files: release/*
-          fail_on_unmatched_files: true
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_TAG" release/* \
+            --repo "$GITHUB_REPOSITORY"
