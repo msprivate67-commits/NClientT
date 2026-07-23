@@ -24,10 +24,7 @@ pub fn export_zip(folder: &Path, out: Option<&Path>) -> AppResult<PathBuf> {
         .unix_permissions(0o644);
     for (i, page) in files.iter().enumerate() {
         let path = Path::new(page);
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("jpg");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("jpg");
         let entry = format!("{:03}.{}", i + 1, ext);
         zip.start_file(entry, opts)?;
         let data = std::fs::read(path)?;

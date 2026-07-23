@@ -284,6 +284,8 @@
     "page_change_buttons": "Page-change buttons",
     "download_dir": "Download directory",
     "download_dir_placeholder": "Default: app data directory",
+    "download_notifications": "Download notifications",
+    "download_notifications_hint": "Show operating-system notifications for download progress and completion.",
     "browse": "Browse…",
     "parallel_galleries": "Parallel galleries",
     "parallel_pages": "Parallel pages per gallery",

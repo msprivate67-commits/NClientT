@@ -193,6 +193,10 @@ pub struct Settings {
     /// Must remain at 8. Higher values risk server-side rate limiting.
     /// **DO NOT CHANGE without maintainer approval.**
     pub parallel_pages: u32,
+    /// Whether download progress and completion notifications are shown.
+    /// Defaults to enabled when loading settings created by older versions.
+    #[serde(default = "notifications_enabled_default")]
+    pub notifications_enabled: bool,
 
     // --- security -----------------------------------------------------------
     pub lock_screen: bool,
@@ -251,6 +255,7 @@ impl Default for Settings {
             // -----------------------------------------------------------------------
             parallel_downloads: 1,
             parallel_pages: 8,
+            notifications_enabled: true,
             lock_screen: false,
             pin: String::new(),
             tl_base_url: "https://api.deepseek.com".into(),
@@ -259,6 +264,28 @@ impl Default for Settings {
             tl_target_lang: "简体中文，尽量用古典章回体小说标题风格".into(),
             tl_thinking: false,
         }
+    }
+}
+
+fn notifications_enabled_default() -> bool {
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+
+    #[test]
+    fn old_settings_enable_notifications_by_default() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("notifications_enabled");
+
+        let settings: Settings = serde_json::from_value(value).unwrap();
+
+        assert!(settings.notifications_enabled);
     }
 }
 

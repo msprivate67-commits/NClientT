@@ -40,10 +40,7 @@ pub fn settings_get(state: State<AppState>) -> AppResult<Settings> {
 }
 
 #[tauri::command]
-pub fn settings_set(
-    state: State<'_, AppState>,
-    new_settings: Settings,
-) -> AppResult<Settings> {
+pub fn settings_set(state: State<'_, AppState>, new_settings: Settings) -> AppResult<Settings> {
     let updated = state.config.replace(new_settings)?;
     // Mirror / UA change => rebuild HTTP client (cookies preserved).
     state.http.rebuild(&updated);
@@ -124,10 +121,7 @@ pub fn auth_get(state: State<'_, AppState>) -> AppResult<AuthCredentials> {
 }
 
 #[tauri::command]
-pub fn auth_set_api_key(
-    state: State<'_, AppState>,
-    api_key: String,
-) -> AppResult<Settings> {
+pub fn auth_set_api_key(state: State<'_, AppState>, api_key: String) -> AppResult<Settings> {
     let updated = state.config.update(|s| {
         s.auth = AuthCredentials {
             api_key: api_key.trim().to_string(),
@@ -178,10 +172,7 @@ pub async fn cloudflare_check(state: State<'_, AppState>) -> AppResult<bool> {
 }
 
 #[tauri::command]
-pub fn cloudflare_open_challenge(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> AppResult<()> {
+pub fn cloudflare_open_challenge(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
     let base = state.config.base_url();
     cloudflare::open_challenge(&app, state.http.clone(), base)
 }
@@ -205,10 +196,7 @@ pub async fn api_browse(
 }
 
 #[tauri::command]
-pub async fn api_search(
-    state: State<'_, AppState>,
-    query: SearchQuery,
-) -> AppResult<SearchPage> {
+pub async fn api_search(state: State<'_, AppState>, query: SearchQuery) -> AppResult<SearchPage> {
     api(&state).search(&query).await
 }
 
@@ -218,10 +206,7 @@ pub async fn api_random(state: State<'_, AppState>) -> AppResult<Gallery> {
 }
 
 #[tauri::command]
-pub async fn api_get_gallery(
-    state: State<'_, AppState>,
-    id: i64,
-) -> AppResult<Gallery> {
+pub async fn api_get_gallery(state: State<'_, AppState>, id: i64) -> AppResult<Gallery> {
     let g = api(&state).gallery(id).await?;
     let s = settings(&state);
     // Record visit in history (mirrors NClientV3's history table).
@@ -331,11 +316,7 @@ pub fn tags_get_by_type(
 }
 
 #[tauri::command]
-pub fn tags_set_status(
-    state: State<'_, AppState>,
-    id: i64,
-    status: TagStatus,
-) -> AppResult<()> {
+pub fn tags_set_status(state: State<'_, AppState>, id: i64, status: TagStatus) -> AppResult<()> {
     state.db.tag_set_status(id, status)
 }
 
@@ -379,7 +360,10 @@ pub fn history_add(
 }
 
 #[tauri::command]
-pub fn history_list(state: State<'_, AppState>, limit: Option<u32>) -> AppResult<Vec<HistoryEntry>> {
+pub fn history_list(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> AppResult<Vec<HistoryEntry>> {
     state.db.history_list(limit.unwrap_or(200))
 }
 
@@ -502,7 +486,11 @@ pub fn local_get(state: State<'_, AppState>, gallery_id: i64) -> AppResult<Optio
 }
 
 #[tauri::command]
-pub fn local_set_translated_title(state: State<'_, AppState>, gallery_id: i64, title: String) -> AppResult<()> {
+pub fn local_set_translated_title(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+    title: String,
+) -> AppResult<()> {
     state.db.local_set_translated_title(gallery_id, &title)
 }
 
@@ -576,7 +564,10 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
     if let Ok(entries) = std::fs::read_dir(folder) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.len() > 1 && name.starts_with('.') && name[1..].chars().all(|c| c.is_ascii_digit()) {
+            if name.len() > 1
+                && name.starts_with('.')
+                && name[1..].chars().all(|c| c.is_ascii_digit())
+            {
                 id = name[1..].parse().unwrap_or(0);
             }
         }

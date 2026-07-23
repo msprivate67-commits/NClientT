@@ -41,7 +41,11 @@ impl ApiClient {
     }
 
     fn api_url(&self, suffix: &str) -> String {
-        format!("{}{}", self.config.api_base_url(), suffix.trim_start_matches('/'))
+        format!(
+            "{}{}",
+            self.config.api_base_url(),
+            suffix.trim_start_matches('/')
+        )
     }
 
     // ---------------------------------------------------------------------
@@ -96,15 +100,16 @@ impl ApiClient {
         }
         // Tag IDs from the local DB.
         if !q.accepted_tag_ids.is_empty() || !q.avoided_tag_ids.is_empty() {
-            let all = self.fetch_tags_by_ids(
-                &q.accepted_tag_ids
-                    .iter()
-                    .chain(q.avoided_tag_ids.iter())
-                    .copied()
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .unwrap_or_default();
+            let all = self
+                .fetch_tags_by_ids(
+                    &q.accepted_tag_ids
+                        .iter()
+                        .chain(q.avoided_tag_ids.iter())
+                        .copied()
+                        .collect::<Vec<_>>(),
+                )
+                .await
+                .unwrap_or_default();
             for t in &all {
                 let accepted = q.accepted_tag_ids.contains(&t.id);
                 parts.push(percent_encode(&t.to_query_tag_with(if accepted {
@@ -226,11 +231,7 @@ impl ApiClient {
     // ---------------------------------------------------------------------
 
     /// Fetch a page of online favorites. Mirrors `ApiRequestType.FAVORITE`.
-    pub async fn favorites_page(
-        &self,
-        page: u32,
-        query: Option<&str>,
-    ) -> AppResult<FavoritesPage> {
+    pub async fn favorites_page(&self, page: u32, query: Option<&str>) -> AppResult<FavoritesPage> {
         let s = self.settings();
         let mut url = format!("{}favorites?page={}", self.config.api_base_url(), page);
         if let Some(q) = query {
@@ -280,12 +281,19 @@ impl ApiClient {
                 .and_then(|x| x.as_str())
                 .ok_or(AppError::InvalidResponse)?
                 .to_string(),
-            slug: v.get("slug").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            slug: v
+                .get("slug")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             avatar_url: v
                 .get("avatar_url")
                 .and_then(|x| x.as_str())
                 .map(String::from),
-            is_superuser: v.get("is_superuser").and_then(|x| x.as_bool()).unwrap_or(false),
+            is_superuser: v
+                .get("is_superuser")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
             is_staff: v.get("is_staff").and_then(|x| x.as_bool()).unwrap_or(false),
         })
     }
@@ -431,8 +439,14 @@ pub fn simple_gallery_from_v2_list(j: &Value, host: &str) -> SimpleGallery {
         };
         pick.to_string()
     } else {
-        let en = j.get("english_title").and_then(|x| x.as_str()).unwrap_or("");
-        let jp = j.get("japanese_title").and_then(|x| x.as_str()).unwrap_or("");
+        let en = j
+            .get("english_title")
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let jp = j
+            .get("japanese_title")
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
         if !en.is_empty() {
             en.to_string()
         } else {
@@ -453,7 +467,11 @@ pub fn simple_gallery_from_v2_list(j: &Value, host: &str) -> SimpleGallery {
     } else if thumb_path.starts_with("http") {
         Some(thumb_path)
     } else {
-        Some(format!("https://t1.{}/{}", host, thumb_path.trim_start_matches('/')))
+        Some(format!(
+            "https://t1.{}/{}",
+            host,
+            thumb_path.trim_start_matches('/')
+        ))
     };
 
     let num_pages = j
@@ -481,8 +499,7 @@ pub fn simple_gallery_from_v2_list(j: &Value, host: &str) -> SimpleGallery {
     // Language: prefer full tag objects (related/detail items); fall back to
     // the special language tag IDs that list items carry. Without this the
     // language badge never shows for plain browse/search results.
-    let language = infer_language_from_tags(&tags)
-        .or_else_from_ids(&tag_ids);
+    let language = infer_language_from_tags(&tags).or_else_from_ids(&tag_ids);
 
     SimpleGallery {
         id,
@@ -534,10 +551,7 @@ pub fn parse_gallery(body: &str, host: &str) -> AppResult<Gallery> {
         .get("upload_date")
         .and_then(|x| x.as_i64())
         .and_then(|s| chrono::Utc.timestamp_opt(s, 0).single());
-    let num_favorites = v
-        .get("num_favorites")
-        .and_then(|x| x.as_i64())
-        .unwrap_or(0);
+    let num_favorites = v.get("num_favorites").and_then(|x| x.as_i64()).unwrap_or(0);
 
     let mut tags = Vec::new();
     if let Some(arr) = v.get("tags").and_then(|x| x.as_array()) {
@@ -600,11 +614,7 @@ fn parse_tag(v: &Value) -> Tag {
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string(),
-        tag_type: TagType::from_name(
-            v.get("type")
-                .and_then(|x| x.as_str())
-                .unwrap_or("tag"),
-        ),
+        tag_type: TagType::from_name(v.get("type").and_then(|x| x.as_str()).unwrap_or("tag")),
         count: v.get("count").and_then(|x| x.as_i64()).unwrap_or(0),
         status: TagStatus::Default,
     }
@@ -620,12 +630,19 @@ fn parse_comment(v: &Value) -> Comment {
                 .and_then(|x| x.as_str())
                 .unwrap_or("")
                 .to_string(),
-            slug: p.get("slug").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            slug: p
+                .get("slug")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             avatar_url: p
                 .get("avatar_url")
                 .and_then(|x| x.as_str())
                 .map(String::from),
-            is_superuser: p.get("is_superuser").and_then(|x| x.as_bool()).unwrap_or(false),
+            is_superuser: p
+                .get("is_superuser")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
             is_staff: p.get("is_staff").and_then(|x| x.as_bool()).unwrap_or(false),
         })
         .unwrap_or_else(|| CommentUser {
@@ -694,7 +711,12 @@ fn absolutize(path: &str, host: &str, prefix: &str) -> String {
     if path.starts_with("http") {
         path.to_string()
     } else {
-        format!("https://{}.{}/{}", prefix, host, path.trim_start_matches('/'))
+        format!(
+            "https://{}.{}/{}",
+            prefix,
+            host,
+            path.trim_start_matches('/')
+        )
     }
 }
 

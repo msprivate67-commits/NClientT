@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, RwLock};
@@ -328,10 +328,19 @@ impl DownloadManager {
             }
             if task.pause_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Paused);
-                self.emit_progress(task.id, DownloadStatus::Paused, task.done_count(), task.pages.len(), None, None);
+                self.emit_progress(
+                    task.id,
+                    DownloadStatus::Paused,
+                    task.done_count(),
+                    task.pages.len(),
+                    None,
+                    None,
+                );
                 return;
             }
-            match tokio::time::timeout(Duration::from_millis(300), self.sem.clone().acquire_owned()).await {
+            match tokio::time::timeout(Duration::from_millis(300), self.sem.clone().acquire_owned())
+                .await
+            {
                 Ok(Ok(p)) => break p,
                 Ok(Err(_)) => return,
                 Err(_) => continue,
@@ -344,7 +353,14 @@ impl DownloadManager {
             }
             *s = DownloadStatus::Downloading;
         }
-        self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), None, None);
+        self.emit_progress(
+            task.id,
+            DownloadStatus::Downloading,
+            task.done_count(),
+            task.pages.len(),
+            None,
+            None,
+        );
 
         // Per-gallery page-fetch semaphore. Must remain at 8 to avoid
         // request spikes that the server may treat as abuse.
@@ -363,14 +379,28 @@ impl DownloadManager {
 
             if task.cancel_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Canceled);
-                self.emit_progress(task.id, DownloadStatus::Canceled, task.done_count(), task.pages.len(), None, None);
+                self.emit_progress(
+                    task.id,
+                    DownloadStatus::Canceled,
+                    task.done_count(),
+                    task.pages.len(),
+                    None,
+                    None,
+                );
                 self.cleanup_canceled(&task);
                 self.tasks.write().remove(&task.id);
                 return;
             }
             if task.pause_flag.load(Ordering::SeqCst) {
                 self.set_status(&task, DownloadStatus::Paused);
-                self.emit_progress(task.id, DownloadStatus::Paused, task.done_count(), task.pages.len(), None, None);
+                self.emit_progress(
+                    task.id,
+                    DownloadStatus::Paused,
+                    task.done_count(),
+                    task.pages.len(),
+                    None,
+                    None,
+                );
                 return;
             }
 
@@ -381,7 +411,14 @@ impl DownloadManager {
             // Skip if already present and not corrupted.
             if file_path.exists() && !is_corrupted(&file_path, &page_name) {
                 task.mark_done(idx);
-                self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
+                self.emit_progress(
+                    task.id,
+                    DownloadStatus::Downloading,
+                    task.done_count(),
+                    task.pages.len(),
+                    Some(page_index),
+                    None,
+                );
                 continue;
             }
 
@@ -398,10 +435,22 @@ impl DownloadManager {
                 Ok(written) => {
                     task.mark_done(idx);
                     task.add_bytes(written);
-                    self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
+                    self.emit_progress(
+                        task.id,
+                        DownloadStatus::Downloading,
+                        task.done_count(),
+                        task.pages.len(),
+                        Some(page_index),
+                        None,
+                    );
                 }
                 Err(e) => {
-                    log::warn!("page {} fetch failed for gallery {}: {}", page_index, task.id, e);
+                    log::warn!(
+                        "page {} fetch failed for gallery {}: {}",
+                        page_index,
+                        task.id,
+                        e
+                    );
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                     let http = http.clone();
                     let settings = settings.clone();
@@ -412,11 +461,25 @@ impl DownloadManager {
                         Ok(written) => {
                             task.mark_done(idx);
                             task.add_bytes(written);
-                            self.emit_progress(task.id, DownloadStatus::Downloading, task.done_count(), task.pages.len(), Some(page_index), None);
+                            self.emit_progress(
+                                task.id,
+                                DownloadStatus::Downloading,
+                                task.done_count(),
+                                task.pages.len(),
+                                Some(page_index),
+                                None,
+                            );
                         }
                         Err(_) => {
                             failed = true;
-                            self.emit_progress(task.id, DownloadStatus::Failed, task.done_count(), task.pages.len(), Some(page_index), Some(format!("page {} failed", page_index)));
+                            self.emit_progress(
+                                task.id,
+                                DownloadStatus::Failed,
+                                task.done_count(),
+                                task.pages.len(),
+                                Some(page_index),
+                                Some(format!("page {} failed", page_index)),
+                            );
                             break;
                         }
                     }
@@ -428,7 +491,14 @@ impl DownloadManager {
         let done = task.done_count();
         if failed {
             self.set_status(&task, DownloadStatus::Failed);
-            self.emit_progress(task.id, DownloadStatus::Failed, done, total, None, Some("download failed".into()));
+            self.emit_progress(
+                task.id,
+                DownloadStatus::Failed,
+                done,
+                total,
+                None,
+                Some("download failed".into()),
+            );
         } else if done == total {
             self.set_status(&task, DownloadStatus::Finished);
             self.emit_progress(task.id, DownloadStatus::Finished, done, total, None, None);
@@ -455,12 +525,7 @@ impl DownloadManager {
         let _ = self.persist(task.id, &entry, status);
     }
 
-    fn persist(
-        &self,
-        id: i64,
-        entry: &DownloadEntry,
-        status: DownloadStatus,
-    ) -> AppResult<()> {
+    fn persist(&self, id: i64, entry: &DownloadEntry, status: DownloadStatus) -> AppResult<()> {
         let _ = self.db.download_upsert(
             id,
             &entry.title,
@@ -613,18 +678,21 @@ impl DownloadManager {
     fn emit_canceled(&self, entry: &DownloadEntry) {
         let app_opt = self.app.lock();
         if let Some(app) = app_opt.as_ref() {
-            let _ = app.emit("download:progress", DownloadProgress {
-                id: entry.id,
-                title: entry.title.clone(),
-                folder: entry.folder.clone(),
-                status: DownloadStatus::Canceled,
-                done_pages: entry.done_pages,
-                total_pages: entry.total_pages,
-                current_page: None,
-                error: None,
-                bytes_per_second: None,
-                total_bytes: None,
-            });
+            let _ = app.emit(
+                "download:progress",
+                DownloadProgress {
+                    id: entry.id,
+                    title: entry.title.clone(),
+                    folder: entry.folder.clone(),
+                    status: DownloadStatus::Canceled,
+                    done_pages: entry.done_pages,
+                    total_pages: entry.total_pages,
+                    current_page: None,
+                    error: None,
+                    bytes_per_second: None,
+                    total_bytes: None,
+                },
+            );
         }
     }
 
@@ -693,7 +761,9 @@ impl DownloadManager {
             let tasks = self.tasks.read();
             let task = tasks.get(&id);
             let title = task.map(|t| t.title.clone()).unwrap_or_default();
-            let folder = task.map(|t| t.folder.to_string_lossy().to_string()).unwrap_or_default();
+            let folder = task
+                .map(|t| t.folder.to_string_lossy().to_string())
+                .unwrap_or_default();
             let (bps, tbytes) = task
                 .map(|t| (t.speed(), Some(t.total_bytes_downloaded())))
                 .unwrap_or((None, None));
@@ -731,7 +801,10 @@ fn usable_folder(folder: &Path, id: i64) -> bool {
     if let Ok(entries) = std::fs::read_dir(folder) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.len() > 1 && name.starts_with('.') && name[1..].chars().all(|c| c.is_ascii_digit()) {
+            if name.len() > 1
+                && name.starts_with('.')
+                && name[1..].chars().all(|c| c.is_ascii_digit())
+            {
                 return false;
             }
         }

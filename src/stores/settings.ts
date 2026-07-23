@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   download_dir: "",
   parallel_downloads: 1,
   parallel_pages: 8,
+  notifications_enabled: true,
   lock_screen: false,
   pin: "",
   tl_base_url: "https://api.deepseek.com",

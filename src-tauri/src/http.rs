@@ -83,7 +83,12 @@ impl HttpClient {
             *fp = new_fp;
         }
         let ua = effective_ua(&settings.user_agent);
-        let client = build_client(&self.cookie_store, &ua, settings.request_timeout_secs, settings);
+        let client = build_client(
+            &self.cookie_store,
+            &ua,
+            settings.request_timeout_secs,
+            settings,
+        );
         *self.inner.write().unwrap() = client;
         log::info!("http client rebuilt for host={}", settings.mirror);
     }
@@ -102,7 +107,11 @@ impl HttpClient {
         let mut builder = client.request(method, url);
 
         let mut headers = HeaderMap::new();
-        headers.insert(REFERER, HeaderValue::try_from(settings.mirror.as_str()).unwrap_or(HeaderValue::from_static("https://nhentai.net/")));
+        headers.insert(
+            REFERER,
+            HeaderValue::try_from(settings.mirror.as_str())
+                .unwrap_or(HeaderValue::from_static("https://nhentai.net/")),
+        );
         if is_api {
             if let Some(auth) = settings.auth.authorization_header() {
                 if let Ok(val) = HeaderValue::from_str(&auth) {
@@ -122,7 +131,8 @@ impl HttpClient {
         is_api: bool,
         settings: &crate::config::Settings,
     ) -> AppResult<(String, ResponseInfo)> {
-        let resp = self.request(reqwest::Method::GET, url, is_api, settings)
+        let resp = self
+            .request(reqwest::Method::GET, url, is_api, settings)
             .send()
             .await?;
         let status = resp.status();
@@ -167,7 +177,8 @@ impl HttpClient {
         url: &str,
         settings: &crate::config::Settings,
     ) -> AppResult<reqwest::Response> {
-        let resp = self.request(reqwest::Method::GET, url, false, settings)
+        let resp = self
+            .request(reqwest::Method::GET, url, false, settings)
             .send()
             .await?;
         if is_cloudflare(&resp) {
@@ -278,9 +289,7 @@ fn build_client(
     }
 
     // We embed rustls so the app does not depend on platform OpenSSL.
-    builder
-        .build()
-        .expect("failed to build reqwest client")
+    builder.build().expect("failed to build reqwest client")
 }
 
 /// Resolve the effective User-Agent: override if non-empty, otherwise default.
@@ -386,13 +395,20 @@ fn read_windows_system_proxy() -> Option<String> {
         .ok()?;
 
     // ProxyEnable (DWORD): 1 => a manual proxy is configured.
-    let enabled: u32 = key.get_value("ProxyEnable").ok().and_then(|v| v.try_into().ok()).unwrap_or(0);
+    let enabled: u32 = key
+        .get_value("ProxyEnable")
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .unwrap_or(0);
     if enabled != 1 {
         return None;
     }
 
     // ProxyServer (REG_SZ): "host:port" or "http=host:port;https=host:port".
-    let raw: String = key.get_value("ProxyServer").ok().and_then(|v| v.try_into().ok())?;
+    let raw: String = key
+        .get_value("ProxyServer")
+        .ok()
+        .and_then(|v| v.try_into().ok())?;
     let raw = raw.trim();
     if raw.is_empty() {
         return None;

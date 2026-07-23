@@ -284,6 +284,8 @@
     "page_change_buttons": "ページ切替ボタン",
     "download_dir": "ダウンロードディレクトリ",
     "download_dir_placeholder": "デフォルト：アプリデータディレクトリ",
+    "download_notifications": "ダウンロード通知",
+    "download_notifications_hint": "ダウンロードの進行状況と完了をシステム通知で表示します。",
     "browse": "参照…",
     "parallel_galleries": "同時ダウンロード数",
     "parallel_pages": "ギャラリーごとの同時ページ数",

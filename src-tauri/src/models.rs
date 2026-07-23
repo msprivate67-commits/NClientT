@@ -99,13 +99,12 @@ impl Tag {
     /// Mirrors `Tag#toQueryTag(status)`. Produces e.g. `tag:"foo"` or
     /// `-tag:"foo"` when avoided.
     pub fn to_query_tag_with(&self, status: TagStatus) -> String {
-        let prefix = if status == TagStatus::Avoided { "-" } else { "" };
-        format!(
-            "{}{}:\"{}\"",
-            prefix,
-            self.tag_type.single(),
-            self.name
-        )
+        let prefix = if status == TagStatus::Avoided {
+            "-"
+        } else {
+            ""
+        };
+        format!("{}{}:\"{}\"", prefix, self.tag_type.single(), self.name)
     }
 
     pub fn to_query_tag(&self) -> String {

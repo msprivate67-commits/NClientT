@@ -43,11 +43,7 @@ pub fn is_solved() -> bool {
 
 /// Open (or focus) the CF challenge window. Mirrors
 /// `CookieInterceptor#interceptInternal()` which calls `loadUrl(baseUrl)`.
-pub fn open_challenge(
-    app: &AppHandle,
-    http: Arc<HttpClient>,
-    base_url: String,
-) -> AppResult<()> {
+pub fn open_challenge(app: &AppHandle, http: Arc<HttpClient>, base_url: String) -> AppResult<()> {
     set_state(CfState::Pending);
     // Reuse existing window if present.
     if let Some(existing) = app.get_webview_window(CF_WINDOW_LABEL) {
@@ -61,9 +57,11 @@ pub fn open_challenge(
     let window = WebviewWindowBuilder::new(
         app,
         CF_WINDOW_LABEL,
-        tauri::WebviewUrl::External(base_url.parse().map_err(|e: url::ParseError| {
-            AppError::Other(e.to_string())
-        })?),
+        tauri::WebviewUrl::External(
+            base_url
+                .parse()
+                .map_err(|e: url::ParseError| AppError::Other(e.to_string()))?,
+        ),
     )
     .title("Cloudflare verification — solve then close")
     .inner_size(520.0, 700.0)
@@ -96,10 +94,7 @@ pub fn open_challenge(
         let payload: &str = event.payload();
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(payload) {
             if let Some(name) = json.get("name").and_then(|v| v.as_str()) {
-                let value = json
-                    .get("value")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let value = json.get("value").and_then(|v| v.as_str()).unwrap_or("");
                 let pair = format!("{}={}", name, value);
                 let url = format!(
                     "https://{}/",
@@ -164,5 +159,6 @@ fn probe_script() -> String {
       setInterval(emitCookies, 1000);
       emitCookies();
     })();
-    "#.to_string()
+    "#
+    .to_string()
 }

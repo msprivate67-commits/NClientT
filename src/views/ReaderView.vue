@@ -221,6 +221,7 @@ async function load() {
     currentPage.value = 1;
     if (scrollRef.value) {
       scrollRef.value.scrollTop = 0;
+      scrollRef.value.scrollLeft = 0;
     }
   }
   preloadNearby();
@@ -246,6 +247,8 @@ watch(fitMode, () => {
   settings.save({ reader_fit_mode: fitMode.value });
 });
 watch(scrollMode, () => {
+  const page = currentPage.value;
+  nextTick(() => scrollToPage(page - 1, false));
   settings.save({ reader_direction: scrollMode.value });
 });
 </script>
@@ -473,11 +476,18 @@ watch(scrollMode, () => {
   flex-direction: row;
   overflow-y: hidden;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-x pinch-zoom;
 }
 .direction-horizontal .page-wrap {
   flex-shrink: 0;
   width: 100%;
   height: 100%;
+  margin-bottom: 0;
+  overflow: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .loading {

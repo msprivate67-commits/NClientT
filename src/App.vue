@@ -16,7 +16,7 @@ import { useTagsStore } from "@/stores/tags";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useDownloadedStore } from "@/stores/downloaded";
-import { ensureNotificationPermission, handleDownloadNotification } from "@/composables/useNotifications";
+import { configureDownloadNotifications, handleDownloadNotification } from "@/composables/useNotifications";
 import { useDraggablePosition } from "@/composables/useDraggablePosition";
 import { useEdgeSwipe } from "@/composables/useEdgeSwipe";
 import { useResponsiveSidebar } from "@/composables/useResponsiveSidebar";
@@ -104,9 +104,9 @@ onMounted(async () => {
       readProgress.load(),
       downloaded.load(),
     ]);
-    // Best-effort: ask for notification permission early so download progress
-    // / completion can be surfaced. No-op where the plugin is unavailable.
-    ensureNotificationPermission().catch(() => {});
+    // Ask for notification permission only when the user has notifications
+    // enabled. The preference also gates every later progress event.
+    configureDownloadNotifications(settings.settings.notifications_enabled).catch(() => {});
     // Soft CF check on launch (best effort).
     const needed = await settings.checkCloudflare();
     cloudflareBanner.value = needed;
@@ -124,9 +124,15 @@ onMounted(async () => {
       downloaded.add(p.id);
       await downloaded.refresh();
     }
-    // Notifications are guarded internally; safe to always invoke.
+    // Notifications are guarded by the persisted user preference internally.
     handleDownloadNotification(p).catch(() => {});
   });
+});
+
+watch(() => settings.settings.notifications_enabled, (enabled) => {
+  if (settings.loaded) {
+    configureDownloadNotifications(enabled).catch(() => {});
+  }
 });
 
 async function solveCloudflare() {

@@ -41,6 +41,7 @@ function tfn(key: string, params?: Record<string, unknown>): string {
 
 let permissionAsked = false;
 let androidChannelsReady: Promise<void> | null = null;
+let notificationsEnabled = true;
 
 function ensureAndroidChannels(): Promise<void> {
   if (currentPlatform !== "android") return Promise.resolve();
@@ -121,8 +122,23 @@ const finishedAnnounced = new Set<number>();
 let activeDownloadId: number | null = null;
 let lastPostedPct = -1;
 
+/** Apply the user's notification preference and clear active plugin toasts. */
+export async function configureDownloadNotifications(enabled: boolean) {
+  notificationsEnabled = enabled;
+  if (!enabled) {
+    activeDownloadId = null;
+    lastPostedPct = -1;
+    if (currentPlatform !== "windows") {
+      dismiss(ACTIVE_DOWNLOAD_NOTIFICATION_ID);
+    }
+    return;
+  }
+  await ensureNotificationPermission();
+}
+
 /** React to one backend download progress event. */
 export async function handleDownloadNotification(p: DownloadProgress) {
+  if (!notificationsEnabled) return;
   // Queue membership is visible in the Downloads screen; it should never
   // create an OS notification of its own.
   if (p.status === "pending") return;

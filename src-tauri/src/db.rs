@@ -57,13 +57,7 @@ impl Database {
     // Favorites
     // ---------------------------------------------------------------------
 
-    pub fn fav_add(
-        &self,
-        id: i64,
-        title: &str,
-        media_id: i64,
-        thumbnail: &str,
-    ) -> AppResult<()> {
+    pub fn fav_add(&self, id: i64, title: &str, media_id: i64, thumbnail: &str) -> AppResult<()> {
         self.with_conn(|c| {
             c.execute(
                 "INSERT OR REPLACE INTO favorites (id, title, media_id, thumbnail, added_at)
@@ -217,9 +211,8 @@ impl Database {
     /// Fetch the saved resume page for a gallery (1-based), if any.
     pub fn local_reader_progress_get(&self, gallery_id: i64) -> AppResult<Option<usize>> {
         self.with_conn(|c| {
-            let mut stmt = c.prepare(
-                "SELECT page FROM local_reader_progress WHERE gallery_id = ?1",
-            )?;
+            let mut stmt =
+                c.prepare("SELECT page FROM local_reader_progress WHERE gallery_id = ?1")?;
             let mut rows = stmt.query_map(params![gallery_id], |r| r.get::<_, i64>(0))?;
             match rows.next().transpose()? {
                 Some(page) => Ok(Some(page.max(1) as usize)),
@@ -290,7 +283,9 @@ pub fn tags_get_by_ids(ids: &[i64]) -> AppResult<Vec<Tag>> {
         let mut stmt = c.prepare(&sql)?;
         let args: Vec<&dyn rusqlite::ToSql> =
             ids.iter().map(|i| i as &dyn rusqlite::ToSql).collect();
-        let rows = stmt.query_map(args.as_slice(), row_to_tag)?.collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt
+            .query_map(args.as_slice(), row_to_tag)?
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     })
 }
@@ -318,7 +313,10 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         conn.execute_batch(stmt)?;
     }
     // Non-fatal: add column for DBs from older versions.
-    conn.execute_batch("ALTER TABLE local_meta ADD COLUMN translated_title TEXT NOT NULL DEFAULT '';").ok();
+    conn.execute_batch(
+        "ALTER TABLE local_meta ADD COLUMN translated_title TEXT NOT NULL DEFAULT '';",
+    )
+    .ok();
     Ok(())
 }
 
@@ -465,7 +463,13 @@ impl Database {
                     name = excluded.name,
                     type = excluded.type,
                     count = excluded.count",
-                params![t.id, t.name, t.tag_type.single(), t.count, status_str(t.status)],
+                params![
+                    t.id,
+                    t.name,
+                    t.tag_type.single(),
+                    t.count,
+                    status_str(t.status)
+                ],
             )?;
             Ok(())
         })
@@ -493,9 +497,7 @@ impl Database {
 
     pub fn tags_by_type(&self, type_filter: Option<TagType>) -> AppResult<Vec<Tag>> {
         self.with_conn(|c| {
-            let mut sql = String::from(
-                "SELECT id, name, type, count, status FROM tags",
-            );
+            let mut sql = String::from("SELECT id, name, type, count, status FROM tags");
             let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
             if let Some(t) = type_filter {
                 sql.push_str(" WHERE type = ?1");
@@ -517,9 +519,8 @@ impl Database {
 
     pub fn tags_status(&self, status: TagStatus) -> AppResult<Vec<Tag>> {
         self.with_conn(|c| {
-            let mut stmt = c.prepare(
-                "SELECT id, name, type, count, status FROM tags WHERE status = ?1",
-            )?;
+            let mut stmt =
+                c.prepare("SELECT id, name, type, count, status FROM tags WHERE status = ?1")?;
             let rows = stmt
                 .query_map(params![status_str(status)], row_to_tag)?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -532,7 +533,9 @@ impl Database {
             let mut stmt = c.prepare(
                 "SELECT id, name, type, count, status FROM tags WHERE online_blacklist = 1",
             )?;
-            let rows = stmt.query_map([], row_to_tag)?.collect::<Result<Vec<_>, _>>()?;
+            let rows = stmt
+                .query_map([], row_to_tag)?
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(rows)
         })
     }
@@ -579,8 +582,17 @@ impl Database {
                     done_pages = excluded.done_pages,
                     status = excluded.status,
                     updated_at = excluded.updated_at",
-                params![id, title, media_id, thumbnail, folder,
-                        total_pages as i64, done_pages as i64, status, now],
+                params![
+                    id,
+                    title,
+                    media_id,
+                    thumbnail,
+                    folder,
+                    total_pages as i64,
+                    done_pages as i64,
+                    status,
+                    now
+                ],
             )?;
             Ok(())
         })
@@ -636,8 +648,16 @@ impl Database {
                     num_pages = excluded.num_pages,
                     page_files = excluded.page_files,
                     scanned_at = excluded.scanned_at",
-                params![g.folder, g.id, g.title, g.media_id, g.thumbnail_path,
-                        g.num_pages as i64, page_files, Utc::now().to_rfc3339()],
+                params![
+                    g.folder,
+                    g.id,
+                    g.title,
+                    g.media_id,
+                    g.thumbnail_path,
+                    g.num_pages as i64,
+                    page_files,
+                    Utc::now().to_rfc3339()
+                ],
             )?;
             Ok(())
         })
@@ -650,7 +670,11 @@ impl Database {
         })
     }
 
-    pub fn local_set_translated_title(&self, gallery_id: i64, translated_title: &str) -> AppResult<()> {
+    pub fn local_set_translated_title(
+        &self,
+        gallery_id: i64,
+        translated_title: &str,
+    ) -> AppResult<()> {
         self.with_conn(|c| {
             c.execute(
                 "UPDATE local_meta SET translated_title = ?1 WHERE gallery_id = ?2",
@@ -665,8 +689,7 @@ impl Database {
     /// marker can't be matched against online galleries anyway.
     pub fn local_ids(&self) -> AppResult<Vec<i64>> {
         self.with_conn(|c| {
-            let mut stmt =
-                c.prepare("SELECT gallery_id FROM local_meta WHERE gallery_id != 0")?;
+            let mut stmt = c.prepare("SELECT gallery_id FROM local_meta WHERE gallery_id != 0")?;
             let rows = stmt
                 .query_map([], |r| r.get::<_, i64>(0))?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -681,23 +704,22 @@ impl Database {
                         num_pages, page_files, scanned_at, translated_title
                  FROM local_meta WHERE gallery_id = ?1",
             )?;
-            let mut rows = stmt
-                .query_map(params![gallery_id], |r| {
-                    let page_files_json: String = r.get(6)?;
-                    let page_files: Vec<String> =
-                        serde_json::from_str(&page_files_json).unwrap_or_default();
-                    Ok(LocalGallery {
-                        folder: r.get(0)?,
-                        id: r.get(1)?,
-                        title: r.get(2)?,
-                        media_id: r.get(3)?,
-                        thumbnail_path: r.get(4)?,
-                        num_pages: r.get::<_, i64>(5)? as usize,
-                        page_files,
-                        scanned_at: r.get(7)?,
-                        translated_title: r.get(8)?,
-                    })
-                })?;
+            let mut rows = stmt.query_map(params![gallery_id], |r| {
+                let page_files_json: String = r.get(6)?;
+                let page_files: Vec<String> =
+                    serde_json::from_str(&page_files_json).unwrap_or_default();
+                Ok(LocalGallery {
+                    folder: r.get(0)?,
+                    id: r.get(1)?,
+                    title: r.get(2)?,
+                    media_id: r.get(3)?,
+                    thumbnail_path: r.get(4)?,
+                    num_pages: r.get::<_, i64>(5)? as usize,
+                    page_files,
+                    scanned_at: r.get(7)?,
+                    translated_title: r.get(8)?,
+                })
+            })?;
             Ok(rows.next().transpose()?)
         })
     }

@@ -337,6 +337,13 @@ onMounted(async () => {
           <button class="btn" @click="pickDownloadDir">{{ $t('settings.browse') }}</button>
         </div>
       </div>
+      <div class="checkboxes">
+        <label>
+          <input v-model="draft.notifications_enabled" type="checkbox" />
+          {{ $t('settings.download_notifications') }}
+        </label>
+      </div>
+      <p class="hint">{{ $t('settings.download_notifications_hint') }}</p>
     </section>
 
     <section>

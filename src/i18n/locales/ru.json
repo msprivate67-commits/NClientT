@@ -284,6 +284,8 @@
     "page_change_buttons": "Кнопки смены страниц",
     "download_dir": "Папка загрузок",
     "download_dir_placeholder": "По умолчанию: папка данных приложения",
+    "download_notifications": "Уведомления о загрузках",
+    "download_notifications_hint": "Показывать системные уведомления о ходе и завершении загрузки.",
     "browse": "Обзор…",
     "parallel_galleries": "Параллельных галерей",
     "parallel_pages": "Параллельных страниц на галерею",
