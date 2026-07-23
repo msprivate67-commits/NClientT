@@ -282,6 +282,8 @@
     "page_thumb_columns": "页面缩略图列数（0 = 自动）",
     "default_zoom": "默认缩放（%）",
     "page_change_buttons": "分页按钮",
+    "privacy_screen": "后台隐私保护",
+    "privacy_screen_hint": "使用安卓安全窗口隐藏最近任务预览，同时会禁止截屏和录屏。",
     "download_dir": "下载目录",
     "download_dir_placeholder": "默认：应用数据目录",
     "download_notifications": "下载通知",

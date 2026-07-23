@@ -197,6 +197,9 @@ pub struct Settings {
     /// Defaults to enabled when loading settings created by older versions.
     #[serde(default = "notifications_enabled_default")]
     pub notifications_enabled: bool,
+    /// Use Android FLAG_SECURE to hide content from Recents and captures.
+    #[serde(default)]
+    pub privacy_screen: bool,
 
     // --- security -----------------------------------------------------------
     pub lock_screen: bool,
@@ -256,6 +259,7 @@ impl Default for Settings {
             parallel_downloads: 1,
             parallel_pages: 8,
             notifications_enabled: true,
+            privacy_screen: false,
             lock_screen: false,
             pin: String::new(),
             tl_base_url: "https://api.deepseek.com".into(),
@@ -282,10 +286,12 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("notifications_enabled");
+        value.as_object_mut().unwrap().remove("privacy_screen");
 
         let settings: Settings = serde_json::from_value(value).unwrap();
 
         assert!(settings.notifications_enabled);
+        assert!(!settings.privacy_screen);
     }
 }
 

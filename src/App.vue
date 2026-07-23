@@ -7,7 +7,7 @@ import type { PluginListener } from "@tauri-apps/api/core";
 
 import { ArrowLeft, Menu, Search as SearchIcon } from "lucide-vue-next";
 import AppSidebar from "@/components/AppSidebar.vue";
-import { cloudflareOpenChallenge, onDownloadProgress } from "@/api";
+import { androidPrivacySet, cloudflareOpenChallenge, onDownloadProgress } from "@/api";
 import { setLocale, detectPlatformLanguage, isValidLanguage } from "@/i18n";
 import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
@@ -107,6 +107,9 @@ onMounted(async () => {
     // Ask for notification permission only when the user has notifications
     // enabled. The preference also gates every later progress event.
     configureDownloadNotifications(settings.settings.notifications_enabled).catch(() => {});
+    // FLAG_SECURE is applied by the native Android window. This is intentionally
+    // not a web overlay: Android owns Recents previews and capture protection.
+    androidPrivacySet(settings.settings.privacy_screen).catch(() => {});
     // Soft CF check on launch (best effort).
     const needed = await settings.checkCloudflare();
     cloudflareBanner.value = needed;
@@ -132,6 +135,12 @@ onMounted(async () => {
 watch(() => settings.settings.notifications_enabled, (enabled) => {
   if (settings.loaded) {
     configureDownloadNotifications(enabled).catch(() => {});
+  }
+});
+
+watch(() => settings.settings.privacy_screen, (enabled) => {
+  if (settings.loaded) {
+    androidPrivacySet(enabled).catch(() => {});
   }
 });
 

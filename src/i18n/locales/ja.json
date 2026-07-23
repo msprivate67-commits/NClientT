@@ -282,6 +282,8 @@
     "page_thumb_columns": "ページサムネイル列数（0 = 自動）",
     "default_zoom": "デフォルトズーム（%）",
     "page_change_buttons": "ページ切替ボタン",
+    "privacy_screen": "バックグラウンドの内容を保護",
+    "privacy_screen_hint": "Android のセキュアウィンドウを使用して最近使ったアプリのプレビューを非表示にし、スクリーンショットと画面録画を禁止します。",
     "download_dir": "ダウンロードディレクトリ",
     "download_dir_placeholder": "デフォルト：アプリデータディレクトリ",
     "download_notifications": "ダウンロード通知",

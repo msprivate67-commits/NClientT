@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { save as taSave, open as taOpen } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { platform } from "@tauri-apps/plugin-os";
 import { useI18n } from "vue-i18n";
 import { Check } from "lucide-vue-next";
 import { SUPPORTED_LANGUAGES, exportLocaleJson, applyImportedMessages, setLocale, getLocale, type AppLanguage } from "@/i18n";
@@ -32,6 +33,7 @@ useScrollCache(viewRef);
 const apiKeyInput = ref("");
 const cfNeeded = ref(false);
 const cfSolved = ref(false);
+const isAndroid = platform() === "android";
 
 const currentLang = ref<string>(getLocale());
 const importMissing = ref<string[] | null>(null);
@@ -325,7 +327,12 @@ onMounted(async () => {
       </div>
       <div class="checkboxes">
         <label><input type="checkbox" v-model="draft.button_change_page" /> {{ $t('settings.page_change_buttons') }}</label>
+        <label v-if="isAndroid">
+          <input v-model="draft.privacy_screen" type="checkbox" />
+          {{ $t('settings.privacy_screen') }}
+        </label>
       </div>
+      <p v-if="isAndroid" class="hint">{{ $t('settings.privacy_screen_hint') }}</p>
     </section>
 
     <section>

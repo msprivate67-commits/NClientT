@@ -282,6 +282,8 @@
     "page_thumb_columns": "Page thumbnail columns (0 = auto)",
     "default_zoom": "Default zoom (%)",
     "page_change_buttons": "Page-change buttons",
+    "privacy_screen": "Protect content in background",
+    "privacy_screen_hint": "Uses Android's secure window mode to hide the app from Recents previews and block screenshots and screen recording.",
     "download_dir": "Download directory",
     "download_dir_placeholder": "Default: app data directory",
     "download_notifications": "Download notifications",

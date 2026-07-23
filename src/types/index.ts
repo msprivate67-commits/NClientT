@@ -205,6 +205,7 @@ export interface Settings {
   parallel_downloads: number;
   parallel_pages: number;
   notifications_enabled: boolean;
+  privacy_screen: boolean;
 
   lock_screen: boolean;
   pin: string;

@@ -11,6 +11,8 @@ export const resolveAsset = (path: string): Promise<string> => invoke("resolve_a
 export const readLocalImage = (path: string): Promise<string | null> =>
   invoke("read_local_image", { path });
 export const registerApp = (): Promise<void> => invoke("register_app");
+export const androidPrivacySet = (enabled: boolean): Promise<void> =>
+  invoke("android_privacy_set", { enabled });
 
 export function imageProxyUrl(url: string): string {
   if (!url) return "";

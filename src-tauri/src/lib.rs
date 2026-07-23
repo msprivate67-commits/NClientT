@@ -23,6 +23,7 @@ pub mod export;
 pub mod http;
 pub mod models;
 pub mod notifications;
+pub mod privacy;
 
 use commands::*;
 use std::sync::Arc;
@@ -33,6 +34,7 @@ use crate::db::Database;
 use crate::downloader::DownloadManager;
 use crate::http::HttpClient;
 use crate::notifications::*;
+use crate::privacy::*;
 
 /// Shared application state, reachable from every Tauri command.
 pub struct AppState {
@@ -56,6 +58,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(privacy::init())
         .setup(|app| {
             let app_data = app
                 .path()
@@ -161,6 +164,7 @@ pub fn run() {
             download_delete_ids,
             windows_download_progress,
             windows_download_complete,
+            android_privacy_set,
             // export
             export_pdf,
             export_zip,
