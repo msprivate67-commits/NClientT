@@ -1,0 +1,8 @@
+{
+  "plugins": {
+    "notification": {
+      "icon": "ic_stat_nclientt",
+      "iconColor": "#5B8CFF"
+    }
+  }
+}
