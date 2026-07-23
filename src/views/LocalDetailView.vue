@@ -203,6 +203,8 @@ watch(() => props.folder, load);
 .overlay-mode {
   height: 100%;
   overflow-y: auto;
+  /* The overlay title bar should start at the panel's actual top edge. */
+  padding-top: 0;
 }
 .overlay-bar {
   display: flex;
@@ -212,7 +214,7 @@ watch(() => props.folder, load);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  margin: -14px -14px 14px;
+  margin: 0 -14px 14px;
   position: sticky;
   top: 0;
   z-index: 5;

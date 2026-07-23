@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Download, Star } from "@lucide/vue";
+import { Check, Download, Loader, Star } from "@lucide/vue";
 import { computed } from "vue";
 
 import { imageProxyUrl } from "@/api";
@@ -7,6 +7,7 @@ import { useFavoritesStore } from "@/stores/favorites";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useDownloadedStore } from "@/stores/downloaded";
+import { useDownloadsStore } from "@/stores/downloads";
 import type { SimpleGallery } from "@/types";
 
 const props = defineProps<{
@@ -33,6 +34,7 @@ const favorites = useFavoritesStore();
 const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
 const downloaded = useDownloadedStore();
+const downloads = useDownloadsStore();
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
@@ -72,6 +74,12 @@ const isRead = computed(() => readProgress.has(props.gallery.id));
 // Local cards are obviously already on disk, so the badge is redundant there.
 const isDownloaded = computed(
   () => !props.local && downloaded.has(props.gallery.id),
+);
+
+// A partially-created local gallery may already be visible while its pages
+// are still arriving. Only queued/running entries receive this badge.
+const isDownloading = computed(
+  () => props.local && downloads.activeForGallery(props.gallery.id) !== null,
 );
 
 function open() {
@@ -117,12 +125,12 @@ async function toggleFav(e: MouseEvent) {
       <span v-if="gallery.num_pages" class="pages">{{ gallery.num_pages }}p</span>
       <!-- "Read" badge: shown once the user has viewed >= 50% of the pages.
            Lives bottom-left (the favorite star is bottom-right). When a
-           "downloaded" badge is also present it stacks beneath, so we lift the
+           lower badge is also present it stacks beneath, so we lift the
            read badge up to leave room. -->
       <span
         v-if="isRead && !selectable"
         class="read-mark"
-        :class="{ stacked: isDownloaded }"
+        :class="{ stacked: isDownloaded || isDownloading }"
         :title="$t('galleryCard.read_tooltip')"
       ><Check :size="12" /> {{ $t('galleryCard.read_badge') }}</span>
       <!-- "Downloaded" badge: this gallery already exists on disk in the local
@@ -132,6 +140,13 @@ async function toggleFav(e: MouseEvent) {
         class="downloaded-mark"
         :title="$t('galleryCard.downloaded_tooltip')"
       ><Download :size="12" /> {{ $t('galleryCard.downloaded_badge') }}</span>
+      <!-- Active local download badge: bottom-left, below the read badge when
+           both are present. It disappears as soon as the status finishes. -->
+      <span
+        v-if="isDownloading && !selectable"
+        class="downloading-mark"
+        :title="$t('reader.downloading_hint')"
+      ><Loader :size="12" class="spin" /> {{ $t('reader.downloading') }}</span>
       <button
         class="fav"
         :class="{ active: favorites.ids.has(gallery.id) }"
@@ -215,7 +230,8 @@ async function toggleFav(e: MouseEvent) {
 .read-mark.stacked {
   bottom: 25px;
 }
-.downloaded-mark {
+.downloaded-mark,
+.downloading-mark {
   position: absolute;
   bottom: 6px;
   left: 6px;
@@ -227,6 +243,18 @@ async function toggleFav(e: MouseEvent) {
   border-radius: 10px;
   letter-spacing: 0.02em;
   pointer-events: none;
+}
+.downloading-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(220, 135, 35, 0.94);
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .fav {
   position: absolute;

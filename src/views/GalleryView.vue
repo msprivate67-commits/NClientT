@@ -440,7 +440,10 @@ async function onTagClick(t: any) {
   min-width: 0;
   height: 100%;
   margin: 0 auto;
-  padding: 14px;
+  /* Keep content inset on the sides/bottom, but let the title bar occupy the
+     real top edge. This avoids relying on a negative margin to cancel top
+     padding, which can leave a gap with sticky positioning in some WebViews. */
+  padding: 0 14px 14px;
   overflow-y: auto;
 }
 .error {
@@ -462,7 +465,7 @@ async function onTagClick(t: any) {
   align-items: center;
   gap: 10px;
   padding: 8px 4px;
-  margin: -14px -14px 12px;
+  margin: 0 -14px 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -787,7 +790,7 @@ async function onTagClick(t: any) {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  margin: -14px -14px 14px;
+  margin: 0 -14px 14px;
   /* Keep the back + title visible while the overlay detail scrolls. */
   position: sticky;
   top: 0;

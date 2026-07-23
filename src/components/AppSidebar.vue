@@ -34,11 +34,11 @@ const props = defineProps<{
 }>();
 defineEmits<{ (e: "toggle"): void; (e: "navigate"): void }>();
 
-const GITHUB_RELEASES = "https://github.com/msprivate67-commits/NClientT/releases";
+const GITHUB_LATEST_RELEASE = "https://github.com/msprivate67-commits/NClientT/releases/latest";
 const GITHUB_ISSUES = "https://github.com/msprivate67-commits/NClientT/issues";
 
 function openRelease() {
-  openUrl(GITHUB_RELEASES);
+  openUrl(GITHUB_LATEST_RELEASE);
 }
 
 function openIssue() {
@@ -69,9 +69,9 @@ onMounted(async () => {
 });
 
 // The version-line tag the user should tap to grab the update: the specific
-// latest release page if we have it, otherwise the generic releases list.
+// latest release page if we have it, otherwise GitHub's latest-release route.
 function openLatest() {
-  const url = latest.value?.html_url || GITHUB_RELEASES;
+  const url = latest.value?.html_url || GITHUB_LATEST_RELEASE;
   openUrl(url);
 }
 

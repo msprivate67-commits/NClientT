@@ -131,6 +131,17 @@ export const useDownloadsStore = defineStore("downloads", () => {
     selected.value = new Set();
   }
 
+  /**
+   * Return the live queue entry for a gallery. Completed, paused, canceled,
+   * and failed rows can remain in the download history, but none of them
+   * should make the UI claim that the gallery is currently downloading.
+   */
+  function activeForGallery(id: number): DownloadEntry | null {
+    return items.value.find(
+      (i) => i.id === id && (i.status === "pending" || i.status === "downloading"),
+    ) ?? null;
+  }
+
   // ── batch operations ────────────────────────────────────────────────
   async function batchPause() {
     const ids = [...selected.value];
@@ -187,6 +198,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
     cancel,
     deleteDownload,
     clear,
+    activeForGallery,
     batchPause,
     batchResume,
     batchCancel,

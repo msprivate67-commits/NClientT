@@ -35,11 +35,11 @@ const { t } = useI18n();
 const pages = computed(() => local.value?.page_files ?? []);
 const total = computed(() => pages.value.length);
 
-// The active download entry for this gallery, if it is still being
-// downloaded. The downloads store only retains non-finished entries, so
-// presence here means the comic is incomplete on disk.
+// Only queued/running entries count as downloading. Finished entries remain
+// in the download history, so checking for an id match alone leaves this tag
+// visible after completion.
 const activeDownload = computed(() =>
-  local.value ? downloads.items.find((d) => d.id === local.value!.id) ?? null : null,
+  local.value ? downloads.activeForGallery(local.value.id) : null,
 );
 const isDownloading = computed(() => !!activeDownload.value);
 
