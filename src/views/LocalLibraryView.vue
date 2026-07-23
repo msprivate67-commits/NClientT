@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { ArrowUp, ArrowDown, Languages, Loader } from "lucide-vue-next";
-import { localScan, localDelete, localSetTranslatedTitle, translateTitle } from "@/api";
+import { localScan, localList, localDelete, localSetTranslatedTitle, translateTitle } from "@/api";
 import { useDownloadedStore } from "@/stores/downloaded";
+import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
 import { stripLeadingId } from "@/utils/title";
@@ -17,6 +18,7 @@ const scanning = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
 const downloaded = useDownloadedStore();
+const overlay = useOverlayStore();
 const settings = useSettingsStore();
 const { t } = useI18n();
 
@@ -210,13 +212,29 @@ function onDeselect(id: number) {
 async function scan() {
   scanning.value = true;
   try {
-    items.value = await localScan();
+    // Scanning refreshes the on-disk metadata in the database. Read the saved
+    // rows afterwards so persisted translated titles are included.
+    await localScan();
+    items.value = await localList();
     selectedIds.value = new Set();
     await downloaded.refresh();
   } finally {
     scanning.value = false;
   }
 }
+
+// The detail view is shown over this still-mounted page. Once it closes, read
+// the saved rows again so an individually translated title appears immediately
+// without requiring a manual rescan.
+watch(() => overlay.localDetailFolder, async (current, previous) => {
+  if (previous !== null && current === null) {
+    try {
+      items.value = await localList();
+    } catch (e) {
+      console.warn("local library refresh failed", e);
+    }
+  }
+});
 
 onMounted(scan);
 </script>
