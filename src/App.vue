@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { onBackButtonPress } from "@tauri-apps/api/app";
 import type { PluginListener } from "@tauri-apps/api/core";
 
-import { ArrowLeft, Menu, Search as SearchIcon } from "lucide-vue-next";
+import { ArrowLeft, Menu, Search as SearchIcon } from "@lucide/vue";
 import AppSidebar from "@/components/AppSidebar.vue";
 import { androidPrivacySet, cloudflareOpenChallenge, onDownloadProgress } from "@/api";
 import { setLocale, detectPlatformLanguage, isValidLanguage } from "@/i18n";

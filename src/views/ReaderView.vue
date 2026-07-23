@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { imageProxyUrl } from "@/api";
-import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "@lucide/vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";

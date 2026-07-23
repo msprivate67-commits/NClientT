@@ -17,7 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Heart,
-} from "lucide-vue-next";
+} from "@lucide/vue";
 import {
   imageProxyUrl,
   openInBrowser,

@@ -5,7 +5,7 @@ import GalleryGrid from "@/components/GalleryGrid.vue";
 import GalleryCard from "@/components/GalleryCard.vue";
 import Pagination from "@/components/Pagination.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import { RefreshCw } from "lucide-vue-next";
+import { RefreshCw } from "@lucide/vue";
 import { apiGetFavoritesPage } from "@/api";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useScrollCache } from "@/composables/useScrollCache";

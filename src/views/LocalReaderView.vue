@@ -10,7 +10,7 @@ import {
   localReaderProgressGet,
   localReaderProgressSet,
 } from "@/api";
-import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "@lucide/vue";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";

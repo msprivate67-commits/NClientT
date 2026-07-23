@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-} from "lucide-vue-next";
+} from "@lucide/vue";
 import { getLatestRelease, type LatestRelease } from "@/api";
 
 const { t } = useI18n();

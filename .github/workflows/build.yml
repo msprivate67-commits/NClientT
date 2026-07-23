@@ -13,21 +13,21 @@ jobs:
     env:
       NDK_VERSION: "27.0.12077973"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
       - uses: android-actions/setup-android@v4
         with:
-          packages: "tools platform-tools build-tools;34.0.0 platforms;android-34 ndk;${{ env.NDK_VERSION }}"
+          packages: "tools platform-tools build-tools;36.0.0 platforms;android-36 ndk;${{ env.NDK_VERSION }}"
 
       - name: Export Android environment variables
         run: |
@@ -70,7 +70,7 @@ jobs:
         if: hashFiles('src-tauri/nclientt.keystore') != ''
         run: |
           set -euo pipefail
-          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
           APK_DIR="src-tauri/gen/android/app/build/outputs/apk"
           shopt -s nullglob
           for apk in "$APK_DIR"/*/release/*-unsigned.apk; do
@@ -86,7 +86,7 @@ jobs:
           done
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NClientT-android
           path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
@@ -97,11 +97,11 @@ jobs:
     name: Build (Windows exe + msi)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -116,7 +116,7 @@ jobs:
         run: npx tauri build --bundles msi
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NClientT-windows
           path: |
@@ -129,7 +129,7 @@ jobs:
     name: Build (Linux executable)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux system dependencies
         run: |
@@ -145,9 +145,9 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -162,7 +162,7 @@ jobs:
         run: npx tauri build --no-bundle
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NClientT-linux
           path: src-tauri/target/release/nclientt-bin
@@ -175,10 +175,10 @@ jobs:
     needs: [build-android, build-windows, build-linux]
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 

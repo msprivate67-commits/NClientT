@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 
-import { Dices, RefreshCw } from "lucide-vue-next";
+import { Dices, RefreshCw } from "@lucide/vue";
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import { useGalleryStore } from "@/stores/gallery";

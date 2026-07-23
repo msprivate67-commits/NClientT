@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { localGet, localGetMeta, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
-import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
+import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft, ChevronDown, ChevronUp } from "@lucide/vue";
 import TagChip from "@/components/TagChip.vue";
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import { useOverlayStore } from "@/stores/overlay";

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { Pause, Play, X, Trash2 } from "lucide-vue-next";
+import { Pause, Play, X, Trash2 } from "@lucide/vue";
 
 import DownloadItem from "@/components/DownloadItem.vue";
 import EmptyState from "@/components/EmptyState.vue";

@@ -4,7 +4,7 @@ import { save as taSave, open as taOpen } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { platform } from "@tauri-apps/plugin-os";
 import { useI18n } from "vue-i18n";
-import { Check } from "lucide-vue-next";
+import { Check } from "@lucide/vue";
 import { SUPPORTED_LANGUAGES, exportLocaleJson, applyImportedMessages, setLocale, getLocale, type AppLanguage } from "@/i18n";
 
 import {

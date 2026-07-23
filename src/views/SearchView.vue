@@ -6,7 +6,7 @@ import { useI18n } from "vue-i18n";
 import GalleryGrid from "@/components/GalleryGrid.vue";
 import Pagination from "@/components/Pagination.vue";
 import TagChip from "@/components/TagChip.vue";
-import { RefreshCw, X, CheckSquare } from "lucide-vue-next";
+import { RefreshCw, X, CheckSquare } from "@lucide/vue";
 import { tagsSearch } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Pause, Play, X, Folder, Trash2 } from "lucide-vue-next";
+import { Pause, Play, X, Folder, Trash2 } from "@lucide/vue";
 
 import type { DownloadEntry } from "@/types";
 

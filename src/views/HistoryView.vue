@@ -3,7 +3,7 @@ import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/EmptyState.vue";
-import { RefreshCw } from "lucide-vue-next";
+import { RefreshCw } from "@lucide/vue";
 import { historyClear, historyList, imageProxyUrl } from "@/api";
 import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";

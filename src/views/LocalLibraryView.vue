@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 
 import GalleryCard from "@/components/GalleryCard.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import { ArrowUp, ArrowDown, Languages, Loader } from "lucide-vue-next";
+import { ArrowUp, ArrowDown, Languages, Loader } from "@lucide/vue";
 import { localScan, localList, localDelete, localSetTranslatedTitle, translateTitle } from "@/api";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useOverlayStore } from "@/stores/overlay";

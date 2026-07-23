@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Download, Star } from "lucide-vue-next";
+import { Check, Download, Star } from "@lucide/vue";
 import { computed } from "vue";
 
 import { imageProxyUrl } from "@/api";

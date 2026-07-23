@@ -16,6 +16,7 @@
     "icon": "node scripts/make-icon.mjs && node scripts/make-icons.mjs"
   },
   "dependencies": {
+    "@lucide/vue": "^1.26.0",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "2.7.2",
     "@tauri-apps/plugin-fs": "2.5.1",
@@ -23,7 +24,6 @@
     "@tauri-apps/plugin-opener": "2.5.4",
     "@tauri-apps/plugin-os": "2.3.2",
     "@tauri-apps/plugin-shell": "2.3.5",
-    "lucide-vue-next": "^1.0.0",
     "pinia": "^2.2.6",
     "vue": "^3.5.13",
     "vue-i18n": "^11.4.2",
@@ -32,9 +32,10 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",
     "@types/node": "^22.9.0",
-    "@vitejs/plugin-vue": "^5.2.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "esbuild": "^0.28.1",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
+    "vite": "^8.1.5",
     "vue-tsc": "^2.1.10"
   }
 }
