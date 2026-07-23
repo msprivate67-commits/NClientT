@@ -84,6 +84,7 @@ zip = { version = "2.2", default-features = false, features = ["deflate", "time"
 
 # Platform-specific
 [target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7.2"
 # Used to read the Windows WinINET system proxy (HKCU\...\Internet Settings)
 # so reqwest can transparently use a system-wide VPN/proxy when the user has
 # not configured one in Settings.

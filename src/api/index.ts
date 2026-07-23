@@ -6,6 +6,7 @@
  */
 export * from "./settings";
 export * from "./gallery";
+export * from "./notifications";
 export * from "./library";
 export * from "./downloads";
 export * from "./system";

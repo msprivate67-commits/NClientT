@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { invoke } from "@tauri-apps/api/core";
@@ -23,11 +23,14 @@ import { getLatestRelease, type LatestRelease } from "@/api";
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
   /** When true the sidebar renders as a slide-over drawer (small screens)
    *  that fully hides when closed, instead of leaving an icon rail. */
   mobile?: boolean;
+  /** Partial reveal used while the mobile edge-swipe is being dragged. */
+  dragProgress?: number;
+  dragging?: boolean;
 }>();
 defineEmits<{ (e: "toggle"): void; (e: "navigate"): void }>();
 
@@ -82,6 +85,12 @@ const items = [
   { to: { name: "tags" },      icon: Tag,            key: "sidebar.tags" },
   { to: { name: "settings" },  icon: Settings,       key: "sidebar.settings" },
 ];
+
+const mobileDragStyle = computed(() => {
+  if (!props.mobile || !props.dragging) return undefined;
+  const progress = Math.min(1, Math.max(0, props.dragProgress ?? 0));
+  return { transform: `translateX(${-100 + progress * 100}%)` };
+});
 </script>
 
 <template>
@@ -95,7 +104,8 @@ const items = [
   -->
   <aside
     class="sidebar"
-    :class="{ collapsed: !open && !mobile, 'is-mobile': mobile, 'is-open': mobile && open }"
+    :class="{ collapsed: !open && !mobile, 'is-mobile': mobile, 'is-open': mobile && open, 'is-dragging': mobile && dragging }"
+    :style="mobileDragStyle"
   >
     <div class="brand">
       <span class="logo">{{ t("sidebar.short_brand") }}</span>
@@ -260,6 +270,9 @@ nav {
 }
 .sidebar.is-mobile.is-open {
   transform: translateX(0);
+}
+.sidebar.is-mobile.is-dragging {
+  transition: none;
 }
 .version-row {
   padding: 6px 12px 12px 12px;

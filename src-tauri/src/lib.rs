@@ -22,6 +22,7 @@ pub mod error;
 pub mod export;
 pub mod http;
 pub mod models;
+pub mod notifications;
 
 use commands::*;
 use std::sync::Arc;
@@ -31,6 +32,7 @@ use crate::config::ConfigStore;
 use crate::db::Database;
 use crate::downloader::DownloadManager;
 use crate::http::HttpClient;
+use crate::notifications::*;
 
 /// Shared application state, reachable from every Tauri command.
 pub struct AppState {
@@ -157,6 +159,8 @@ pub fn run() {
             download_resume_ids,
             download_cancel_ids,
             download_delete_ids,
+            windows_download_progress,
+            windows_download_complete,
             // export
             export_pdf,
             export_zip,

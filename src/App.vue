@@ -52,11 +52,16 @@ const {
   onTouchStart: onContentTouchStart,
   onTouchMove: onContentTouchMove,
   onTouchEnd: onContentTouchEnd,
+  onTouchCancel: onContentTouchCancel,
   onMouseDown: onContentMouseDown,
   onMouseMove: onContentMouseMove,
   onMouseUp: onContentMouseUp,
 } = useEdgeSwipe(sidebarOpen, () => {
   sidebarOpen.value = true;
+}, {
+  enabled: isCompact,
+  startWidth: 96,
+  openThreshold: 0.4,
 });
 
 const canGoBack = computed(() => {
@@ -255,11 +260,19 @@ function doSearch() {
     <AppSidebar v-if="!isCompact" :open="sidebarOpen" @toggle="toggleSidebar" />
     <template v-else>
       <Transition name="fade">
-        <div v-if="sidebarOpen" class="drawer-backdrop" @click="toggleSidebar" />
+        <div
+          v-if="sidebarOpen || contentEdgeSwipe.dragging"
+          class="drawer-backdrop"
+          :class="{ 'is-dragging': contentEdgeSwipe.dragging }"
+          :style="contentEdgeSwipe.dragging ? { opacity: contentEdgeSwipe.progress * 0.5 } : undefined"
+          @click="toggleSidebar"
+        />
       </Transition>
       <AppSidebar
         mobile
         :open="sidebarOpen"
+        :drag-progress="contentEdgeSwipe.progress"
+        :dragging="contentEdgeSwipe.dragging"
         @toggle="toggleSidebar"
         @navigate="sidebarOpen = false"
       />
@@ -271,6 +284,7 @@ function doSearch() {
       @touchstart="onContentTouchStart"
       @touchmove="onContentTouchMove"
       @touchend="onContentTouchEnd"
+      @touchcancel="onContentTouchCancel"
       @mousedown="onContentMouseDown"
       @mousemove="onContentMouseMove"
       @mouseup="onContentMouseUp"
@@ -549,6 +563,10 @@ function doSearch() {
   inset: 0;
   z-index: 1100;
   background: rgba(0, 0, 0, 0.5);
+  transition: opacity 0.22s ease;
+}
+.drawer-backdrop.is-dragging {
+  transition: none;
 }
 .fade-enter-active,
 .fade-leave-active {

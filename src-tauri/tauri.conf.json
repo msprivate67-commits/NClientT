@@ -30,6 +30,12 @@
       }
     }
   },
+  "plugins": {
+    "notification": {
+      "icon": "ic_stat_nclientt",
+      "iconColor": "#5B8CFF"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
@@ -45,6 +51,7 @@
     "shortDescription": "Unofficial nhentai cross-platform client",
     "longDescription": "NClientT is an unofficial cross-platform desktop client for nhentai — browse, search, read, and download galleries on Windows, macOS, and Linux. A full rewrite of NClientV3 using Tauri 2 and Vue 3.",
     "copyright": "Licensed under the Apache License, Version 2.0",
-    "publisher": "NClientT"
+    "publisher": "NClientT",
+    "resources": ["icons/icon.png"]
   }
 }

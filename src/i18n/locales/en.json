@@ -307,7 +307,13 @@
   "notification": {
     "download_complete": "Download complete",
     "pages_saved": "{n} pages saved.",
-    "downloading": "Downloading: {title}"
+    "downloading": "Downloading: {title}",
+    "downloaded": "{title} has finished downloading.",
+    "progress_status": "Downloading…",
+    "pages": "pages",
+    "progress_channel": "Download progress",
+    "progress_channel_description": "Shows the gallery currently being downloaded and its progress.",
+    "complete_channel": "Completed downloads"
   },
   "cloudflare": {
     "verification_required": "Cloudflare verification required to reach {mirror}.",

@@ -307,7 +307,13 @@
   "notification": {
     "download_complete": "下载完成",
     "pages_saved": "已保存 {n} 页。",
-    "downloading": "下载中：{title}"
+    "downloading": "下载中：{title}",
+    "downloaded": "《{title}》已经下载完成。",
+    "progress_status": "正在下载…",
+    "pages": "页",
+    "progress_channel": "下载进度",
+    "progress_channel_description": "显示当前正在下载的画廊及其进度。",
+    "complete_channel": "下载完成"
   },
   "cloudflare": {
     "verification_required": "访问 {mirror} 需要 Cloudflare 验证。",

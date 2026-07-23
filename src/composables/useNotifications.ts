@@ -1,148 +1,206 @@
 /**
- * Thin wrapper around `@tauri-apps/plugin-notification` for surfacing download
- * progress and completion (primarily on Android; best-effort on desktop).
+ * Download notification coordinator.
  *
- * On Android we ask for `POST_NOTIFICATIONS` once (the OS only prompts the
- * first time). The plugin is absent from some targets, so every call is
- * guarded — if the API isn't reachable we silently no-op.
- *
- * Progress notifications use the gallery id as the notification id, so each
- * active download owns a single updatable notification rather than spawning a
- * new one per progress tick.
+ * Only the item that is actually downloading owns the progress notification;
+ * queued items stay silent. Android updates one fixed low-importance
+ * notification, while Windows delegates to a native WinRT progress toast so
+ * progress changes do not create a new popup.
  */
 import {
+  createChannel,
+  Importance,
   isPermissionGranted,
+  removeActive,
   requestPermission,
   sendNotification,
-  removeActive,
 } from "@tauri-apps/plugin-notification";
+import { platform } from "@tauri-apps/plugin-os";
+import {
+  windowsDownloadComplete,
+  windowsDownloadProgress,
+} from "@/api";
 import type { DownloadProgress } from "@/types";
 import { getLocale, LOCALE_MESSAGES, type AppLanguage } from "@/i18n";
+
+const currentPlatform = platform();
+const ACTIVE_DOWNLOAD_NOTIFICATION_ID = 0x4e434c54;
+const ANDROID_PROGRESS_CHANNEL = "downloads-progress-v1";
+const ANDROID_COMPLETE_CHANNEL = "downloads-complete-v1";
+const ANDROID_NOTIFICATION_ICON = "ic_stat_nclientt";
 
 function tfn(key: string, params?: Record<string, unknown>): string {
   const locale = getLocale() as AppLanguage;
   const msgs = LOCALE_MESSAGES[locale] || LOCALE_MESSAGES.en;
   const parts = key.split(".");
   let val: unknown = msgs;
-  for (const p of parts) {
-    val = (val as Record<string, unknown>)?.[p];
-  }
+  for (const p of parts) val = (val as Record<string, unknown>)?.[p];
   if (typeof val !== "string") return key;
-  if (params) {
-    return val.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
-  }
-  return val;
+  if (!params) return val;
+  return val.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
 }
 
 let permissionAsked = false;
+let androidChannelsReady: Promise<void> | null = null;
 
-/** Ensure the notification permission has been requested at least once. */
+function ensureAndroidChannels(): Promise<void> {
+  if (currentPlatform !== "android") return Promise.resolve();
+  if (!androidChannelsReady) {
+    androidChannelsReady = Promise.all([
+      createChannel({
+        id: ANDROID_PROGRESS_CHANNEL,
+        name: tfn("notification.progress_channel"),
+        description: tfn("notification.progress_channel_description"),
+        importance: Importance.Low,
+        vibration: false,
+      }),
+      createChannel({
+        id: ANDROID_COMPLETE_CHANNEL,
+        name: tfn("notification.complete_channel"),
+        importance: Importance.Default,
+        vibration: false,
+      }),
+    ]).then(() => undefined).catch(() => undefined);
+  }
+  return androidChannelsReady;
+}
+
+/** Ensure notification permission and Android channels are ready. */
 export async function ensureNotificationPermission(): Promise<boolean> {
   try {
     let granted = await isPermissionGranted();
     if (!granted && !permissionAsked) {
-      const perm = await requestPermission();
-      granted = perm === "granted";
+      const permission = await requestPermission();
+      granted = permission === "granted";
       permissionAsked = true;
     }
+    if (granted) await ensureAndroidChannels();
     return granted;
   } catch {
     return false;
   }
 }
 
-/** Post (or update) a notification; no-op if the plugin is unavailable. */
-function notify(
-  id: number,
-  title: string,
-  body: string,
-  opts: { ongoing?: boolean; autoCancel?: boolean } = {},
-) {
+interface NotificationOptions {
+  ongoing?: boolean;
+  autoCancel?: boolean;
+  channelId?: string;
+}
+
+function notify(id: number, title: string, body: string, options: NotificationOptions = {}) {
   try {
     sendNotification({
       id,
       title,
       body,
-      ongoing: opts.ongoing,
-      autoCancel: opts.autoCancel,
+      ongoing: options.ongoing,
+      autoCancel: options.autoCancel,
+      channelId: options.channelId,
+      icon: ANDROID_NOTIFICATION_ICON,
+      iconColor: "#5B8CFF",
     });
   } catch {
-    // Plugin unavailable / blocked — ignore.
+    // Notification plugin unavailable or blocked.
   }
 }
 
-/** Dismiss an active notification by id; no-op if unavailable. */
 function dismiss(id: number) {
-  try {
-    removeActive([{ id }]);
-  } catch {
-    // ignore
-  }
+  void removeActive([{ id }]).catch(() => undefined);
+}
+
+function percent(p: DownloadProgress): number {
+  return p.total_pages > 0
+    ? Math.min(100, Math.round((p.done_pages / p.total_pages) * 100))
+    : 0;
 }
 
 function progressBody(p: DownloadProgress): string {
-  const pct =
-    p.total_pages > 0 ? Math.round((p.done_pages / p.total_pages) * 100) : 0;
-  return `${p.done_pages}/${p.total_pages} pages (${pct}%)`;
+  return `${p.done_pages}/${p.total_pages} ${tfn("notification.pages")} (${percent(p)}%)`;
 }
 
-/// Tracks which downloads we've already announced as finished so a resumed /
-/// re-emitted finished event doesn't re-notify.
 const finishedAnnounced = new Set<number>();
-/// Tracks the last percent we posted for each active download, so we throttle
-/// progress notifications to at most one ~5% change (avoids notification spam
-/// on fast downloads).
-const lastPostedPct = new Map<number, number>();
+let activeDownloadId: number | null = null;
+let lastPostedPct = -1;
 
-/**
- * React to a `download:progress` payload: post/refresh a progress notification
- * while a download is active, and post a completion notification when it
- * finishes. Paused / canceled / failed downloads dismiss the notification.
- *
- * @param p the progress event payload
- */
+/** React to one backend download progress event. */
 export async function handleDownloadNotification(p: DownloadProgress) {
+  // Queue membership is visible in the Downloads screen; it should never
+  // create an OS notification of its own.
+  if (p.status === "pending") return;
+
   if (p.status === "finished") {
     if (finishedAnnounced.has(p.id)) return;
     finishedAnnounced.add(p.id);
-    lastPostedPct.delete(p.id);
-    // Dismiss the ongoing progress notification, then post a tappable
-    // completion notification.
-    dismiss(p.id);
-    const ok = await ensureNotificationPermission();
-    if (ok) {
+    if (activeDownloadId === p.id) {
+      activeDownloadId = null;
+      lastPostedPct = -1;
+    }
+
+    const completion = tfn("notification.downloaded", { title: p.title });
+    if (currentPlatform === "windows") {
+      await windowsDownloadComplete(
+        p.title,
+        completion,
+        tfn("notification.pages_saved", { n: p.total_pages }),
+      ).catch(() => undefined);
+      return;
+    }
+
+    dismiss(ACTIVE_DOWNLOAD_NOTIFICATION_ID);
+    if (await ensureNotificationPermission()) {
       notify(
         p.id,
         tfn("notification.download_complete"),
-        `${p.title}\n${tfn("notification.pages_saved", { n: p.total_pages })}`,
-        { autoCancel: true },
+        `${completion}\n${tfn("notification.pages_saved", { n: p.total_pages })}`,
+        {
+          autoCancel: true,
+          channelId: currentPlatform === "android" ? ANDROID_COMPLETE_CHANNEL : undefined,
+        },
       );
     }
     return;
   }
 
-  if (p.status === "downloading" || p.status === "pending") {
-    finishedAnnounced.delete(p.id);
-  }
-
-  // Terminal-but-not-finished states: cancel the notification and stop.
   if (p.status === "paused" || p.status === "canceled" || p.status === "failed") {
-    lastPostedPct.delete(p.id);
-    dismiss(p.id);
+    if (activeDownloadId === p.id) {
+      activeDownloadId = null;
+      lastPostedPct = -1;
+      if (currentPlatform !== "windows") dismiss(ACTIVE_DOWNLOAD_NOTIFICATION_ID);
+    }
     return;
   }
 
-  // Progress notifications. Throttle to ~5% steps so a fast download doesn't
-  // flood the shade with updates.
-  const pct =
-    p.total_pages > 0 ? Math.round((p.done_pages / p.total_pages) * 100) : 0;
-  const last = lastPostedPct.get(p.id) ?? -100;
-  if (pct - last < 5) return;
-  lastPostedPct.set(p.id, pct);
+  if (p.status !== "downloading") return;
 
-  const ok = await ensureNotificationPermission();
-  if (!ok) return;
-  // `ongoing` keeps the notification pinned while the download runs and lets
-  // Android dismiss it automatically once we cancel it on completion.
-  notify(p.id, tfn("notification.downloading", { title: p.title }), progressBody(p), { ongoing: true });
+  finishedAnnounced.delete(p.id);
+  const initial = activeDownloadId !== p.id;
+  if (initial) {
+    activeDownloadId = p.id;
+    lastPostedPct = -1;
+  }
+
+  const pct = percent(p);
+  if (!initial && pct === lastPostedPct) return;
+  lastPostedPct = pct;
+
+  if (currentPlatform === "windows") {
+    await windowsDownloadProgress(
+      p.title,
+      tfn("notification.progress_status"),
+      progressBody(p),
+      pct / 100,
+      initial,
+    ).catch(() => undefined);
+    return;
+  }
+
+  if (!(await ensureNotificationPermission())) return;
+  notify(
+    ACTIVE_DOWNLOAD_NOTIFICATION_ID,
+    tfn("notification.downloading", { title: p.title }),
+    progressBody(p),
+    {
+      ongoing: true,
+      channelId: currentPlatform === "android" ? ANDROID_PROGRESS_CHANNEL : undefined,
+    },
+  );
 }

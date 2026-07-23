@@ -307,7 +307,13 @@
   "notification": {
     "download_complete": "Загрузка завершена",
     "pages_saved": "Сохранено страниц: {n}.",
-    "downloading": "Загрузка: {title}"
+    "downloading": "Загрузка: {title}",
+    "downloaded": "Загрузка «{title}» завершена.",
+    "progress_status": "Загрузка…",
+    "pages": "стр.",
+    "progress_channel": "Ход загрузки",
+    "progress_channel_description": "Показывает текущую загрузку и её ход.",
+    "complete_channel": "Завершённые загрузки"
   },
   "cloudflare": {
     "verification_required": "Для доступа к {mirror} требуется проверка Cloudflare.",

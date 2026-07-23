@@ -307,7 +307,13 @@
   "notification": {
     "download_complete": "ダウンロード完了",
     "pages_saved": "{n} ページ保存しました。",
-    "downloading": "ダウンロード中：{title}"
+    "downloading": "ダウンロード中：{title}",
+    "downloaded": "「{title}」のダウンロードが完了しました。",
+    "progress_status": "ダウンロード中…",
+    "pages": "ページ",
+    "progress_channel": "ダウンロード進捗",
+    "progress_channel_description": "現在のダウンロードと進捗を表示します。",
+    "complete_channel": "完了したダウンロード"
   },
   "cloudflare": {
     "verification_required": "{mirror} にアクセスするには Cloudflare 認証が必要です。",
