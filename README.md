@@ -99,14 +99,11 @@
 
 ```bash
 # Clone & install
-git clone https://github.com/maxwai/NClientT.git
+git clone https://github.com/msprivate67-commits/NClientT.git
 cd NClientT
 
 # Install frontend dependencies
-npm install
-
-# Generate icons
-npm run icon
+npm ci
 
 # Development (hot reload)
 npm run tauri:dev
@@ -114,6 +111,17 @@ npm run tauri:dev
 # Production build
 npm run tauri:build
 ```
+
+For frontend-only work, use `npm run dev`. Before submitting changes, run:
+
+```bash
+npm run typecheck
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Use `npm run icon` only when regenerating application icons.
 
 ### Platform Notes
 
@@ -130,9 +138,12 @@ First build compiles all Rust crates (5–15 minutes); subsequent builds are fas
 ```
 NClientT/
 ├── src/                    # Vue 3 frontend
-│   ├── api/                # Rust command wrappers
+│   ├── api/                # Domain-based Tauri/service gateway
 │   ├── components/         # GalleryCard, TagChip, DownloadItem, ...
+│   ├── composables/        # Reusable Vue and browser interactions
+│   ├── i18n/               # Locale setup and translations
 │   ├── stores/             # Pinia stores (settings, gallery, downloads, ...)
+│   ├── types/              # Shared frontend domain contracts
 │   ├── views/              # Home, Search, Gallery, Reader, Favorites, ...
 │   └── main.ts
 ├── src-tauri/              # Rust backend
@@ -146,9 +157,17 @@ NClientT/
 │       ├── export.rs       # PDF / ZIP export
 │       ├── http.rs         # reqwest + cookies + auth
 │       └── models.rs       # Shared data models
-├── docs/ARCHITECTURE.md    # NClientV3 → NClientT porting reference
+├── docs/
+│   ├── ARCHITECTURE.md     # NClientV3 → NClientT porting reference
+│   └── FRONTEND_ARCHITECTURE.md # Frontend layers and module ownership
+├── AGENTS.md               # Contributor guidelines
 └── package.json
 ```
+
+Frontend consumers should import backend operations from `@/api`; its public
+barrel keeps call sites stable while implementations remain grouped by domain.
+See [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md) for the
+dependency rules and module responsibilities.
 
 ## 🔑 API Key (Optional)
 

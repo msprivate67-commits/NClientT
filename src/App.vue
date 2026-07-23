@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch, defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { onBackButtonPress } from "@tauri-apps/api/app";
@@ -17,6 +17,10 @@ import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { ensureNotificationPermission, handleDownloadNotification } from "@/composables/useNotifications";
+import { useDraggablePosition } from "@/composables/useDraggablePosition";
+import { useEdgeSwipe } from "@/composables/useEdgeSwipe";
+import { useResponsiveSidebar } from "@/composables/useResponsiveSidebar";
+import { useSwipeDismiss } from "@/composables/useSwipeDismiss";
 
 const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
 const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
@@ -34,185 +38,26 @@ const router = useRouter();
 const route = useRoute();
 const i18n = useI18n();
 
-const sidebarOpen = ref(true);
 const cloudflareBanner = ref(false);
-
-// Responsive layout: below this breakpoint the sidebar becomes a slide-over
-// drawer and the content takes the full width. We track it live so rotating
-// the device / resizing the window switches modes cleanly.
-const COMPACT_QUERY = "(max-width: 760px)";
-const isCompact = ref(false);
-function syncCompact() {
-  isCompact.value = window.matchMedia(COMPACT_QUERY).matches;
-  // On compact screens the sidebar starts closed (drawer hidden). On desktop
-  // it starts expanded so frequent nav items are visible.
-  sidebarOpen.value = !isCompact.value;
-}
-let compactMql: MediaQueryList | null = null;
-
-const overlayPanelRef = ref<HTMLElement | null>(null);
-
-const overlayPanelDrag = reactive({
-  active: false,
-  startX: 0,
-  startY: 0,
-  x: 0,
-  dismissing: false,
+const { isCompact, sidebarOpen, toggleSidebar } = useResponsiveSidebar();
+const {
+  panelRef: overlayPanelRef,
+  panelStyle: overlayPanelStyle,
+  onTouchStart: onOverlayTouchStart,
+  onTouchMove: onOverlayTouchMove,
+  onTouchEnd: onOverlayTouchEnd,
+} = useSwipeDismiss(() => overlay.pop());
+const {
+  state: contentEdgeSwipe,
+  onTouchStart: onContentTouchStart,
+  onTouchMove: onContentTouchMove,
+  onTouchEnd: onContentTouchEnd,
+  onMouseDown: onContentMouseDown,
+  onMouseMove: onContentMouseMove,
+  onMouseUp: onContentMouseUp,
+} = useEdgeSwipe(sidebarOpen, () => {
+  sidebarOpen.value = true;
 });
-
-function resetOverlayDrag() {
-  overlayPanelDrag.active = false;
-  overlayPanelDrag.x = 0;
-  overlayPanelDrag.dismissing = false;
-}
-
-const overlayPanelStyle = computed(() => {
-  if (!overlayPanelDrag.active && !overlayPanelDrag.dismissing) return {};
-  const x = overlayPanelDrag.dismissing ? "100%" : `${overlayPanelDrag.x}px`;
-  return {
-    transform: `translateX(${x})`,
-    transition: overlayPanelDrag.active ? "none" : "transform 0.28s ease",
-  };
-});
-
-function onOverlayTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 1) return;
-  overlayPanelDrag.startX = e.touches[0].clientX;
-  overlayPanelDrag.startY = e.touches[0].clientY;
-  overlayPanelDrag.active = false;
-  overlayPanelDrag.x = 0;
-  overlayPanelDrag.dismissing = false;
-}
-
-function onOverlayTouchMove(e: TouchEvent) {
-  if (e.touches.length !== 1) return;
-  const dx = e.touches[0].clientX - overlayPanelDrag.startX;
-  const dy = e.touches[0].clientY - overlayPanelDrag.startY;
-
-  if (!overlayPanelDrag.active) {
-    if (dx > 8 && Math.abs(dx) > Math.abs(dy)) {
-      overlayPanelDrag.active = true;
-    } else {
-      return;
-    }
-  }
-
-  overlayPanelDrag.x = Math.max(0, dx);
-  e.preventDefault();
-}
-
-function onOverlayTouchEnd() {
-  if (!overlayPanelDrag.active) return;
-
-  if (overlayPanelDrag.x > window.innerWidth * 0.3) {
-    overlayPanelDrag.dismissing = true;
-    overlayPanelDrag.active = false;
-    nextTick(() => {
-      const el = overlayPanelRef.value;
-      if (el) {
-        const onEnd = (e: TransitionEvent) => {
-          if (e.propertyName === "transform") {
-            el.removeEventListener("transitionend", onEnd);
-            overlay.pop();
-            resetOverlayDrag();
-          }
-        };
-        el.addEventListener("transitionend", onEnd);
-      }
-    });
-  } else {
-    overlayPanelDrag.dismissing = false;
-    overlayPanelDrag.active = false;
-    overlayPanelDrag.x = 0;
-  }
-}
-
-// Edge-swipe / edge-drag to open the sidebar from the left edge of the content
-// area. Works for both touch (mobile + touch laptops) and mouse (desktop): the
-// gesture starts within EDGE_START_PX of the left edge and, once the horizontal
-// travel crosses EDGE_OPEN_PX, opens the sidebar. Guarded by `!sidebarOpen` so
-// it only fires when the sidebar is hidden (collapsed rail on desktop, hidden
-// drawer on mobile). Overlay panels sit above <main> and have their own gesture
-// handlers, so the reader's horizontal scroll mode is unaffected.
-const EDGE_START_PX = 40;
-const EDGE_OPEN_PX = 50;
-const contentEdgeSwipe = reactive({
-  tracking: false,
-  startX: 0,
-  startY: 0,
-});
-
-function beginEdgeSwipe(clientX: number, clientY: number) {
-  // Only initiate when the sidebar is currently closed.
-  if (sidebarOpen.value) {
-    contentEdgeSwipe.tracking = false;
-    return;
-  }
-  if (clientX < EDGE_START_PX) {
-    contentEdgeSwipe.startX = clientX;
-    contentEdgeSwipe.startY = clientY;
-    contentEdgeSwipe.tracking = true;
-  } else {
-    contentEdgeSwipe.tracking = false;
-  }
-}
-
-function moveEdgeSwipe(clientX: number, clientY: number): boolean {
-  if (!contentEdgeSwipe.tracking) return false;
-  const dx = clientX - contentEdgeSwipe.startX;
-  // Ignore gestures that are clearly more vertical than horizontal (e.g. a
-  // list scroll starting near the edge) so we don't hijack normal scrolling.
-  const dy = clientY - contentEdgeSwipe.startY;
-  if (dx < 0 && Math.abs(dy) > Math.abs(dx)) {
-    contentEdgeSwipe.tracking = false;
-    return false;
-  }
-  if (dx > EDGE_OPEN_PX) {
-    sidebarOpen.value = true;
-    contentEdgeSwipe.tracking = false;
-    return true; // caller should preventDefault
-  }
-  return false;
-}
-
-function endEdgeSwipe() {
-  contentEdgeSwipe.tracking = false;
-}
-
-function onContentTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 1) {
-    contentEdgeSwipe.tracking = false;
-    return;
-  }
-  beginEdgeSwipe(e.touches[0].clientX, e.touches[0].clientY);
-}
-
-function onContentTouchMove(e: TouchEvent) {
-  if (e.touches.length !== 1) return;
-  if (moveEdgeSwipe(e.touches[0].clientX, e.touches[0].clientY)) {
-    e.preventDefault();
-  }
-}
-
-function onContentTouchEnd() {
-  endEdgeSwipe();
-}
-
-// Desktop / mouse: press near the left edge and drag right to open. Bound to
-// the same <main> element as the touch handlers below.
-function onContentMouseDown(e: MouseEvent) {
-  // Only the primary button starts a drag.
-  if (e.button !== 0) return;
-  beginEdgeSwipe(e.clientX, e.clientY);
-}
-
-function onContentMouseMove(e: MouseEvent) {
-  moveEdgeSwipe(e.clientX, e.clientY);
-}
-
-function onContentMouseUp() {
-  endEdgeSwipe();
-}
 
 const canGoBack = computed(() => {
   if (overlay.hasAny()) return true;
@@ -232,9 +77,6 @@ watch(() => i18n.locale.value, (loc) => {
 }, { immediate: true });
 
 onMounted(async () => {
-  syncCompact();
-  compactMql = window.matchMedia(COMPACT_QUERY);
-  compactMql.addEventListener("change", syncCompact);
   try {
     await settings.load();
 
@@ -281,10 +123,6 @@ onMounted(async () => {
     handleDownloadNotification(p).catch(() => {});
   });
 });
-
-function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value;
-}
 
 async function solveCloudflare() {
   await cloudflareOpenChallenge();
@@ -357,7 +195,6 @@ onBeforeUnmount(() => {
 });
 
 onUnmounted(() => {
-  compactMql?.removeEventListener("change", syncCompact);
   progressUnlisten?.();
   progressUnlisten = null;
 });
@@ -370,90 +207,19 @@ const globalSpeedLabel = computed(() => {
   return `↓ ${bps.toFixed(0)} B/s`;
 });
 
-// --- Draggable download-speed float ------------------------------------------
-// The corner speed badge can be grabbed and repositioned. Its last position is
-// persisted to localStorage so it survives restarts. `null` (or a failed
-// parse) means "use the default bottom-left corner".
-const SPEED_FLOAT_KEY = "nclientt:speedFloat:pos";
-const speedPos = ref<{ x: number; y: number } | null>(loadSpeedPos());
-const speedDrag = reactive({
-  active: false,
-  pointerId: -1,
-  startX: 0,
-  startY: 0,
-  originX: 0,
-  originY: 0,
+const {
+  drag: speedDrag,
+  style: speedFloatStyle,
+  onPointerDown: onSpeedDown,
+  onPointerMove: onSpeedMove,
+  onPointerUp: onSpeedUp,
+} = useDraggablePosition({
+  storageKey: "nclientt:speedFloat:pos",
+  rightMargin: 80,
+  bottomMargin: 32,
+  minimumMaxX: 40,
+  minimumMaxY: 20,
 });
-
-function loadSpeedPos(): { x: number; y: number } | null {
-  try {
-    const raw = localStorage.getItem(SPEED_FLOAT_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw);
-    if (p && typeof p.x === "number" && typeof p.y === "number") {
-      return { x: p.x, y: p.y };
-    }
-  } catch { /* ignore corrupt entry */ }
-  return null;
-}
-
-function clampSpeedPos(x: number, y: number): { x: number; y: number } {
-  // Keep the badge fully inside the viewport. Approximate its size so it can't
-  // be dragged off-screen; re-clamped on drop in case the window resized.
-  const w = Math.max(40, window.innerWidth - 80);
-  const h = Math.max(20, window.innerHeight - 32);
-  return {
-    x: Math.max(0, Math.min(x, w)),
-    y: Math.max(0, Math.min(y, h)),
-  };
-}
-
-function speedFloatStyle() {
-  const p = speedPos.value;
-  if (!p) return {};
-  return { left: `${p.x}px`, top: `${p.y}px`, bottom: "auto" };
-}
-
-function onSpeedDown(e: PointerEvent) {
-  // Only the primary button starts a drag.
-  if (e.button !== 0) return;
-  // Use the element's current rendered position as the drag origin so a drag
-  // started from the default (CSS) corner works even before a pos is saved.
-  const el = e.currentTarget as HTMLElement;
-  const rect = el.getBoundingClientRect();
-  const origin = speedPos.value ?? { x: rect.left, y: rect.top };
-  speedPos.value = origin;
-  speedDrag.active = true;
-  speedDrag.pointerId = e.pointerId;
-  speedDrag.startX = e.clientX;
-  speedDrag.startY = e.clientY;
-  speedDrag.originX = origin.x;
-  speedDrag.originY = origin.y;
-  el.setPointerCapture?.(e.pointerId);
-  e.preventDefault();
-}
-
-function onSpeedMove(e: PointerEvent) {
-  if (!speedDrag.active) return;
-  const dx = e.clientX - speedDrag.startX;
-  const dy = e.clientY - speedDrag.startY;
-  speedPos.value = clampSpeedPos(speedDrag.originX + dx, speedDrag.originY + dy);
-}
-
-function onSpeedUp(e: PointerEvent) {
-  if (!speedDrag.active) return;
-  speedDrag.active = false;
-  const el = e.currentTarget as HTMLElement;
-  el.releasePointerCapture?.(speedDrag.pointerId);
-  speedDrag.pointerId = -1;
-  // Re-clamp at drop time (window may have resized since) then persist.
-  if (speedPos.value) {
-    speedPos.value = clampSpeedPos(speedPos.value.x, speedPos.value.y);
-    try {
-      localStorage.setItem(SPEED_FLOAT_KEY, JSON.stringify(speedPos.value));
-    } catch { /* storage might be unavailable; non-fatal */ }
-  }
-}
 
 // Local search-box model. Kept deliberately separate from the route so typing
 // does NOT trigger a search on every keystroke — the user must press Enter or
