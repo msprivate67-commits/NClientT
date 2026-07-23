@@ -119,6 +119,14 @@ textarea {
   border-color: var(--accent);
   color: #fff;
 }
+.btn.refreshing,
+.btn.refreshing:disabled {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  cursor: wait;
+  animation: refresh-breathe 3s ease-in-out infinite;
+}
 .btn.danger {
   color: #ff8e8e;
 }
@@ -153,4 +161,26 @@ textarea {
 }
 .spin {
   animation: spin 1s linear infinite;
+}
+
+@keyframes refresh-breathe {
+  0%, 100% {
+    background: var(--accent-soft);
+    color: var(--accent);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.refreshing,
+  .btn.refreshing:disabled {
+    background: var(--accent);
+    color: #fff;
+    animation: none;
+  }
 }

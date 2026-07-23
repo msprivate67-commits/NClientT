@@ -203,6 +203,7 @@ function submit() {
 
 function changePage(p: number) {
   page.value = p;
+  viewRef.value?.scrollTo({ top: 0, behavior: "auto" });
   syncUrl();
   load();
 }
@@ -252,7 +253,9 @@ watch(() => route.query, () => {
       <button
         type="button"
         class="btn"
+        :class="{ refreshing: loading }"
         :disabled="loading || !hasQuery"
+        :aria-busy="loading"
         @click="load"
         :title="$t('search.reload_results')"
       >

@@ -109,6 +109,11 @@ function changeLanguage(l: Language) {
   settings.save({ only_language: l }).then(load);
 }
 
+function changePage(nextPage: number) {
+  page.value = nextPage;
+  viewRef.value?.scrollTo({ top: 0, behavior: "auto" });
+}
+
 onMounted(load);
 watch(page, load);
 </script>
@@ -145,7 +150,14 @@ watch(page, load);
         <button class="btn" @click="gallery.random().then((g) => overlay.openGallery(g.id))">
           <Dices :size="14" /> {{ $t('home.random') }}
         </button>
-        <button class="btn" :disabled="loading" @click="load" :title="$t('home.reload_galleries')">
+        <button
+          class="btn"
+          :class="{ refreshing: loading }"
+          :disabled="loading"
+          :aria-busy="loading"
+          @click="load"
+          :title="$t('home.reload_galleries')"
+        >
           {{ loading ? $t('common.refreshing') : '' }}<RefreshCw v-if="!loading" :size="14" /> {{ $t('common.refresh') }}
         </button>
         <div class="lang-group">
@@ -178,7 +190,7 @@ watch(page, load);
       @deselect="toggleSelect"
     />
 
-    <Pagination :page="page" :num-pages="numPages" @change="page = $event" />
+    <Pagination :page="page" :num-pages="numPages" @change="changePage" />
   </div>
 </template>
 
