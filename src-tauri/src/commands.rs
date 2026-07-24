@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use chrono::Utc;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
@@ -48,6 +49,51 @@ pub fn settings_set(state: State<'_, AppState>, new_settings: Settings) -> AppRe
         .downloads
         .set_download_dir(updated.download_dir.clone());
     Ok(updated)
+}
+
+/// Stream an OpenAI-compatible response through the native HTTP client. This
+/// is used only when AI requests opt into the application's proxy; chunks stay
+/// as bytes so UTF-8 characters split across network frames remain intact.
+#[tauri::command]
+pub async fn translation_stream_request(
+    state: State<'_, AppState>,
+    url: String,
+    api_key: String,
+    body: serde_json::Value,
+    use_proxy: bool,
+    on_chunk: Channel<Vec<u8>>,
+) -> AppResult<()> {
+    let parsed = url::Url::parse(&url)?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(AppError::Other(
+            "translation URL must use HTTP or HTTPS".into(),
+        ));
+    }
+
+    let current_settings = settings(&state);
+    let mut request =
+        state
+            .http
+            .external_request(reqwest::Method::POST, &url, use_proxy, &current_settings)?;
+    if !api_key.trim().is_empty() {
+        request = request.bearer_auth(api_key.trim());
+    }
+    let mut response = request.json(&body).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_default();
+        return Err(AppError::Http {
+            status: status.as_u16(),
+            body: error_body,
+        });
+    }
+
+    while let Some(chunk) = response.chunk().await? {
+        if on_chunk.send(chunk.to_vec()).is_err() {
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

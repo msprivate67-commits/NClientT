@@ -12,6 +12,22 @@ import {
 } from "@/api";
 import type { Settings } from "@/types";
 
+export const DEFAULT_TRANSLATION_TARGETS: Record<string, string> = {
+  zh: "简体中文，尽量用古典章回体小说标题风格",
+  en: "English, in the style of Shakespearean verse",
+  ru: "Русский язык, в стиле стихов Пушкина",
+  ja: "日本語、伝統的な俳句の文体",
+};
+
+export function defaultTranslationTarget(language: string): string {
+  return DEFAULT_TRANSLATION_TARGETS[language] ?? DEFAULT_TRANSLATION_TARGETS.zh;
+}
+
+export function isDefaultTranslationTarget(value: string): boolean {
+  const normalized = value.trim();
+  return !normalized || Object.values(DEFAULT_TRANSLATION_TARGETS).includes(normalized);
+}
+
 const DEFAULT_SETTINGS: Settings = {
   mirror: "nhentai.net",
   user_agent: "",
@@ -53,6 +69,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_target_lang: "简体中文，尽量用古典章回体小说标题风格",
   tl_thinking: false,
   tl_auto_translate: true,
+  tl_use_proxy: false,
   app_language: "",
 };
 
@@ -81,9 +98,6 @@ export const useSettingsStore = defineStore("settings", () => {
       settings.value.download_dir = "";
     }
     loaded.value = true;
-    // Start the once-per-launch AI probe without delaying the rest of app
-    // initialization. GalleryView watches the status and can react when ready.
-    void refreshTranslationAvailability();
     await refreshAuth();
     return settings.value;
   }
@@ -96,11 +110,12 @@ export const useSettingsStore = defineStore("settings", () => {
       "tl_target_lang",
       "tl_thinking",
       "tl_auto_translate",
+      "tl_use_proxy",
     ]
       .some((key) => key in patch && patch[key as keyof Settings] !== settings.value[key as keyof Settings]);
     const next = { ...settings.value, ...patch };
     settings.value = await settingsSet(next);
-    if (translationSettingsChanged) await refreshTranslationAvailability();
+    if (translationSettingsChanged) void refreshTranslationAvailability();
     return settings.value;
   }
 
@@ -114,6 +129,7 @@ export const useSettingsStore = defineStore("settings", () => {
         settings.value.tl_base_url,
         settings.value.tl_model,
         settings.value.tl_api_key,
+        settings.value.tl_use_proxy,
       );
       if (checkId === translationCheckId) {
         translationAvailable.value = result.ok;
@@ -123,6 +139,14 @@ export const useSettingsStore = defineStore("settings", () => {
     } finally {
       if (checkId === translationCheckId) translationChecking.value = false;
     }
+  }
+
+  async function syncTranslationTargetForLanguage(language: string) {
+    if (!isDefaultTranslationTarget(settings.value.tl_target_lang)) return settings.value;
+    const target = defaultTranslationTarget(language);
+    if (settings.value.tl_target_lang === target) return settings.value;
+    settings.value = await settingsSet({ ...settings.value, tl_target_lang: target });
+    return settings.value;
   }
 
   async function refreshAuth() {
@@ -158,6 +182,7 @@ export const useSettingsStore = defineStore("settings", () => {
     save,
     refreshAuth,
     refreshTranslationAvailability,
+    syncTranslationTargetForLanguage,
     checkCloudflare,
     isCloudflareSolved,
   };

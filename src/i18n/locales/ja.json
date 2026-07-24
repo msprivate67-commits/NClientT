@@ -299,6 +299,7 @@
     "ai_target_lang": "目標言語",
     "ai_thinking": "思考を有効にする",
     "ai_auto_translate": "オンラインギャラリーのタイトルを自動翻訳する",
+    "ai_use_proxy": "AI リクエストに設定済みプロキシを使用する",
     "app_data_dir": "アプリデータディレクトリ：",
     "app_language": "アプリ言語",
     "app_language_hint": "インターフェース言語を選択します。初回起動時にシステム言語を自動検出します。",

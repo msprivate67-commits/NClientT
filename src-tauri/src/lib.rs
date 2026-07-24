@@ -96,6 +96,7 @@ pub fn run() {
             // config / settings
             settings_get,
             settings_set,
+            translation_stream_request,
             settings_get_paths,
             settings_pick_directory,
             settings_list_download_candidates,

@@ -1,3 +1,5 @@
+import { Channel, invoke } from "@tauri-apps/api/core";
+
 export interface TranslationConnectionResult {
   ok: boolean;
   message: string;
@@ -13,12 +15,6 @@ function endpoint(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
 }
 
-function requestHeaders(apiKey: string): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  return headers;
-}
-
 export async function translateTitle(
   baseUrl: string,
   model: string,
@@ -26,6 +22,7 @@ export async function translateTitle(
   title: string,
   targetLang: string,
   thinking: boolean,
+  useProxy: boolean,
   handlers: TranslationStreamHandlers = {},
 ): Promise<string> {
   const body: Record<string, unknown> = {
@@ -42,29 +39,84 @@ export async function translateTitle(
   applyThinkingControl(body, baseUrl, model, thinking);
   if (!thinking) body.temperature = 0.1;
 
-  const response = await fetch(endpoint(baseUrl), {
-    method: "POST",
-    headers: requestHeaders(apiKey),
-    body: JSON.stringify(body),
-    signal: handlers.signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Translation API error (${response.status}): ${await response.text()}`);
-  }
+  const collector = createStreamCollector(handlers);
+  const onChunk = new Channel<number[]>();
+  onChunk.onmessage = (chunk) => {
+    if (!handlers.signal?.aborted) collector.push(new Uint8Array(chunk));
+  };
+  await invokeWithAbort(invoke("translation_stream_request", {
+    url: endpoint(baseUrl),
+    apiKey,
+    body,
+    useProxy,
+    onChunk,
+  }), handlers.signal);
+  return collector.finish();
+}
 
-  const contentType = response.headers.get("Content-Type")?.toLowerCase() ?? "";
-  if (!response.body || contentType.includes("application/json")) {
-    const payload: unknown = await response.json();
-    const message = extractMessage(payload);
-    if (message.reasoning) handlers.onReasoning?.(message.reasoning);
-    if (message.content) handlers.onContent?.(message.content);
-    if (!message.content.trim()) throw new Error("Empty translation response");
-    return message.content.trim();
-  }
+export async function testTranslationConnection(
+  baseUrl: string,
+  model: string,
+  apiKey: string,
+  useProxy: boolean,
+): Promise<TranslationConnectionResult> {
+  if (!baseUrl.trim()) return { ok: false, message: "Base URL is empty" };
+  if (!model.trim()) return { ok: false, message: "Model is empty" };
 
-  const reader = response.body.getReader();
+  try {
+    const body = {
+      model,
+      messages: [{ role: "user", content: "ping" }],
+      max_tokens: 1,
+    };
+    const onChunk = new Channel<number[]>();
+    onChunk.onmessage = () => {};
+    await withTimeout(invoke("translation_stream_request", {
+      url: endpoint(baseUrl),
+      apiKey,
+      body,
+      useProxy,
+      onChunk,
+    }), 10_000);
+    return { ok: true, message: "" };
+  } catch (error: unknown) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function invokeWithAbort<T>(request: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return request;
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  return Promise.race([
+    request,
+    new Promise<T>((_, reject) => {
+      signal.addEventListener(
+        "abort",
+        () => reject(new DOMException("Aborted", "AbortError")),
+        { once: true },
+      );
+    }),
+  ]);
+}
+
+async function withTimeout<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      request,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Timed out")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function createStreamCollector(handlers: TranslationStreamHandlers) {
   const decoder = new TextDecoder();
   let buffer = "";
+  let raw = "";
   let content = "";
 
   const consumeLine = (line: string) => {
@@ -84,58 +136,34 @@ export async function translateTitle(
     }
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
+  const append = (text: string) => {
+    raw += text;
+    buffer += text;
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? "";
     lines.forEach(consumeLine);
-    if (done) break;
-  }
-  if (buffer.trim()) consumeLine(buffer);
+  };
 
-  if (!content.trim()) throw new Error("Empty translation response");
-  return content.trim();
-}
+  return {
+    push(bytes: Uint8Array) {
+      append(decoder.decode(bytes, { stream: true }));
+    },
+    finish(): string {
+      append(decoder.decode());
+      if (buffer.trim()) consumeLine(buffer);
+      if (content.trim()) return content.trim();
 
-export async function testTranslationConnection(
-  baseUrl: string,
-  model: string,
-  apiKey: string,
-): Promise<TranslationConnectionResult> {
-  if (!baseUrl.trim()) return { ok: false, message: "Base URL is empty" };
-  if (!model.trim()) return { ok: false, message: "Model is empty" };
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetch(endpoint(baseUrl), {
-      method: "POST",
-      headers: requestHeaders(apiKey),
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-      }),
-      signal: controller.signal,
-    });
-    if (response.ok) return { ok: true, message: "" };
-
-    let detail = "";
-    try {
-      detail = (await response.text()).slice(0, 200);
-    } catch {
-      // The status code is still useful when the provider closes the body.
-    }
-    return { ok: false, message: `HTTP ${response.status}${detail ? ` — ${detail}` : ""}` };
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return { ok: false, message: "Timed out" };
-    }
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
-  } finally {
-    clearTimeout(timeout);
-  }
+      try {
+        const message = extractMessage(JSON.parse(raw) as unknown);
+        if (message.reasoning) handlers.onReasoning?.(message.reasoning);
+        if (message.content) handlers.onContent?.(message.content);
+        if (message.content.trim()) return message.content.trim();
+      } catch {
+        // The empty-response error below is clearer than a JSON parse error.
+      }
+      throw new Error("Empty translation response");
+    },
+  };
 }
 
 function extractDelta(payload: unknown): { content: string; reasoning: string } {

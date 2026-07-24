@@ -19,7 +19,11 @@ import {
   settingsListDownloadCandidates,
   testTranslationConnection,
 } from "@/api";
-import { useSettingsStore } from "@/stores/settings";
+import {
+  defaultTranslationTarget,
+  isDefaultTranslationTarget,
+  useSettingsStore,
+} from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
 
 const i18n = useI18n();
@@ -46,11 +50,6 @@ const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(sett
 // tweak base URL / model / key and re-test without saving first.
 const tlTesting = ref(false);
 const tlResult = ref<{ ok: boolean; message: string } | null>(null);
-const displayedTlResult = computed(() => tlResult.value ?? (
-  settings.translationAvailable === null
-    ? null
-    : { ok: settings.translationAvailable, message: settings.translationStatusMessage }
-));
 
 async function testAiConnection() {
   tlTesting.value = true;
@@ -60,6 +59,7 @@ async function testAiConnection() {
       draft.value.tl_base_url,
       draft.value.tl_model,
       draft.value.tl_api_key,
+      draft.value.tl_use_proxy,
     );
   } finally {
     tlTesting.value = false;
@@ -142,10 +142,14 @@ async function solveCf() {
 }
 
 async function changeLang(code: AppLanguage) {
+  const useLanguageDefault = isDefaultTranslationTarget(draft.value.tl_target_lang);
   currentLang.value = code;
   setLocale(code);
   i18n.locale.value = code;
-  await settings.save({ app_language: code });
+  const patch = useLanguageDefault
+    ? { app_language: code, tl_target_lang: defaultTranslationTarget(code) }
+    : { app_language: code };
+  await settings.save(patch);
   draft.value = JSON.parse(JSON.stringify(settings.settings));
   langSaved.value = true;
   setTimeout(() => langSaved.value = false, 1500);
@@ -376,22 +380,27 @@ onMounted(async () => {
         </div>
         <div class="field">
           <label>{{ $t('settings.ai_target_lang') }}</label>
-          <input v-model="draft.tl_target_lang" type="text" placeholder="简体中文，尽量用古典章回体小说标题风格" />
+          <input
+            v-model="draft.tl_target_lang"
+            type="text"
+            :placeholder="defaultTranslationTarget(currentLang)"
+          />
         </div>
       </div>
       <div class="checkboxes">
         <label><input type="checkbox" v-model="draft.tl_thinking" /> {{ $t('settings.ai_thinking') }}</label>
         <label><input type="checkbox" v-model="draft.tl_auto_translate" /> {{ $t('settings.ai_auto_translate') }}</label>
+        <label><input type="checkbox" v-model="draft.tl_use_proxy" /> {{ $t('settings.ai_use_proxy') }}</label>
       </div>
       <div class="row" style="margin-top: 10px;">
-        <button class="btn" :disabled="tlTesting || settings.translationChecking" @click="testAiConnection">
-          {{ tlTesting || settings.translationChecking ? $t('settings.ai_testing') : $t('settings.ai_test_connection') }}
+        <button class="btn" :disabled="tlTesting" @click="testAiConnection">
+          {{ tlTesting ? $t('settings.ai_testing') : $t('settings.ai_test_connection') }}
         </button>
-        <strong v-if="displayedTlResult" :class="{ ok: displayedTlResult.ok, warn: !displayedTlResult.ok }">
-          {{ displayedTlResult.ok ? $t('settings.ai_connection_ok') : $t('settings.ai_connection_fail') }}
+        <strong v-if="tlResult" :class="{ ok: tlResult.ok, warn: !tlResult.ok }">
+          {{ tlResult.ok ? $t('settings.ai_connection_ok') : $t('settings.ai_connection_fail') }}
         </strong>
-        <span v-if="displayedTlResult && !displayedTlResult.ok && displayedTlResult.message" class="tl-error" style="margin: 0;">
-          {{ displayedTlResult.message }}
+        <span v-if="tlResult && !tlResult.ok && tlResult.message" class="tl-error" style="margin: 0;">
+          {{ tlResult.message }}
         </span>
       </div>
     </section>

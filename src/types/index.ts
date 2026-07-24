@@ -216,6 +216,7 @@ export interface Settings {
   tl_target_lang: string;
   tl_thinking: boolean;
   tl_auto_translate: boolean;
+  tl_use_proxy: boolean;
 
   app_language: string;
 }

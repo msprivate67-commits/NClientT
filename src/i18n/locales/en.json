@@ -299,6 +299,7 @@
     "ai_target_lang": "Target language",
     "ai_thinking": "Enable thinking",
     "ai_auto_translate": "Automatically translate online gallery titles",
+    "ai_use_proxy": "Use the configured proxy for AI requests",
     "app_data_dir": "App data directory:",
     "app_language": "App Language",
     "app_language_hint": "Select the interface language. The app auto-detects your system language on first launch.",

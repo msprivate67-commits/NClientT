@@ -8,6 +8,7 @@ import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
+import { preloadImage, usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -53,6 +54,25 @@ function thumbSrc(i: number): string {
   ) return "";
   const t = pages.value[i]?.thumbnail;
   return t ? imageProxyUrl(t) : "";
+}
+
+const pagePreloader = usePriorityPreloadQueue(async (index) => {
+  const page = pages.value[index];
+  if (!page) return;
+  const urls = [...new Set([page.thumbnail, page.path].filter((url): url is string => !!url))];
+  await Promise.all(urls.map((url) => preloadImage(imageProxyUrl(url))));
+}, 2);
+
+function prioritizeReaderPages(index: number) {
+  pagePreloader.enqueue([index - 1, index, index + 1, index + 2], true);
+}
+
+function continuePreloadingFrom(index: number) {
+  prioritizeReaderPages(index);
+  pagePreloader.enqueue(Array.from(
+    { length: Math.max(0, total.value - index) },
+    (_, offset) => index + offset,
+  ));
 }
 
 function pageWrapStyle(i: number): Record<string, string> {
@@ -180,6 +200,7 @@ function onKey(e: KeyboardEvent) {
 }
 
 async function load() {
+  pagePreloader.reset();
   if (!gallery.current || gallery.current.id !== id.value) {
     await gallery.load(id.value);
   }
@@ -200,6 +221,7 @@ async function load() {
       scrollRef.value.scrollLeft = 0;
     }
   }
+  continuePreloadingFrom(currentPage.value - 1);
   if (props.overlay) overlay.readerPage = null;
 }
 
@@ -213,6 +235,7 @@ onUnmounted(() => {
   reportProgress();
 });
 watch(id, load);
+watch(currentPage, (page) => prioritizeReaderPages(page - 1));
 watch(fitMode, () => {
   nextTick(() => {
     if (scrollRef.value && currentPage.value > 1) {

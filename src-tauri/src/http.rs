@@ -123,6 +123,34 @@ impl HttpClient {
         builder
     }
 
+    /// Build a request for an external service that can explicitly opt in to
+    /// the application's configured proxy. Direct requests use `no_proxy()`
+    /// so environment or OS proxy settings cannot silently override the AI
+    /// preference.
+    pub fn external_request(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        use_proxy: bool,
+        settings: &crate::config::Settings,
+    ) -> AppResult<reqwest::RequestBuilder> {
+        if use_proxy {
+            let client = self.inner.read().unwrap().clone();
+            return Ok(client.request(method, url));
+        }
+
+        let client = ClientBuilder::new()
+            .no_proxy()
+            .user_agent(effective_ua(&settings.user_agent))
+            .timeout(Duration::from_secs(settings.request_timeout_secs))
+            .connect_timeout(Duration::from_secs(20))
+            .gzip(true)
+            .brotli(true)
+            .deflate(true)
+            .build()?;
+        Ok(client.request(method, url))
+    }
+
     /// Convenience GET that returns the body as text. Returns
     /// [`AppError::Cloudflare`] when a CF interstitial is detected.
     pub async fn get_text(

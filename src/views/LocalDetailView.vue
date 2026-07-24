@@ -83,6 +83,7 @@ async function doTranslate() {
     const result = await translateTitle(
       s.tl_base_url, s.tl_model, s.tl_api_key,
       title.value, s.tl_target_lang, s.tl_thinking,
+      s.tl_use_proxy,
       {
         signal: controller.signal,
         onContent: (chunk) => {
@@ -354,7 +355,7 @@ onUnmounted(() => translationController?.abort());
 }
 .reasoning-text {
   margin-top: 4px;
-  height: calc(2 * 1.45em);
+  height: calc(3 * 1.45em);
   padding: 6px 8px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);

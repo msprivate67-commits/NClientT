@@ -30,6 +30,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
+import { preloadImage, usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -88,6 +89,7 @@ async function doTranslate() {
     const result = await translateTitle(
       s.tl_base_url, s.tl_model, s.tl_api_key,
       title.value, s.tl_target_lang, s.tl_thinking,
+      s.tl_use_proxy,
       {
         signal: controller.signal,
         onContent: (chunk) => {
@@ -172,24 +174,24 @@ async function load() {
 
 const loadedThumbs = ref(new Set<number>());
 let thumbObserver: IntersectionObserver | null = null;
-const preloadedFullImages = new Map<number, HTMLImageElement>();
-
-function preloadFullImage(index: number) {
-  if (preloadedFullImages.has(index)) return;
+const pagePreloader = usePriorityPreloadQueue(async (index) => {
   const page = g.value?.pages[index];
-  if (!page?.path || page.path === page.thumbnail) return;
-
-  const image = new Image();
-  image.decoding = "async";
-  image.src = imageProxyUrl(page.path);
-  preloadedFullImages.set(index, image);
-}
+  if (!page) return;
+  const thumbnailUrl = page.thumbnail ? imageProxyUrl(page.thumbnail) : "";
+  const fullImageUrl = page.path ? imageProxyUrl(page.path) : "";
+  await Promise.all([
+    thumbnailUrl ? preloadImage(thumbnailUrl) : Promise.resolve(),
+    fullImageUrl && fullImageUrl !== thumbnailUrl
+      ? preloadImage(fullImageUrl)
+      : Promise.resolve(),
+  ]);
+}, 2);
 
 function setupThumbObserver() {
   thumbObserver?.disconnect();
   thumbObserver = null;
   loadedThumbs.value = new Set<number>();
-  preloadedFullImages.clear();
+  pagePreloader.reset();
   void nextTick(() => {
     const root = viewRef.value;
     if (!root) return;
@@ -202,7 +204,7 @@ function setupThumbObserver() {
           const index = Number((entry.target as HTMLElement).dataset.pageIndex);
           if (!Number.isInteger(index) || next.has(index)) continue;
           next.add(index);
-          preloadFullImage(index);
+          pagePreloader.enqueue([index], true);
           changed = true;
           thumbObserver?.unobserve(entry.target);
         }
@@ -210,9 +212,23 @@ function setupThumbObserver() {
       },
       { root, rootMargin: "600px 0px", threshold: 0.01 },
     );
-    root.querySelectorAll<HTMLElement>(".thumb-item").forEach((element) => {
+    const elements = [...root.querySelectorAll<HTMLElement>(".thumb-item")];
+    elements.forEach((element) => {
       thumbObserver?.observe(element);
     });
+    const rootRect = root.getBoundingClientRect();
+    const nearby = elements
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.bottom >= rootRect.top - 600 && rect.top <= rootRect.bottom + 600;
+      })
+      .map((element) => Number(element.dataset.pageIndex));
+    pagePreloader.enqueue(nearby, true);
+    const startIndex = nearby.length > 0 ? Math.min(...nearby) : 0;
+    pagePreloader.enqueue(Array.from(
+      { length: Math.max(0, (g.value?.pages.length ?? 0) - startIndex) },
+      (_, offset) => startIndex + offset,
+    ));
   });
 }
 
@@ -443,7 +459,7 @@ async function onTagClick(t: any) {
               v-if="loadedThumbs.has(i) && (page.thumbnail || page.path)"
               :src="imageProxyUrl(page.thumbnail || page.path || '')"
               :alt="$t('common.page_n', { n: i + 1 })"
-              loading="lazy"
+              loading="eager"
               decoding="async"
               class="thumb-img"
               @load="($event.target as HTMLImageElement).classList.add('loaded')"
@@ -673,7 +689,7 @@ async function onTagClick(t: any) {
 }
 .reasoning-text {
   margin-top: 4px;
-  height: calc(2 * 1.45em);
+  height: calc(3 * 1.45em);
   padding: 6px 8px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);

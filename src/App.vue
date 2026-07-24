@@ -94,8 +94,13 @@ onMounted(async () => {
       const detected = await detectPlatformLanguage();
       i18n.locale.value = detected;
       setLocale(detected);
-      settings.save({ app_language: detected });
+      await settings.save({ app_language: detected });
     }
+
+    // Keep untouched translation defaults aligned with the UI language, then
+    // run exactly one silent AI availability probe for this app launch.
+    await settings.syncTranslationTargetForLanguage(i18n.locale.value);
+    void settings.refreshTranslationAvailability();
 
     await Promise.allSettled([
       downloads.init(),

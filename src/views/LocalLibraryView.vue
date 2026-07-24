@@ -105,6 +105,7 @@ async function translateAll() {
         const result = await translateTitle(
           s.tl_base_url, s.tl_model, s.tl_api_key,
           original, s.tl_target_lang, s.tl_thinking,
+          s.tl_use_proxy,
         );
         await localSetTranslatedTitle(l.id, result);
         // Update the in-memory item so the card re-renders with the new title.
