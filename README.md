@@ -1,5 +1,7 @@
 # NClientT
 
+[English](README.md) | [简体中文](README_zh.md)
+
 [![Release](https://img.shields.io/github/v/release/msprivate67-commits/NClientT?color=green)](https://github.com/msprivate67-commits/NClientT/releases/latest)
 [![License](https://img.shields.io/github/license/msprivate67-commits/NClientT?color=blue)](LICENSE)
 
@@ -10,7 +12,7 @@
 ### Supported Platforms
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Android-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android" />
+  <img src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 7.0+" />
   <img src="https://img.shields.io/badge/Windows-10%2B-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/macOS-12%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/Linux-x86__64-FCC624?style=flat-square&logo=linux&logoColor=black" alt="Linux" />
@@ -132,6 +134,35 @@ Use `npm run icon` only when regenerating application icons.
 | 🐧 **Linux** | `webkit2gtk`, `libssl-dev`, `librsvg2`, etc. (see [Tauri docs](https://tauri.app/start/prerequisites/)) |
 
 First build compiles all Rust crates (5–15 minutes); subsequent builds are fast.
+
+### Building for legacy Android devices
+
+Official Android releases target modern 64-bit ARM devices (`arm64-v8a`). For
+older 32-bit ARM phones and tablets, build the `armeabi-v7a` APK locally. The
+legacy build still requires Android 7.0 or newer because the project's minimum
+SDK is API 24.
+
+Install the Android prerequisites from the
+[Tauri documentation](https://tauri.app/start/prerequisites/), set
+`ANDROID_HOME` (and your NDK environment variable), then run:
+
+```bash
+npm ci
+npm run android:build:legacy
+```
+
+The script installs the Rust armv7 target when needed, builds a release APK,
+signs it with `src-tauri/nclientt.keystore` when available, verifies the
+signature, and writes the result to:
+
+```text
+artifacts/NClientT-<version>-android-armeabi-v7a.apk
+```
+
+To use another signing key, set `ANDROID_KEYSTORE_PATH`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and optionally
+`ANDROID_KEY_PASSWORD` before running the command. If no signing tools or
+keystore are available, the script keeps an `-unsigned.apk` artifact instead.
 
 ## 📂 Project Structure
 
