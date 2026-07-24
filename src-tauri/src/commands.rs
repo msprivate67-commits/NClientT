@@ -174,7 +174,8 @@ pub async fn cloudflare_check(state: State<'_, AppState>) -> AppResult<bool> {
 #[tauri::command]
 pub fn cloudflare_open_challenge(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
     let base = state.config.base_url();
-    cloudflare::open_challenge(&app, state.http.clone(), base)
+    let settings = state.config.get();
+    cloudflare::open_challenge(&app, state.http.clone(), base, &settings)
 }
 
 #[tauri::command]

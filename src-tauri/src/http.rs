@@ -346,6 +346,33 @@ fn build_proxy(settings: &crate::config::Settings) -> Option<reqwest::Proxy> {
     }
 }
 
+/// Proxy URL suitable for a Tauri WebView. Unlike reqwest, WebViews do not
+/// automatically inherit the application's explicit proxy setting.
+pub fn webview_proxy_url(settings: &crate::config::Settings) -> Option<url::Url> {
+    use crate::config::ProxyType;
+
+    let scheme = match settings.proxy_type {
+        ProxyType::Http => "http",
+        ProxyType::Socks5 => "socks5",
+        ProxyType::None => return None,
+    };
+    let host = settings.proxy_host.trim();
+    if host.is_empty() {
+        return None;
+    }
+
+    let mut url =
+        url::Url::parse(&format!("{}://{}:{}", scheme, host, settings.proxy_port)).ok()?;
+    let username = settings.proxy_username.trim();
+    if !username.is_empty() {
+        url.set_username(username).ok()?;
+        if !settings.proxy_password.is_empty() {
+            url.set_password(Some(&settings.proxy_password)).ok()?;
+        }
+    }
+    Some(url)
+}
+
 /// Detect an OS-level proxy when the user has not configured one in Settings.
 ///
 /// reqwest only honours the `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` env

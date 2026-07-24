@@ -36,6 +36,8 @@ const failedPages = ref(new Set<number>());
 const retries = ref(new Map<number, number>());
 
 function pageSrc(i: number): string {
+  const currentIndex = currentPage.value - 1;
+  if (i < currentIndex - FULL_IMAGE_PREVIOUS || i > currentIndex) return "";
   const url = imageProxyUrl(pages.value[i]?.path ?? "");
   const r = retries.value.get(i);
   if (r && r > 0 && url) {
@@ -46,8 +48,25 @@ function pageSrc(i: number): string {
 }
 
 function thumbSrc(i: number): string {
+  const currentIndex = currentPage.value - 1;
+  if (
+    i < currentIndex - THUMBNAIL_PREVIOUS
+    || i > currentIndex + THUMBNAIL_NEXT
+  ) return "";
   const t = pages.value[i]?.thumbnail;
   return t ? imageProxyUrl(t) : "";
+}
+
+function pageWrapStyle(i: number): Record<string, string> {
+  const page = pages.value[i];
+  if (!page?.width || !page.height) return {};
+  if (fitMode.value === "width") {
+    return { aspectRatio: `${page.width} / ${page.height}` };
+  }
+  if (fitMode.value === "original") {
+    return { width: `${page.width}px`, height: `${page.height}px` };
+  }
+  return {};
 }
 
 function onImageError(i: number) {
@@ -65,46 +84,9 @@ function reloadPage(i: number) {
   retries.value = m;
 }
 
-const preloaded = new Set<number>();
-const preloadedFull = new Set<number>();
-const PRELOAD_BUF = 3;
-
-function preloadNearby() {
-  const cp = currentPage.value - 1;
-  // Phase 1: preload thumbnails first (fast, gives instant preview)
-  for (let i = 0; i < total.value; i++) {
-    if (!preloaded.has(i)) {
-      preloaded.add(i);
-      const t = pages.value[i]?.thumbnail;
-      if (t) {
-        const img = new Image();
-        img.src = imageProxyUrl(t);
-      }
-    }
-  }
-  // Phase 2: preload full images around current page with priority
-  const priorities: number[] = [];
-  // Current page first, then expand outward
-  for (let d = 0; d <= PRELOAD_BUF + 2; d++) {
-    const a = cp - d;
-    const b = cp + d;
-    if (d === 0 && a >= 0 && a < total.value) priorities.push(a);
-    else {
-      if (a >= 0 && a < total.value) priorities.push(a);
-      if (b >= 0 && b < total.value && b !== a) priorities.push(b);
-    }
-  }
-  for (const i of priorities) {
-    if (preloadedFull.has(i)) continue;
-    preloadedFull.add(i);
-    const p = pages.value[i]?.path;
-    if (p) {
-      const img = new Image();
-      img.src = imageProxyUrl(p);
-      img.onerror = () => preloadedFull.delete(i);
-    }
-  }
-}
+const FULL_IMAGE_PREVIOUS = 1;
+const THUMBNAIL_PREVIOUS = 3;
+const THUMBNAIL_NEXT = 4;
 
 function computeCurrentPage() {
   if (!scrollRef.value || !total.value) return;
@@ -136,7 +118,6 @@ function onScroll() {
   if (scrollTimer) clearTimeout(scrollTimer);
   scrollTimer = setTimeout(() => {
     computeCurrentPage();
-    preloadNearby();
     reportProgress();
   }, 150);
 }
@@ -208,8 +189,6 @@ async function load() {
   const start = props.overlay
     ? overlay.readerPage
     : Number(route.query.page) || null;
-  preloaded.clear();
-  preloadedFull.clear();
   failedPages.value.clear();
   retries.value.clear();
   reportedMax = 0;
@@ -224,7 +203,6 @@ async function load() {
       scrollRef.value.scrollLeft = 0;
     }
   }
-  preloadNearby();
   if (props.overlay) overlay.readerPage = null;
 }
 
@@ -297,6 +275,7 @@ watch(scrollMode, () => {
         v-for="(_p, i) in pages"
         :key="i"
         class="page-wrap"
+        :style="pageWrapStyle(i)"
       >
         <img
           v-if="thumbSrc(i)"
@@ -308,6 +287,7 @@ watch(scrollMode, () => {
           :style="pages[i]?.width && pages[i]?.height ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` } : {}"
         />
         <img
+          v-if="pageSrc(i)"
           :src="pageSrc(i)"
           :alt="$t('common.page_n', { n: i + 1 })"
           :loading="Math.abs(i - (currentPage - 1)) <= 1 ? 'eager' : 'lazy'"
@@ -330,7 +310,7 @@ watch(scrollMode, () => {
         type="range"
         min="1"
         :max="Math.max(1, total)"
-        v-model.number="currentPage"
+        v-model.number.lazy="currentPage"
         @change="scrollToPage(currentPage - 1, false)"
       />
       <button class="btn" @click="next">{{ $t('reader.next') }} <ChevronRight :size="16" /></button>

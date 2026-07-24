@@ -1,6 +1,6 @@
 [package]
 name = "nclientt"
-version = "0.1.4"
+version = "0.1.5"
 description = "Unofficial cross-platform nhentai desktop client (Tauri 2 rewrite of NClientV3)"
 authors = ["NClientT"]
 license = "Apache-2.0"

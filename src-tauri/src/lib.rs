@@ -21,6 +21,7 @@ pub mod downloader;
 pub mod error;
 pub mod export;
 pub mod http;
+pub mod image_protocol;
 pub mod models;
 pub mod notifications;
 pub mod privacy;
@@ -52,6 +53,7 @@ pub fn run() {
         .ok();
 
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol(image_protocol::SCHEME, image_protocol::handle)
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

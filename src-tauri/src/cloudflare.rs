@@ -17,6 +17,7 @@ use parking_lot::Mutex;
 use tauri::{AppHandle, Emitter, Listener, Manager, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::oneshot;
 
+use crate::config::Settings;
 use crate::error::{AppError, AppResult};
 use crate::http::HttpClient;
 use crate::models::CfState;
@@ -43,7 +44,12 @@ pub fn is_solved() -> bool {
 
 /// Open (or focus) the CF challenge window. Mirrors
 /// `CookieInterceptor#interceptInternal()` which calls `loadUrl(baseUrl)`.
-pub fn open_challenge(app: &AppHandle, http: Arc<HttpClient>, base_url: String) -> AppResult<()> {
+pub fn open_challenge(
+    app: &AppHandle,
+    http: Arc<HttpClient>,
+    base_url: String,
+    settings: &Settings,
+) -> AppResult<()> {
     set_state(CfState::Pending);
     // Reuse existing window if present.
     if let Some(existing) = app.get_webview_window(CF_WINDOW_LABEL) {
@@ -54,7 +60,7 @@ pub fn open_challenge(app: &AppHandle, http: Arc<HttpClient>, base_url: String) 
     let (tx, rx) = oneshot::channel::<()>();
     let tx = Arc::new(Mutex::new(Some(tx)));
 
-    let window = WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         app,
         CF_WINDOW_LABEL,
         tauri::WebviewUrl::External(
@@ -66,9 +72,13 @@ pub fn open_challenge(app: &AppHandle, http: Arc<HttpClient>, base_url: String) 
     .title("Cloudflare verification — solve then close")
     .inner_size(520.0, 700.0)
     .resizable(true)
-    .initialization_script(&probe_script())
-    .build()
-    .map_err(|e| AppError::Other(e.to_string()))?;
+    .initialization_script(&probe_script());
+    if let Some(proxy) = crate::http::webview_proxy_url(settings) {
+        builder = builder.proxy_url(proxy);
+    }
+    let window = builder
+        .build()
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     let tx_clone = tx.clone();
     let app_handle = app.clone();

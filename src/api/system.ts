@@ -16,7 +16,7 @@ export const androidPrivacySet = (enabled: boolean): Promise<void> =>
 
 export function imageProxyUrl(url: string): string {
   if (!url) return "";
-  return url.startsWith("http") ? url : convertFileSrc(url);
+  return convertFileSrc(url, "nclient-image");
 }
 
 export interface LatestRelease {

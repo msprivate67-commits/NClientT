@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
@@ -122,7 +122,7 @@ async function load() {
   loading.value = true;
   try {
     await gallery.load(id.value);
-    startPreload();
+    setupThumbObserver();
   } catch (e: any) {
     error.value = String(e?.message ?? e);
   } finally {
@@ -130,31 +130,36 @@ async function load() {
   }
 }
 
-let preloadCancel: (() => void) | null = null;
+const loadedThumbs = ref(new Set<number>());
+let thumbObserver: IntersectionObserver | null = null;
 
-function startPreload() {
-  preloadCancel?.();
-  if (!g.value?.pages?.length) return;
-  const pagePaths = g.value.pages.map((p) => p.path).filter(Boolean) as string[];
-  if (!pagePaths.length) return;
-  let cancelled = false;
-  preloadCancel = () => { cancelled = true; };
-  let i = 0;
-  const CONCURRENCY = 3;
-  const next = () => {
-    if (cancelled || i >= pagePaths.length) return;
-    const batch = pagePaths.slice(i, i + CONCURRENCY);
-    i += CONCURRENCY;
-    for (const path of batch) {
-      const img = new Image();
-      img.src = imageProxyUrl(path);
-      img.onload = img.onerror = () => {};
-    }
-    if (!cancelled && i < pagePaths.length) {
-      setTimeout(next, 200);
-    }
-  };
-  setTimeout(next, 500);
+function setupThumbObserver() {
+  thumbObserver?.disconnect();
+  thumbObserver = null;
+  loadedThumbs.value = new Set<number>();
+  void nextTick(() => {
+    const root = viewRef.value;
+    if (!root) return;
+    thumbObserver = new IntersectionObserver(
+      (entries) => {
+        const next = new Set(loadedThumbs.value);
+        let changed = false;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const index = Number((entry.target as HTMLElement).dataset.pageIndex);
+          if (!Number.isInteger(index) || next.has(index)) continue;
+          next.add(index);
+          changed = true;
+          thumbObserver?.unobserve(entry.target);
+        }
+        if (changed) loadedThumbs.value = next;
+      },
+      { root, rootMargin: "600px 0px", threshold: 0.01 },
+    );
+    root.querySelectorAll<HTMLElement>(".thumb-item").forEach((element) => {
+      thumbObserver?.observe(element);
+    });
+  });
 }
 
 async function toggleFavorite() {
@@ -212,7 +217,7 @@ function goToSettings() {
 
 onMounted(load);
 watch(id, load);
-onUnmounted(() => preloadCancel?.());
+onUnmounted(() => thumbObserver?.disconnect());
 
 async function toggleComments() {
   commentsOpen.value = !commentsOpen.value;
@@ -348,10 +353,11 @@ async function onTagClick(t: any) {
             v-for="(page, i) in g.pages"
             :key="i"
             class="thumb-item"
+            :data-page-index="i"
             @click="readPage(i + 1)"
           >
             <img
-              v-if="page.thumbnail || page.path"
+              v-if="loadedThumbs.has(i) && (page.thumbnail || page.path)"
               :src="imageProxyUrl(page.thumbnail || page.path || '')"
               :alt="$t('common.page_n', { n: i + 1 })"
               loading="lazy"
