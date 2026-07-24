@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Check, Download, Loader, Star } from "@lucide/vue";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import { imageProxyUrl } from "@/api";
+import { useLazyVisible } from "@/composables/useLazyVisible";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
@@ -35,6 +36,8 @@ const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
 const downloaded = useDownloadedStore();
 const downloads = useDownloadsStore();
+const cardRef = ref<HTMLElement | null>(null);
+const coverVisible = useLazyVisible(cardRef);
 
 const thumb = computed(
   () => props.thumbnailOverride ?? props.gallery.thumbnail ?? "",
@@ -45,8 +48,7 @@ const displayTitle = computed(
   () => props.displayTitle ?? props.gallery.title,
 );
 const src = computed(() => {
-  if (!thumb.value) return "";
-  if (thumb.value.startsWith("http")) return thumb.value;
+  if (!coverVisible.value || !thumb.value) return "";
   return imageProxyUrl(thumb.value);
 });
 
@@ -114,10 +116,10 @@ async function toggleFav(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="card" :class="{ selected, selectable }" @click="open">
+  <div ref="cardRef" class="card" :class="{ selected, selectable }" @click="open">
     <div class="thumb">
       <img v-if="src" :src="src" loading="lazy" :alt="gallery.title" />
-      <div v-else class="placeholder">{{ $t('common.no_cover') }}</div>
+      <div v-else-if="coverVisible && !thumb" class="placeholder">{{ $t('common.no_cover') }}</div>
       <div v-if="selectable" class="select-check" :class="{ checked: selected }" @click.stop="handleSelect">
         <span v-if="selected"><Check :size="14" /></span>
       </div>
