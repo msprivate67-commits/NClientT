@@ -36,8 +36,6 @@ const failedPages = ref(new Set<number>());
 const retries = ref(new Map<number, number>());
 
 function pageSrc(i: number): string {
-  const currentIndex = currentPage.value - 1;
-  if (i < currentIndex - FULL_IMAGE_PREVIOUS || i > currentIndex) return "";
   const url = imageProxyUrl(pages.value[i]?.path ?? "");
   const r = retries.value.get(i);
   if (r && r > 0 && url) {
@@ -84,7 +82,6 @@ function reloadPage(i: number) {
   retries.value = m;
 }
 
-const FULL_IMAGE_PREVIOUS = 1;
 const THUMBNAIL_PREVIOUS = 3;
 const THUMBNAIL_NEXT = 4;
 
