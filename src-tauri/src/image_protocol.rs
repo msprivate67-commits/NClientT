@@ -14,7 +14,7 @@ use tokio::sync::Semaphore;
 use crate::AppState;
 
 pub const SCHEME: &str = "nclient-image";
-const MAX_REMOTE_IMAGE_REQUESTS: usize = 3;
+const MAX_REMOTE_IMAGE_REQUESTS: usize = 10;
 static REMOTE_IMAGE_LIMIT: Semaphore = Semaphore::const_new(MAX_REMOTE_IMAGE_REQUESTS);
 
 pub fn handle(
