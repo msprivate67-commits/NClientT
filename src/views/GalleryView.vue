@@ -132,11 +132,24 @@ async function load() {
 
 const loadedThumbs = ref(new Set<number>());
 let thumbObserver: IntersectionObserver | null = null;
+const preloadedFullImages = new Map<number, HTMLImageElement>();
+
+function preloadFullImage(index: number) {
+  if (preloadedFullImages.has(index)) return;
+  const page = g.value?.pages[index];
+  if (!page?.path || page.path === page.thumbnail) return;
+
+  const image = new Image();
+  image.decoding = "async";
+  image.src = imageProxyUrl(page.path);
+  preloadedFullImages.set(index, image);
+}
 
 function setupThumbObserver() {
   thumbObserver?.disconnect();
   thumbObserver = null;
   loadedThumbs.value = new Set<number>();
+  preloadedFullImages.clear();
   void nextTick(() => {
     const root = viewRef.value;
     if (!root) return;
@@ -149,6 +162,7 @@ function setupThumbObserver() {
           const index = Number((entry.target as HTMLElement).dataset.pageIndex);
           if (!Number.isInteger(index) || next.has(index)) continue;
           next.add(index);
+          preloadFullImage(index);
           changed = true;
           thumbObserver?.unobserve(entry.target);
         }
