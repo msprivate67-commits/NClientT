@@ -266,13 +266,15 @@ nav {
   z-index: 1200;
   transform: translateX(-100%);
   transition: transform 0.22s ease;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
 }
 .sidebar.is-mobile.is-open {
   transform: translateX(0);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 .sidebar.is-mobile.is-dragging {
   transition: none;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 .version-row {
   padding: 6px 12px 12px 12px;
