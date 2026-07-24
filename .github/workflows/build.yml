@@ -126,7 +126,7 @@ jobs:
           if-no-files-found: error
 
   build-linux:
-    name: Build (Linux executable)
+    name: Build (Linux executable + deb)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -158,14 +158,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Build portable Linux executable
-        run: npx tauri build --no-bundle
+      - name: Build portable Linux executable and DEB package
+        run: npx tauri build --bundles deb
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v7
         with:
           name: NClientT-linux
-          path: src-tauri/target/release/nclientt-bin
+          path: |
+            src-tauri/target/release/nclientt-bin
+            src-tauri/target/release/bundle/deb/**/*.deb
           retention-days: 2
           if-no-files-found: error
 
@@ -203,6 +205,10 @@ jobs:
           cp "$linux_bin" "release/NClientT-${SHORT_SHA}-linux-x86_64"
           chmod +x "release/NClientT-${SHORT_SHA}-linux-x86_64"
 
+          linux_deb=$(find artifacts/NClientT-linux -type f -name "*.deb" | head -n1 || true)
+          [ -n "$linux_deb" ] || { echo "ERROR: no Linux DEB package found"; exit 1; }
+          cp "$linux_deb" "release/NClientT-${SHORT_SHA}-linux-amd64.deb"
+
           android_apk=$(find artifacts/NClientT-android -type f -name "*.apk" | head -n1 || true)
           [ -n "$android_apk" ] || { echo "ERROR: no Android arm64-v8a APK found"; exit 1; }
           cp "$android_apk" "release/NClientT-${SHORT_SHA}-android-arm64-v8a.apk"
@@ -239,7 +245,7 @@ jobs:
           ## Downloads
           - Android: arm64-v8a APK
           - Windows: portable executable and MSI installer
-          - Linux: portable x86_64 executable
+          - Linux: portable x86_64 executable and amd64 DEB package
           EOF
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
