@@ -114,7 +114,8 @@
     "show_comments": "Show comments",
     "no_comments": "No comments.",
     "translate_error_hint": "Translation failed — check the AI settings.",
-    "go_to_ai_settings": "Go to AI settings"
+    "go_to_ai_settings": "Go to AI settings",
+    "reasoning": "Reasoning"
   },
   "reader": {
     "close": "Close",
@@ -142,7 +143,8 @@
     "translate": "Translate",
     "load_error": "Failed to load local gallery.",
     "translate_error_hint": "Translation failed — check the AI settings.",
-    "go_to_ai_settings": "Go to AI settings"
+    "go_to_ai_settings": "Go to AI settings",
+    "reasoning": "Reasoning"
   },
   "favorites": {
     "title": "Favorites",
@@ -296,6 +298,7 @@
     "ai_api_key": "API Key",
     "ai_target_lang": "Target language",
     "ai_thinking": "Enable thinking",
+    "ai_auto_translate": "Automatically translate online gallery titles",
     "app_data_dir": "App data directory:",
     "app_language": "App Language",
     "app_language_hint": "Select the interface language. The app auto-detects your system language on first launch.",

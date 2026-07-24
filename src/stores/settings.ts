@@ -7,6 +7,7 @@ import {
   cloudflareIsSolved,
   settingsGet,
   settingsSet,
+  testTranslationConnection,
   type AuthStatus,
 } from "@/api";
 import type { Settings } from "@/types";
@@ -51,6 +52,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_api_key: "",
   tl_target_lang: "简体中文，尽量用古典章回体小说标题风格",
   tl_thinking: false,
+  tl_auto_translate: true,
   app_language: "",
 };
 
@@ -63,6 +65,10 @@ export const useSettingsStore = defineStore("settings", () => {
     cloudflare_solved: false,
   });
   const cloudflareNeeded = ref(false);
+  const translationAvailable = ref<boolean | null>(null);
+  const translationStatusMessage = ref("");
+  const translationChecking = ref(false);
+  let translationCheckId = 0;
 
   const mirror = computed(() => settings.value.mirror);
   const baseUrl = computed(() => `https://${settings.value.mirror}/`);
@@ -75,14 +81,48 @@ export const useSettingsStore = defineStore("settings", () => {
       settings.value.download_dir = "";
     }
     loaded.value = true;
+    // Start the once-per-launch AI probe without delaying the rest of app
+    // initialization. GalleryView watches the status and can react when ready.
+    void refreshTranslationAvailability();
     await refreshAuth();
     return settings.value;
   }
 
   async function save(patch: Partial<Settings>) {
+    const translationSettingsChanged = [
+      "tl_base_url",
+      "tl_model",
+      "tl_api_key",
+      "tl_target_lang",
+      "tl_thinking",
+      "tl_auto_translate",
+    ]
+      .some((key) => key in patch && patch[key as keyof Settings] !== settings.value[key as keyof Settings]);
     const next = { ...settings.value, ...patch };
     settings.value = await settingsSet(next);
+    if (translationSettingsChanged) await refreshTranslationAvailability();
     return settings.value;
+  }
+
+  async function refreshTranslationAvailability() {
+    const checkId = ++translationCheckId;
+    translationChecking.value = true;
+    translationAvailable.value = null;
+    translationStatusMessage.value = "";
+    try {
+      const result = await testTranslationConnection(
+        settings.value.tl_base_url,
+        settings.value.tl_model,
+        settings.value.tl_api_key,
+      );
+      if (checkId === translationCheckId) {
+        translationAvailable.value = result.ok;
+        translationStatusMessage.value = result.message;
+      }
+      return result;
+    } finally {
+      if (checkId === translationCheckId) translationChecking.value = false;
+    }
   }
 
   async function refreshAuth() {
@@ -109,11 +149,15 @@ export const useSettingsStore = defineStore("settings", () => {
     loaded,
     auth,
     cloudflareNeeded,
+    translationAvailable,
+    translationStatusMessage,
+    translationChecking,
     mirror,
     baseUrl,
     load,
     save,
     refreshAuth,
+    refreshTranslationAvailability,
     checkCloudflare,
     isCloudflareSolved,
   };

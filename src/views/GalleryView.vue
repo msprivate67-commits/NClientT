@@ -64,23 +64,62 @@ useScrollCache(viewRef);
 
 const translating = ref(false);
 const translatedTitle = ref("");
+const reasoningText = ref("");
+const reasoningExpanded = ref(false);
+const reasoningRef = ref<HTMLElement | null>(null);
 const translateError = ref("");
+let translationController: AbortController | null = null;
+let translationRequestId = 0;
+let autoTranslatedGalleryId: number | null = null;
 
 async function doTranslate() {
   if (!g.value) return;
+  translationController?.abort();
+  const controller = new AbortController();
+  translationController = controller;
+  const requestId = ++translationRequestId;
   translating.value = true;
+  translatedTitle.value = "";
+  reasoningText.value = "";
+  reasoningExpanded.value = true;
   translateError.value = "";
   const s = settings.settings;
   try {
-    translatedTitle.value = await translateTitle(
+    const result = await translateTitle(
       s.tl_base_url, s.tl_model, s.tl_api_key,
       title.value, s.tl_target_lang, s.tl_thinking,
+      {
+        signal: controller.signal,
+        onContent: (chunk) => {
+          if (requestId === translationRequestId) translatedTitle.value += chunk;
+        },
+        onReasoning: (chunk) => {
+          if (requestId === translationRequestId) reasoningText.value += chunk;
+        },
+      },
     );
-  } catch (e: any) {
-    translateError.value = String(e?.message ?? e);
+    if (requestId === translationRequestId) translatedTitle.value = result;
+  } catch (e: unknown) {
+    if (controller.signal.aborted || requestId !== translationRequestId) return;
+    translateError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    translating.value = false;
+    if (requestId === translationRequestId) {
+      translating.value = false;
+      translationController = null;
+      if (reasoningText.value) reasoningExpanded.value = false;
+    }
   }
+}
+
+function maybeAutoTranslate() {
+  if (
+    !g.value
+    || !settings.settings.tl_auto_translate
+    || settings.translationAvailable !== true
+    || autoTranslatedGalleryId === g.value.id
+  ) return;
+  autoTranslatedGalleryId = g.value.id;
+  void doTranslate();
 }
 
 const g = computed(() => gallery.current);
@@ -123,6 +162,7 @@ async function load() {
   try {
     await gallery.load(id.value);
     setupThumbObserver();
+    maybeAutoTranslate();
   } catch (e: any) {
     error.value = String(e?.message ?? e);
   } finally {
@@ -230,8 +270,29 @@ function goToSettings() {
 }
 
 onMounted(load);
-watch(id, load);
-onUnmounted(() => thumbObserver?.disconnect());
+watch(id, () => {
+  translationController?.abort();
+  translationRequestId++;
+  translating.value = false;
+  translatedTitle.value = "";
+  reasoningText.value = "";
+  translateError.value = "";
+  autoTranslatedGalleryId = null;
+  void load();
+});
+watch(
+  [() => settings.translationAvailable, () => settings.settings.tl_auto_translate],
+  maybeAutoTranslate,
+);
+watch(reasoningText, async () => {
+  if (!reasoningExpanded.value) return;
+  await nextTick();
+  if (reasoningRef.value) reasoningRef.value.scrollTop = reasoningRef.value.scrollHeight;
+});
+onUnmounted(() => {
+  thumbObserver?.disconnect();
+  translationController?.abort();
+});
 
 async function toggleComments() {
   commentsOpen.value = !commentsOpen.value;
@@ -272,6 +333,14 @@ async function onTagClick(t: any) {
       </div>
       <div class="info">
         <h1 class="title">{{ title }}</h1>
+        <div v-if="reasoningText" class="reasoning-block">
+          <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
+            <ChevronUp v-if="reasoningExpanded" :size="13" />
+            <ChevronDown v-else :size="13" />
+            {{ $t('gallery.reasoning') }}
+          </button>
+          <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+        </div>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
         <div v-if="translateError" class="tl-error-hint">
@@ -583,9 +652,38 @@ async function onTagClick(t: any) {
   color: var(--accent);
   font-size: 1.05rem;
   font-weight: 500;
-  font-style: italic;
+  font-style: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.reasoning-block {
+  width: 100%;
+  min-width: 0;
+}
+.reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.reasoning-text {
+  margin-top: 4px;
+  height: calc(2 * 1.45em);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-style: italic;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 .tl-error {
   color: #f08080;

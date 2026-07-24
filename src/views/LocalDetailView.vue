@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { localGet, localGetMeta, localSetTranslatedTitle, translateTitle, imageProxyUrl } from "@/api";
 import { BookOpen, Loader, RefreshCw, Languages, ArrowLeft, ChevronDown, ChevronUp } from "@lucide/vue";
@@ -20,7 +20,11 @@ const local = ref<LocalGallery | null>(null);
 const loading = ref(true);
 const translating = ref(false);
 const translated = ref("");
+const reasoningText = ref("");
+const reasoningExpanded = ref(false);
+const reasoningRef = ref<HTMLElement | null>(null);
 const translateError = ref("");
+let translationController: AbortController | null = null;
 // Offline metadata (tags + related) read from the folder's `.nomedia` file.
 // May be `null` for imported folders without a cached gallery JSON; the tags and
 // related sections simply stay hidden in that case.
@@ -66,23 +70,44 @@ async function load() {
 
 async function doTranslate() {
   if (!local.value) return;
+  translationController?.abort();
+  const controller = new AbortController();
+  translationController = controller;
   translating.value = true;
+  translated.value = "";
+  reasoningText.value = "";
+  reasoningExpanded.value = true;
   translateError.value = "";
   const s = settingsStore.settings;
   try {
     const result = await translateTitle(
       s.tl_base_url, s.tl_model, s.tl_api_key,
       title.value, s.tl_target_lang, s.tl_thinking,
+      {
+        signal: controller.signal,
+        onContent: (chunk) => {
+          if (translationController === controller) translated.value += chunk;
+        },
+        onReasoning: (chunk) => {
+          if (translationController === controller) reasoningText.value += chunk;
+        },
+      },
     );
+    if (translationController !== controller) return;
     translated.value = result;
     await localSetTranslatedTitle(local.value.id, result);
     if (local.value) {
       local.value = { ...local.value, translated_title: result };
     }
-  } catch (e: any) {
-    translateError.value = String(e?.message ?? e);
+  } catch (e: unknown) {
+    if (controller.signal.aborted || translationController !== controller) return;
+    translateError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    translating.value = false;
+    if (translationController === controller) {
+      translating.value = false;
+      translationController = null;
+      if (reasoningText.value) reasoningExpanded.value = false;
+    }
   }
 }
 
@@ -110,7 +135,21 @@ function goToSettings() {
 }
 
 onMounted(load);
-watch(() => props.folder, load);
+watch(() => props.folder, () => {
+  translationController?.abort();
+  translationController = null;
+  translating.value = false;
+  translated.value = "";
+  reasoningText.value = "";
+  translateError.value = "";
+  void load();
+});
+watch(reasoningText, async () => {
+  if (!reasoningExpanded.value) return;
+  await nextTick();
+  if (reasoningRef.value) reasoningRef.value.scrollTop = reasoningRef.value.scrollHeight;
+});
+onUnmounted(() => translationController?.abort());
 </script>
 
 <template>
@@ -128,6 +167,14 @@ watch(() => props.folder, load);
         </div>
         <div class="info">
           <h1 class="title">{{ title }}</h1>
+          <div v-if="reasoningText" class="reasoning-block">
+            <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
+              <ChevronUp v-if="reasoningExpanded" :size="13" />
+              <ChevronDown v-else :size="13" />
+              {{ $t('localDetail.reasoning') }}
+            </button>
+            <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+          </div>
           <div v-if="translatedTitle || translated" class="translated-title">
             {{ translated || translatedTitle }}
           </div>
@@ -286,9 +333,38 @@ watch(() => props.folder, load);
   color: var(--accent);
   font-size: 1.05rem;
   font-weight: 500;
-  font-style: italic;
+  font-style: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.reasoning-block {
+  width: 100%;
+  min-width: 0;
+}
+.reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.reasoning-text {
+  margin-top: 4px;
+  height: calc(2 * 1.45em);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-style: italic;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 .tl-error {
   color: #f08080;

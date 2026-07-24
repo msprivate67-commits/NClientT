@@ -46,6 +46,11 @@ const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(sett
 // tweak base URL / model / key and re-test without saving first.
 const tlTesting = ref(false);
 const tlResult = ref<{ ok: boolean; message: string } | null>(null);
+const displayedTlResult = computed(() => tlResult.value ?? (
+  settings.translationAvailable === null
+    ? null
+    : { ok: settings.translationAvailable, message: settings.translationStatusMessage }
+));
 
 async function testAiConnection() {
   tlTesting.value = true;
@@ -63,6 +68,7 @@ async function testAiConnection() {
 
 async function save() {
   await settings.save(draft.value);
+  tlResult.value = null;
   draft.value = JSON.parse(JSON.stringify(settings.settings));
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
@@ -375,16 +381,17 @@ onMounted(async () => {
       </div>
       <div class="checkboxes">
         <label><input type="checkbox" v-model="draft.tl_thinking" /> {{ $t('settings.ai_thinking') }}</label>
+        <label><input type="checkbox" v-model="draft.tl_auto_translate" /> {{ $t('settings.ai_auto_translate') }}</label>
       </div>
       <div class="row" style="margin-top: 10px;">
-        <button class="btn" :disabled="tlTesting" @click="testAiConnection">
-          {{ tlTesting ? $t('settings.ai_testing') : $t('settings.ai_test_connection') }}
+        <button class="btn" :disabled="tlTesting || settings.translationChecking" @click="testAiConnection">
+          {{ tlTesting || settings.translationChecking ? $t('settings.ai_testing') : $t('settings.ai_test_connection') }}
         </button>
-        <strong v-if="tlResult" :class="{ ok: tlResult.ok, warn: !tlResult.ok }">
-          {{ tlResult.ok ? $t('settings.ai_connection_ok') : $t('settings.ai_connection_fail') }}
+        <strong v-if="displayedTlResult" :class="{ ok: displayedTlResult.ok, warn: !displayedTlResult.ok }">
+          {{ displayedTlResult.ok ? $t('settings.ai_connection_ok') : $t('settings.ai_connection_fail') }}
         </strong>
-        <span v-if="tlResult && !tlResult.ok && tlResult.message" class="tl-error" style="margin: 0;">
-          {{ tlResult.message }}
+        <span v-if="displayedTlResult && !displayedTlResult.ok && displayedTlResult.message" class="tl-error" style="margin: 0;">
+          {{ displayedTlResult.message }}
         </span>
       </div>
     </section>

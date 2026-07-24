@@ -114,7 +114,8 @@
     "show_comments": "コメントを表示",
     "no_comments": "コメントはありません。",
     "translate_error_hint": "翻訳に失敗しました — AI 設定を確認してください。",
-    "go_to_ai_settings": "AI 設定へ"
+    "go_to_ai_settings": "AI 設定へ",
+    "reasoning": "思考過程"
   },
   "reader": {
     "close": "閉じる",
@@ -142,7 +143,8 @@
     "translate": "翻訳",
     "load_error": "ローカルギャラリーの読み込みに失敗しました。",
     "translate_error_hint": "翻訳に失敗しました — AI 設定を確認してください。",
-    "go_to_ai_settings": "AI 設定へ"
+    "go_to_ai_settings": "AI 設定へ",
+    "reasoning": "思考過程"
   },
   "favorites": {
     "title": "お気に入り",
@@ -296,6 +298,7 @@
     "ai_api_key": "API キー",
     "ai_target_lang": "目標言語",
     "ai_thinking": "思考を有効にする",
+    "ai_auto_translate": "オンラインギャラリーのタイトルを自動翻訳する",
     "app_data_dir": "アプリデータディレクトリ：",
     "app_language": "アプリ言語",
     "app_language_hint": "インターフェース言語を選択します。初回起動時にシステム言語を自動検出します。",

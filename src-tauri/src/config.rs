@@ -211,6 +211,8 @@ pub struct Settings {
     pub tl_api_key: String,
     pub tl_target_lang: String,
     pub tl_thinking: bool,
+    #[serde(default = "tl_auto_translate_default")]
+    pub tl_auto_translate: bool,
 }
 
 impl Default for Settings {
@@ -267,11 +269,16 @@ impl Default for Settings {
             tl_api_key: String::new(),
             tl_target_lang: "简体中文，尽量用古典章回体小说标题风格".into(),
             tl_thinking: false,
+            tl_auto_translate: true,
         }
     }
 }
 
 fn notifications_enabled_default() -> bool {
+    true
+}
+
+fn tl_auto_translate_default() -> bool {
     true
 }
 
@@ -287,11 +294,13 @@ mod tests {
             .unwrap()
             .remove("notifications_enabled");
         value.as_object_mut().unwrap().remove("privacy_screen");
+        value.as_object_mut().unwrap().remove("tl_auto_translate");
 
         let settings: Settings = serde_json::from_value(value).unwrap();
 
         assert!(settings.notifications_enabled);
         assert!(!settings.privacy_screen);
+        assert!(settings.tl_auto_translate);
     }
 }
 
