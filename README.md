@@ -58,6 +58,18 @@
   <img src="screenshoot/setings-pad.jpg" alt="Tablet Settings" width="60%" />
 </div>
 
+## Desktop Screenshots
+
+<div align="center">
+  <img src="screenshoot/desktop-gallery.png" alt="Desktop Gallery" width="48%" />
+  <img src="screenshoot/desktop-detail.png" alt="Desktop Gallery Detail" width="48%" />
+</div>
+
+<div align="center">
+  <img src="screenshoot/desktop-local-library.png" alt="Desktop Local Library" width="48%" />
+  <img src="screenshoot/desktop-reader.png" alt="Desktop Reader" width="48%" />
+</div>
+
 ---
 
 ### Download Link
