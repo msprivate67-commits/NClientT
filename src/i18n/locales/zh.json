@@ -228,6 +228,10 @@
     "show_translated_hint": "有翻译时显示翻译后标题"
   },
   "settings": {
+    "theme": "外观",
+    "theme_dark": "夜间",
+    "theme_system": "跟随系统",
+    "theme_light": "日间",
     "title": "设置",
     "section_site": "站点与网络",
     "section_proxy": "代理",
@@ -280,7 +284,6 @@
     "hide_avoided": "隐藏已排除",
     "rtl_reader": "从右到左阅读",
     "keep_history": "保留历史记录",
-    "grid_columns": "网格列数（约）",
     "page_thumb_columns": "页面缩略图列数（0 = 自动）",
     "default_zoom": "默认缩放（%）",
     "page_change_buttons": "分页按钮",

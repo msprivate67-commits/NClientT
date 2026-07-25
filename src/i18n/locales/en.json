@@ -228,6 +228,10 @@
     "show_translated_hint": "Show translated titles when available"
   },
   "settings": {
+    "theme": "Appearance",
+    "theme_dark": "Dark",
+    "theme_system": "System",
+    "theme_light": "Light",
     "title": "Settings",
     "section_site": "Site & Network",
     "section_proxy": "Proxy",
@@ -280,7 +284,6 @@
     "hide_avoided": "Hide avoided",
     "rtl_reader": "RTL reader",
     "keep_history": "Keep history",
-    "grid_columns": "Grid columns (approx)",
     "page_thumb_columns": "Page thumbnail columns (0 = auto)",
     "default_zoom": "Default zoom (%)",
     "page_change_buttons": "Page-change buttons",

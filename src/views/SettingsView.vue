@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { save as taSave, open as taOpen } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { platform } from "@tauri-apps/plugin-os";
 import { useI18n } from "vue-i18n";
-import { Check } from "@lucide/vue";
+import { Check, Monitor, Moon, Sun } from "@lucide/vue";
 import { SUPPORTED_LANGUAGES, exportLocaleJson, applyImportedMessages, setLocale, getLocale, type AppLanguage } from "@/i18n";
 
 import {
@@ -25,6 +25,8 @@ import {
   useSettingsStore,
 } from "@/stores/settings";
 import { useScrollCache } from "@/composables/useScrollCache";
+import { applyTheme } from "@/composables/useTheme";
+import type { ThemePreference } from "@/types";
 
 const i18n = useI18n();
 
@@ -45,6 +47,10 @@ const importError = ref("");
 const langSaved = ref(false);
 
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(settings.settings));
+
+watch(() => settings.loaded, (loaded) => {
+  if (loaded) draft.value = JSON.parse(JSON.stringify(settings.settings));
+}, { immediate: true });
 
 // AI connection test state. Based on the live draft values, so the user can
 // tweak base URL / model / key and re-test without saving first.
@@ -72,6 +78,19 @@ async function save() {
   draft.value = JSON.parse(JSON.stringify(settings.settings));
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
+}
+
+async function changeTheme(theme: ThemePreference) {
+  const previous = settings.settings.theme;
+  draft.value.theme = theme;
+  applyTheme(theme);
+  try {
+    await settings.save({ theme });
+  } catch (error) {
+    draft.value.theme = previous;
+    applyTheme(previous);
+    throw error;
+  }
 }
 
 async function pickDownloadDir() {
@@ -322,11 +341,24 @@ onMounted(async () => {
 
     <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_display') }}</div>
-      <div class="fields">
-        <div class="field">
-          <label>{{ $t('settings.grid_columns') }}</label>
-          <input v-model.number="draft.column_count" type="number" min="2" max="10" />
+      <div class="theme-setting">
+        <span class="theme-label">{{ $t('settings.theme') }}</span>
+        <div class="theme-toggle" role="radiogroup" :aria-label="$t('settings.theme')">
+          <button type="button" role="radio" :aria-checked="draft.theme === 'dark'" :class="{ active: draft.theme === 'dark' }" @click="changeTheme('dark')">
+            <Moon :size="16" />
+            <span>{{ $t('settings.theme_dark') }}</span>
+          </button>
+          <button type="button" role="radio" :aria-checked="draft.theme === 'system'" :class="{ active: draft.theme === 'system' }" @click="changeTheme('system')">
+            <Monitor :size="16" />
+            <span>{{ $t('settings.theme_system') }}</span>
+          </button>
+          <button type="button" role="radio" :aria-checked="draft.theme === 'light'" :class="{ active: draft.theme === 'light' }" @click="changeTheme('light')">
+            <Sun :size="16" />
+            <span>{{ $t('settings.theme_light') }}</span>
+          </button>
         </div>
+      </div>
+      <div class="fields">
         <div class="field">
           <label>{{ $t('settings.page_thumb_columns') }}</label>
           <input v-model.number="draft.page_thumbnail_columns" type="number" min="0" max="10" />
@@ -430,6 +462,7 @@ onMounted(async () => {
   overflow-y: auto;
   padding: 20px var(--settings-gutter) 104px;
 }
+
 .view-header {
   width: min(100%, 1440px);
   margin: 0 auto 16px;
@@ -468,6 +501,55 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
+}
+.theme-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.theme-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.theme-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  width: min(100%, 360px);
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.theme-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+.theme-toggle button:hover {
+  color: var(--text);
+}
+.theme-toggle button.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 2px 8px var(--glass-shadow);
+}
+.theme-toggle button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .row {
   display: flex;
@@ -574,6 +656,14 @@ onMounted(async () => {
   }
   .fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .theme-setting {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .theme-toggle {
+    width: 100%;
   }
   .save-bar {
     right: 14px;

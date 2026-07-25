@@ -163,7 +163,6 @@ pub struct Settings {
     pub show_titles: bool,
 
     // --- display ------------------------------------------------------------
-    pub column_count: u32,
     /// Number of page-thumbnail columns in gallery detail.
     /// 0 = auto (responsive CSS grid). 2-10 = fixed count.
     pub page_thumbnail_columns: u32,
@@ -218,6 +217,9 @@ pub struct Settings {
 
     #[serde(default)]
     pub app_language: String,
+    /// Color theme preference: `dark`, `system`, or `light`.
+    #[serde(default = "theme_default")]
+    pub theme: String,
 }
 
 impl Default for Settings {
@@ -238,7 +240,6 @@ impl Default for Settings {
             exact_tag_match: false,
             remove_avoided_galleries: true,
             show_titles: true,
-            column_count: 3,
             page_thumbnail_columns: 0,
             use_rtl: false,
             default_zoom_pct: 100,
@@ -277,6 +278,7 @@ impl Default for Settings {
             tl_auto_translate: true,
             tl_use_proxy: false,
             app_language: String::new(),
+            theme: theme_default(),
         }
     }
 }
@@ -287,6 +289,10 @@ fn notifications_enabled_default() -> bool {
 
 fn tl_auto_translate_default() -> bool {
     true
+}
+
+fn theme_default() -> String {
+    "system".into()
 }
 
 #[cfg(test)]
@@ -304,6 +310,7 @@ mod tests {
         value.as_object_mut().unwrap().remove("tl_auto_translate");
         value.as_object_mut().unwrap().remove("tl_use_proxy");
         value.as_object_mut().unwrap().remove("app_language");
+        value.as_object_mut().unwrap().remove("theme");
 
         let settings: Settings = serde_json::from_value(value).unwrap();
 
@@ -312,6 +319,7 @@ mod tests {
         assert!(settings.tl_auto_translate);
         assert!(!settings.tl_use_proxy);
         assert!(settings.app_language.is_empty());
+        assert_eq!(settings.theme, "system");
     }
 }
 

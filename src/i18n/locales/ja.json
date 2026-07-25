@@ -228,6 +228,10 @@
     "show_translated_hint": "翻訳がある場合は翻訳後タイトルを表示"
   },
   "settings": {
+    "theme": "外観",
+    "theme_dark": "ダーク",
+    "theme_system": "システム",
+    "theme_light": "ライト",
     "title": "設定",
     "section_site": "サイトとネットワーク",
     "section_proxy": "プロキシ",
@@ -280,7 +284,6 @@
     "hide_avoided": "除外を隠す",
     "rtl_reader": "右から左の読者",
     "keep_history": "履歴を保持",
-    "grid_columns": "グリッド列数（約）",
     "page_thumb_columns": "ページサムネイル列数（0 = 自動）",
     "default_zoom": "デフォルトズーム（%）",
     "page_change_buttons": "ページ切替ボタン",

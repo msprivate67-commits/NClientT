@@ -9,6 +9,7 @@ export type SortType =
   | "popular_month";
 export type TitleType = "pretty" | "english" | "japanese" | "auto";
 export type DataUsageType = "none" | "thumbnail" | "full";
+export type ThemePreference = "dark" | "system" | "light";
 export type LocalSortType =
   | "title_asc"
   | "title_desc"
@@ -186,7 +187,6 @@ export interface Settings {
   remove_avoided_galleries: boolean;
   show_titles: boolean;
 
-  column_count: number;
   page_thumbnail_columns: number;
   use_rtl: boolean;
   default_zoom_pct: number;
@@ -219,6 +219,7 @@ export interface Settings {
   tl_use_proxy: boolean;
 
   app_language: string;
+  theme: ThemePreference;
 }
 
 export interface FavoriteRow {

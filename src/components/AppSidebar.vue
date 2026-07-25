@@ -103,7 +103,7 @@ const mobileDragStyle = computed(() => {
         backdrop (rendered by App.vue) handles dismiss-on-outside-tap.
   -->
   <aside
-    class="sidebar"
+    class="sidebar glass-surface"
     :class="{ collapsed: !open && !mobile, 'is-mobile': mobile, 'is-open': mobile && open, 'is-dragging': mobile && dragging }"
     :style="mobileDragStyle"
   >

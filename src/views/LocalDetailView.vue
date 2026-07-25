@@ -155,7 +155,7 @@ onUnmounted(() => translationController?.abort());
 
 <template>
   <div class="view" :class="{ 'overlay-mode': overlay }">
-    <div v-if="overlay" class="overlay-bar">
+    <div v-if="overlay" class="overlay-bar glass-surface">
       <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /></button>
       <span class="overlay-title">{{ title }}</span>
     </div>

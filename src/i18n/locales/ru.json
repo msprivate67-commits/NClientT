@@ -228,6 +228,10 @@
     "show_translated_hint": "Показывать переведённые названия при наличии"
   },
   "settings": {
+    "theme": "Оформление",
+    "theme_dark": "Тёмная",
+    "theme_system": "Системная",
+    "theme_light": "Светлая",
     "title": "Настройки",
     "section_site": "Сайт и сеть",
     "section_proxy": "Прокси",
@@ -280,7 +284,6 @@
     "hide_avoided": "Скрыть исключённые",
     "rtl_reader": "Чтение справа налево",
     "keep_history": "Сохранять историю",
-    "grid_columns": "Колонок в сетке (примерно)",
     "page_thumb_columns": "Колонок миниатюр (0 = авто)",
     "default_zoom": "Масштаб по умолчанию (%)",
     "page_change_buttons": "Кнопки смены страниц",

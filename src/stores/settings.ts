@@ -44,7 +44,6 @@ const DEFAULT_SETTINGS: Settings = {
   exact_tag_match: false,
   remove_avoided_galleries: true,
   show_titles: true,
-  column_count: 3,
   page_thumbnail_columns: 0,
   use_rtl: false,
   default_zoom_pct: 100,
@@ -71,6 +70,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_auto_translate: true,
   tl_use_proxy: false,
   app_language: "",
+  theme: "system",
 };
 
 export const useSettingsStore = defineStore("settings", () => {

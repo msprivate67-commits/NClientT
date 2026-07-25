@@ -257,7 +257,7 @@ async function remove() {
 
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`]">
-    <header class="bar">
+    <header class="bar glass-surface glass-surface--dark">
       <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /></button>
       <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
       <div class="fit">
@@ -332,7 +332,7 @@ async function remove() {
       </span>
     </div>
 
-    <footer class="bar">
+    <footer class="bar glass-surface glass-surface--dark">
       <button class="btn" @click="prev"><ChevronLeft :size="16" /> {{ $t('reader.prev') }}</button>
       <input
         type="range"

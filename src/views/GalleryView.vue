@@ -329,14 +329,14 @@ async function onTagClick(t: any) {
 
 <template>
   <div ref="viewRef" class="view gallery-view" :class="{ 'overlay-mode': overlay }">
-    <div v-if="overlay" class="overlay-bar">
+    <div v-if="overlay" class="overlay-bar glass-surface">
       <button class="btn" @click="emit('back')"><ArrowLeft :size="16" /></button>
       <span class="overlay-title">{{ title }}</span>
     </div>
 
     <!-- Sticky title bar: stays pinned to the top while the page scrolls,
          so the back button + title are always reachable on long pages. -->
-    <div v-else class="sticky-title-bar">
+    <div v-else class="sticky-title-bar glass-surface">
       <button class="btn ghost back" @click="goBack" :title="$t('gallery.back')"><ArrowLeft :size="16" /></button>
       <span class="sticky-title">{{ title }}</span>
     </div>

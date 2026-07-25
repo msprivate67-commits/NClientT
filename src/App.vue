@@ -21,6 +21,7 @@ import { useDraggablePosition } from "@/composables/useDraggablePosition";
 import { useEdgeSwipe } from "@/composables/useEdgeSwipe";
 import { useResponsiveSidebar } from "@/composables/useResponsiveSidebar";
 import { useSwipeDismiss } from "@/composables/useSwipeDismiss";
+import { applyTheme } from "@/composables/useTheme";
 
 const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
 const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
@@ -81,6 +82,10 @@ watch(() => i18n.locale.value, (loc) => {
   document.documentElement.lang = loc;
 }, { immediate: true });
 
+watch(() => settings.settings.theme, (theme) => {
+  applyTheme(theme);
+}, { immediate: true });
+
 onMounted(async () => {
   try {
     await settings.load();
@@ -135,6 +140,11 @@ onMounted(async () => {
     // Notifications are guarded by the persisted user preference internally.
     handleDownloadNotification(p).catch(() => {});
   });
+});
+
+const floatingTopbar = computed(() => {
+  const inFlowRoutes = ["gallery", "reader", "reader-local"];
+  return !inFlowRoutes.includes(String(route.name));
 });
 
 watch(() => settings.settings.notifications_enabled, (enabled) => {
@@ -300,7 +310,7 @@ function doSearch() {
 
     <main
       class="content"
-      :class="{ 'edge-swiping': contentEdgeSwipe.tracking }"
+      :class="{ 'edge-swiping': contentEdgeSwipe.tracking, 'has-floating-topbar': floatingTopbar }"
       @touchstart="onContentTouchStart"
       @touchmove="onContentTouchMove"
       @touchend="onContentTouchEnd"
@@ -309,7 +319,7 @@ function doSearch() {
       @mousemove="onContentMouseMove"
       @mouseup="onContentMouseUp"
     >
-      <header class="topbar">
+      <header class="topbar glass-surface">
         <button v-if="canGoBack" class="icon-btn back-btn" @click="goBack" :title="$t('common.back')">
           <ArrowLeft :size="18" />
         </button>
@@ -320,7 +330,7 @@ function doSearch() {
         >
           <Menu :size="18" />
         </button>
-        <div class="search">
+        <div class="search glass-surface">
           <SearchIcon :size="16" />
           <input
             v-model="searchQuery"
@@ -423,11 +433,23 @@ function doSearch() {
   color: var(--text);
 }
 .content {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+}
+.content.has-floating-topbar .topbar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 100;
+}
+.content.has-floating-topbar > :deep(.view) {
+  padding-top: calc(var(--app-header-height) + 14px) !important;
+}
+.content.has-floating-topbar > .banner {
+  margin-top: calc(var(--app-header-height) + 10px);
 }
 /* While an edge-drag-to-open is in progress, suppress text selection so the
    mouse drag doesn't start highlighting content. */
