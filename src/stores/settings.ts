@@ -12,27 +12,46 @@ import {
 } from "@/api";
 import type { Settings } from "@/types";
 
-export const DEFAULT_TRANSLATION_TARGETS: Record<string, string> = {
+export const DEFAULT_TITLE_TRANSLATION_TARGETS: Record<string, string> = {
   zh: "简体中文，尽量用古典章回体小说标题风格",
   en: "English, in the style of Shakespearean verse",
   ru: "Русский язык, в стиле стихов Пушкина",
   ja: "日本語、伝統的な俳句の文体",
 };
 
-export function defaultTranslationTarget(language: string): string {
-  return DEFAULT_TRANSLATION_TARGETS[language] ?? DEFAULT_TRANSLATION_TARGETS.zh;
+export const DEFAULT_COMMENT_TRANSLATION_TARGETS: Record<string, string> = {
+  zh: "简体中文，古典文言文风格，或诗句对联风格",
+  en: "English, in a poetic style, such as verse or rhyming couplets",
+  ru: "Русский язык, в классическом литературном или поэтическом стиле, включая рифмованные двустишия",
+  ja: "日本語、古典的な文語調、または詩歌や対句の文体",
+};
+
+export function defaultTitleTranslationTarget(language: string): string {
+  return DEFAULT_TITLE_TRANSLATION_TARGETS[language] ?? DEFAULT_TITLE_TRANSLATION_TARGETS.zh;
 }
 
-export function isDefaultTranslationTarget(value: string): boolean {
+export function defaultCommentTranslationTarget(language: string): string {
+  return DEFAULT_COMMENT_TRANSLATION_TARGETS[language] ?? DEFAULT_COMMENT_TRANSLATION_TARGETS.zh;
+}
+
+export function isDefaultTitleTranslationTarget(value: string): boolean {
   const normalized = value.trim();
-  return !normalized || Object.values(DEFAULT_TRANSLATION_TARGETS).includes(normalized);
+  return !normalized || Object.values(DEFAULT_TITLE_TRANSLATION_TARGETS).includes(normalized);
+}
+
+export function isDefaultCommentTranslationTarget(value: string): boolean {
+  const normalized = value.trim();
+  return !normalized || Object.values(DEFAULT_COMMENT_TRANSLATION_TARGETS).includes(normalized);
 }
 
 const DEFAULT_SETTINGS: Settings = {
   mirror: "nhentai.net",
   user_agent: "",
   request_timeout_secs: 30,
-  auth: { api_key: "", valid: false },
+  auth: {
+    api_key: "",
+    valid: false,
+  },
   proxy_type: "none",
   proxy_host: "",
   proxy_port: 1080,
@@ -66,6 +85,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_model: "deepseek-v4-flash",
   tl_api_key: "",
   tl_target_lang: "简体中文，尽量用古典章回体小说标题风格",
+  tl_comment_target_lang: "简体中文，古典文言文风格，或诗句对联风格",
   tl_thinking: false,
   tl_auto_translate: true,
   tl_use_proxy: false,
@@ -108,6 +128,7 @@ export const useSettingsStore = defineStore("settings", () => {
       "tl_model",
       "tl_api_key",
       "tl_target_lang",
+      "tl_comment_target_lang",
       "tl_thinking",
       "tl_auto_translate",
       "tl_use_proxy",
@@ -141,11 +162,24 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  async function syncTranslationTargetForLanguage(language: string) {
-    if (!isDefaultTranslationTarget(settings.value.tl_target_lang)) return settings.value;
-    const target = defaultTranslationTarget(language);
-    if (settings.value.tl_target_lang === target) return settings.value;
-    settings.value = await settingsSet({ ...settings.value, tl_target_lang: target });
+  async function syncTranslationTargetsForLanguage(language: string) {
+    const patch: Partial<Settings> = {};
+    const titleTarget = defaultTitleTranslationTarget(language);
+    const commentTarget = defaultCommentTranslationTarget(language);
+    if (
+      isDefaultTitleTranslationTarget(settings.value.tl_target_lang)
+      && settings.value.tl_target_lang !== titleTarget
+    ) {
+      patch.tl_target_lang = titleTarget;
+    }
+    if (
+      isDefaultCommentTranslationTarget(settings.value.tl_comment_target_lang)
+      && settings.value.tl_comment_target_lang !== commentTarget
+    ) {
+      patch.tl_comment_target_lang = commentTarget;
+    }
+    if (!Object.keys(patch).length) return settings.value;
+    settings.value = await settingsSet({ ...settings.value, ...patch });
     return settings.value;
   }
 
@@ -182,7 +216,7 @@ export const useSettingsStore = defineStore("settings", () => {
     save,
     refreshAuth,
     refreshTranslationAvailability,
-    syncTranslationTargetForLanguage,
+    syncTranslationTargetsForLanguage,
     checkCloudflare,
     isCloudflareSolved,
   };

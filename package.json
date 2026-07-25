@@ -1,7 +1,7 @@
 {
   "name": "nclientt",
   "version": "0.1.6",
-  "description": "Unofficial cross-platform nhentai desktop client — Tauri 2 + Vue 3 rewrite of NClientV3",
+  "description": "Unofficial cross-platform nhentai desktop client with optional online favorite sync",
   "license": "Apache-2.0",
   "type": "module",
   "private": true,

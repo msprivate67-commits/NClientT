@@ -22,6 +22,7 @@ export type {
   DownloadRequest,
   DownloadRow,
   FavoriteRow,
+  FavoriteStatus,
   FavoritesPage,
   Gallery,
   HistoryEntry,

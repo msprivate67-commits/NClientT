@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/msprivate67-commits/NClientT?color=green)](https://github.com/msprivate67-commits/NClientT/releases/latest)
 [![License](https://img.shields.io/github/license/msprivate67-commits/NClientT?color=blue)](LICENSE)
 
-**NClientT** is an unofficial [nhentai](https://nhentai.net) cross-platform client — browse, search, read, and download doujinshi galleries with a modern native experience. Available on Android, Windows, macOS, and Linux. A full rewrite of [NClientV3](https://github.com/maxwai/NClientV3).
+**NClientT** is an unofficial [nhentai](https://nhentai.net) cross-platform client — browse, search, read, favorite, and download doujinshi galleries with a modern native experience. Available on Android, Windows, macOS, and Linux.
 
 > ⚠️ This is a hobbyist project for personal use only. Respect nhentai's Terms of Service and your local laws.
 
@@ -89,12 +89,12 @@
 - 🎲 **Random** — discover random galleries
 - 📖 **Reader** — fit to width / height / 1:1, RTL mode, keyboard navigation
 - ⬇️ **Download manager** — concurrent page downloads, pause / resume / cancel, progress tracking
-- ⭐ **Favorites** — local favorites (offline) and online favorites (requires API key)
+- ⭐ **Favorites** — local-only without an API key, automatically synced to online favorites after API login
 - 🕓 **History** — automatically records viewed galleries
 - 📁 **Local library** — scan downloaded galleries, offline browsing with metadata
 - 🏷 **Tags** — cached, searchable, mark as included or excluded
 - ☁️ **Cloudflare bypass** — solve challenges in an embedded webview, token reused for all requests
-- 🔑 **API key** — authenticates with nhentai for premium features (optional)
+- 🔑 **API key** — syncs favorites with your nhentai account and enables account-only data (optional)
 - 🍪 **Persistent cookies** — session and CF tokens survive restarts
 - ⚙️ **Settings** — mirror, User-Agent, timeouts, grid columns, zoom, RTL, download directory
 - 📦 **Export** — convert downloaded galleries to PDF or ZIP
@@ -191,7 +191,7 @@ NClientT/
 │   └── main.ts
 ├── src-tauri/              # Rust backend
 │   └── src/
-│       ├── api.rs          # nhentai API v2 client
+│       ├── api.rs          # nhentai network client
 │       ├── cloudflare.rs   # Cloudflare challenge solver
 │       ├── commands.rs     # Tauri command handlers
 │       ├── config.rs       # Settings & auth
@@ -201,7 +201,7 @@ NClientT/
 │       ├── http.rs         # reqwest + cookies + auth
 │       └── models.rs       # Shared data models
 ├── docs/
-│   ├── ARCHITECTURE.md     # NClientV3 → NClientT porting reference
+│   ├── ARCHITECTURE.md     # frontend/backend architecture notes
 │   └── FRONTEND_ARCHITECTURE.md # Frontend layers and module ownership
 ├── AGENTS.md               # Contributor guidelines
 └── package.json
@@ -214,18 +214,16 @@ dependency rules and module responsibilities.
 
 ## 🔑 API Key (Optional)
 
-Browsing, searching, reading, and downloading all work without an API key. An API key enables online favorites and comments. Add yours under **Settings → API Key Authentication**.
+Browsing, searching, reading, and downloading all work without an API key. Adding one lets NClientT use your nhentai account state: local favorites are uploaded to your online favorites, future favorite changes stay synced, gallery detail can show whether something is already favorited, and account-only features such as comments can load.
+
+To get a key, log in on nhentai, click your avatar in the top-right corner, open **Settings**, choose **API Keys**, copy a key, then paste it under **Settings → API Key and sync** in NClientT. The settings page also has a **Get API key** button that opens the nhentai API page for you.
 
 ## ☁️ Cloudflare
 
 When nhentai is behind Cloudflare, a banner prompts you to solve the challenge. Click **Solve now** — a webview opens, complete the captcha, and the `cf_clearance` cookie is captured for all subsequent requests.
 
-## 🔄 Migration from NClientV3
-
-NClientT is a **ground-up rewrite**, not an upgrade. The same API endpoints and download folder layout are used, so downloaded galleries are compatible. Settings and favorites do not migrate automatically — re-add them in NClientT.
-
-For the full module-by-module porting reference, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+For backend architecture notes, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## 📄 License
 
-[Apache-2.0](LICENSE) — same as NClientV3.
+[Apache-2.0](LICENSE).

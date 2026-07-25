@@ -1,11 +1,11 @@
-//! NClientT - cross-platform Tauri port of NClientV3.
+//! NClientT - cross-platform nhentai API v2 desktop client.
 //!
 //! Module layout:
 //! - [`config`]    : persistent user settings (mirror, UA, auth, paths, ...)
 //! - [`error`]     : shared error / result types
 //! - [`http`]      : HTTP client with UA + persistent cookie jar + Cloudflare detection
 //! - [`api`]       : nhentai API v2 client (browse / search / detail / favorites / comments)
-//! - [`models`]    : serializable data structures mirrored from NClientV3 (Gallery, Tag, Page, ...)
+//! - [`models`]    : serializable data structures for nhentai API v2 (Gallery, Tag, Page, ...)
 //! - [`cloudflare`] : Cloudflare challenge detection + cf_clearance capture via webview
 //! - [`db`]        : SQLite store for favorites, history, tags, local library, blacklists
 //! - [`downloader`]: gallery download manager (queue, progress, pause / cancel)
@@ -117,6 +117,10 @@ pub fn run() {
             api_get_user,
             api_get_comments,
             api_get_favorites_page,
+            api_check_favorite,
+            api_add_favorite,
+            api_remove_favorite,
+            api_sync_local_favorites,
             api_get_tags,
             api_get_popular_tags,
             // favorites / tags (local DB)
@@ -176,6 +180,7 @@ pub fn run() {
             get_latest_release,
             // misc
             open_in_browser,
+            open_api_key_docs,
             open_path,
             resolve_asset,
             image_proxy_url,

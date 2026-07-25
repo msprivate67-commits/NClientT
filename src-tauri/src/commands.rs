@@ -169,10 +169,8 @@ pub fn auth_get(state: State<'_, AppState>) -> AppResult<AuthCredentials> {
 #[tauri::command]
 pub fn auth_set_api_key(state: State<'_, AppState>, api_key: String) -> AppResult<Settings> {
     let updated = state.config.update(|s| {
-        s.auth = AuthCredentials {
-            api_key: api_key.trim().to_string(),
-            valid: true,
-        };
+        s.auth.api_key = api_key.trim().to_string();
+        s.auth.valid = true;
     })?;
     Ok(updated)
 }
@@ -256,7 +254,7 @@ pub async fn api_random(state: State<'_, AppState>) -> AppResult<Gallery> {
 pub async fn api_get_gallery(state: State<'_, AppState>, id: i64) -> AppResult<Gallery> {
     let g = api(&state).gallery(id).await?;
     let s = settings(&state);
-    // Record visit in history (mirrors NClientV3's history table).
+    // Record visit in local history.
     if s.keep_history {
         let _ = state.db.history_add(
             g.id,
@@ -277,8 +275,9 @@ pub async fn api_get_user(state: State<'_, AppState>) -> AppResult<User> {
 pub async fn api_get_comments(
     state: State<'_, AppState>,
     gallery_id: i64,
+    page: u32,
 ) -> AppResult<CommentsPage> {
-    api(&state).comments(gallery_id).await
+    api(&state).comments(gallery_id, page, 50).await
 }
 
 #[tauri::command]
@@ -288,6 +287,46 @@ pub async fn api_get_favorites_page(
     query: Option<String>,
 ) -> AppResult<FavoritesPage> {
     api(&state).favorites_page(page, query.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn api_check_favorite(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+) -> AppResult<FavoriteStatus> {
+    api(&state).check_favorite(gallery_id).await
+}
+
+#[tauri::command]
+pub async fn api_add_favorite(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+) -> AppResult<FavoriteStatus> {
+    api(&state).add_favorite(gallery_id).await
+}
+
+#[tauri::command]
+pub async fn api_remove_favorite(
+    state: State<'_, AppState>,
+    gallery_id: i64,
+) -> AppResult<FavoriteStatus> {
+    api(&state).remove_favorite(gallery_id).await
+}
+
+#[tauri::command]
+pub async fn api_sync_local_favorites(state: State<'_, AppState>) -> AppResult<u32> {
+    let local = state.db.fav_list(u32::MAX, 0)?;
+    let client = api(&state);
+    let mut synced = 0;
+    for fav in local {
+        match client.add_favorite(fav.id).await {
+            Ok(_) => synced += 1,
+            Err(e) => {
+                log::warn!("failed to sync favorite {}: {e}", fav.id);
+            }
+        }
+    }
+    Ok(synced)
 }
 
 #[tauri::command]
@@ -935,6 +974,17 @@ pub fn open_in_browser(app: AppHandle, state: State<'_, AppState>, path: String)
     };
     app.opener()
         .open_url(url, None::<&str>)
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_api_key_docs(app: AppHandle) -> AppResult<()> {
+    app.opener()
+        .open_url(
+            "https://nhentai.net/api/v2/docs#/galleries/get_all_galleries_api_v2_galleries_get",
+            None::<&str>,
+        )
         .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }

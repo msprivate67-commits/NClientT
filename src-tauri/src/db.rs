@@ -1,6 +1,6 @@
 //! SQLite-backed persistence.
 //!
-//! Port of NClientV3's `async/database` package. Tables:
+//! SQLite persistence. Tables:
 //! - `favorites`   : local favorite galleries
 //! - `history`     : recently visited galleries
 //! - `tags`        : cached tags (with a user `status` flag and an

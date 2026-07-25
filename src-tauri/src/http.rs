@@ -1,10 +1,8 @@
 //! HTTP client with persistent cookies, custom User-Agent, API key auth,
 //! and Cloudflare challenge detection.
 //!
-//! This module plays the role of NClientV3's `Global#initHttpClient()` +
-//! `ApiAuthInterceptor` + `CustomCookieJar` (which uses
-//! `franmontiel/PersistentCookieJar`). Cookies are persisted to a JSON file so
-//! that `cf_clearance` and session cookies survive restarts.
+//! Cookies are persisted to a JSON file so that `cf_clearance` and session
+//! cookies survive restarts.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -95,7 +93,7 @@ impl HttpClient {
 
     /// Build a `GET` request with the right headers. `is_api` should be true
     /// when the URL targets `/api/v2/` so the `Authorization: Key <api_key>`
-    /// header (mirroring `ApiAuthInterceptor`) is attached.
+    /// header is attached.
     pub fn request(
         &self,
         method: reqwest::Method,
@@ -177,6 +175,44 @@ impl HttpClient {
             if is_api {
                 return Err(AppError::Unauthorized);
             }
+        }
+
+        let body = resp.text().await?;
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::NotFound);
+        }
+        if !status.is_success() {
+            return Err(AppError::Http {
+                status: status.as_u16(),
+                body,
+            });
+        }
+        Ok((
+            body,
+            ResponseInfo {
+                status: status.as_u16(),
+                url: url.to_string(),
+                final_url,
+            },
+        ))
+    }
+
+    /// Convenience request for API mutations that return a small text body.
+    pub async fn request_text(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        is_api: bool,
+        settings: &crate::config::Settings,
+    ) -> AppResult<(String, ResponseInfo)> {
+        let resp = self.request(method, url, is_api, settings).send().await?;
+        let status = resp.status();
+        let final_url = resp.url().to_string();
+        if is_cloudflare(&resp) {
+            return Err(AppError::Cloudflare);
+        }
+        if (status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN) && is_api {
+            return Err(AppError::Unauthorized);
         }
 
         let body = resp.text().await?;
@@ -512,8 +548,8 @@ impl ClientFingerprint {
     }
 }
 
-/// Detect a Cloudflare interstitial. Mirrors NClientV3's behaviour, which
-/// surfaces CF pages as `InvalidResponseException` and dispatches the WebView.
+/// Detect a Cloudflare interstitial so the frontend can prompt the challenge
+/// webview.
 fn is_cloudflare(resp: &reqwest::Response) -> bool {
     if resp.headers().contains_key("cf-mitigated") {
         return true;

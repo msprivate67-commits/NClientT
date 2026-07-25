@@ -108,6 +108,11 @@ export interface FavoritesPage {
   num_pages: number;
 }
 
+export interface FavoriteStatus {
+  favorited: boolean;
+  num_favorites: number | null;
+}
+
 export interface CommentUser {
   id: number;
   username: string;
@@ -130,6 +135,10 @@ export interface Comment {
 export interface CommentsPage {
   comments: Comment[];
   gallery_id: number;
+  page: number;
+  num_pages: number;
+  per_page: number;
+  total: number | null;
 }
 
 export interface User {
@@ -214,6 +223,7 @@ export interface Settings {
   tl_model: string;
   tl_api_key: string;
   tl_target_lang: string;
+  tl_comment_target_lang: string;
   tl_thinking: boolean;
   tl_auto_translate: boolean;
   tl_use_proxy: boolean;

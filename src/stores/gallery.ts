@@ -68,6 +68,11 @@ export const useGalleryStore = defineStore("gallery", () => {
   const error = ref<string | null>(null);
   const current = ref<Gallery | null>(null);
   const comments = ref<Comment[]>([]);
+  const commentsPage = ref(0);
+  const commentsNumPages = ref(1);
+  const commentsTotal = ref<number | null>(null);
+  const commentsLoading = ref(false);
+  const commentsError = ref<string | null>(null);
   const user = ref<User | null>(null);
   let loadRequestId = 0;
 
@@ -133,6 +138,11 @@ export const useGalleryStore = defineStore("gallery", () => {
     loading.value = true;
     error.value = null;
     current.value = null;
+    comments.value = [];
+    commentsPage.value = 0;
+    commentsNumPages.value = 1;
+    commentsTotal.value = null;
+    commentsError.value = null;
     try {
       const local = await localGet(id);
       if (local && local.page_files.length > 0) {
@@ -151,10 +161,32 @@ export const useGalleryStore = defineStore("gallery", () => {
     }
   }
 
-  async function loadComments(galleryId: number): Promise<Comment[]> {
-    const page = await apiGetComments(galleryId);
-    comments.value = page.comments;
-    return page.comments;
+  async function loadComments(galleryId: number, page = 1): Promise<Comment[]> {
+    if (commentsLoading.value) return comments.value;
+    commentsLoading.value = true;
+    commentsError.value = null;
+    try {
+      const result = await apiGetComments(galleryId, page);
+      comments.value = page === 1
+        ? result.comments
+        : [...comments.value, ...result.comments.filter(
+            (incoming) => !comments.value.some((existing) => existing.id === incoming.id),
+          )];
+      commentsPage.value = result.page;
+      commentsNumPages.value = result.num_pages;
+      commentsTotal.value = result.total;
+      return comments.value;
+    } catch (error: unknown) {
+      commentsError.value = error instanceof Error ? error.message : String(error);
+      throw error;
+    } finally {
+      commentsLoading.value = false;
+    }
+  }
+
+  async function loadMoreComments(galleryId: number): Promise<Comment[]> {
+    if (commentsPage.value >= commentsNumPages.value) return comments.value;
+    return loadComments(galleryId, commentsPage.value + 1);
   }
 
   async function loadUser(): Promise<User | null> {
@@ -181,12 +213,18 @@ export const useGalleryStore = defineStore("gallery", () => {
     error,
     current,
     comments,
+    commentsPage,
+    commentsNumPages,
+    commentsTotal,
+    commentsLoading,
+    commentsError,
     user,
     browse,
     search,
     random,
     load,
     loadComments,
+    loadMoreComments,
     loadUser,
     favorites,
   };

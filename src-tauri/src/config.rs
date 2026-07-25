@@ -1,8 +1,7 @@
 //! Persistent user configuration.
 //!
-//! Mirrors the role of NClientV3's `SharedPreferences("Settings")` +
-//! `AuthStore`. Stored as JSON in the app data directory so it is trivial to
-//! inspect / back up.
+//! Persistent settings and API authentication, stored as JSON in the app data
+//! directory so it is trivial to inspect or back up.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,20 +11,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppResult;
 
-/// App version, used for the User-Agent header (mirrors NClientV3's
-/// `ApiAuthInterceptor` which sends `NClient/<version>`).
+/// App version, used for the User-Agent header.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Default mirror (the original nhentai host, like `Utility.ORIGINAL_URL`).
+/// Default mirror (the original nhentai host).
 pub const DEFAULT_MIRROR: &str = "nhentai.net";
 
-/// Default User-Agent. Uses the exact same format as NClientV3's
-/// `ApiAuthInterceptor` so the server sees the same client identity.
-/// NClientV3 sends: `NClient/<version> (https://github.com/maxwai/NClientV3)`
+/// Default User-Agent sent to nhentai API v2. The public API asks third-party
+/// clients to identify themselves with a descriptive value.
 pub const DEFAULT_UA: &str = concat!(
-    "NClient/",
+    "NClientT/",
     env!("CARGO_PKG_VERSION"),
-    " (https://github.com/maxwai/NClientV3)"
+    " (unofficial nhentai desktop client)"
 );
 
 /// Title type used to display gallery titles.
@@ -134,7 +131,7 @@ impl AuthCredentials {
     }
 }
 
-/// All persisted settings. Mirrors the union of NClientV3's preference keys.
+/// All persisted settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     // --- site / network -----------------------------------------------------
@@ -209,6 +206,8 @@ pub struct Settings {
     pub tl_model: String,
     pub tl_api_key: String,
     pub tl_target_lang: String,
+    #[serde(default = "tl_comment_target_lang_default")]
+    pub tl_comment_target_lang: String,
     pub tl_thinking: bool,
     #[serde(default = "tl_auto_translate_default")]
     pub tl_auto_translate: bool,
@@ -274,6 +273,7 @@ impl Default for Settings {
             tl_model: "deepseek-v4-flash".into(),
             tl_api_key: String::new(),
             tl_target_lang: "简体中文，尽量用古典章回体小说标题风格".into(),
+            tl_comment_target_lang: tl_comment_target_lang_default(),
             tl_thinking: false,
             tl_auto_translate: true,
             tl_use_proxy: false,
@@ -289,6 +289,10 @@ fn notifications_enabled_default() -> bool {
 
 fn tl_auto_translate_default() -> bool {
     true
+}
+
+fn tl_comment_target_lang_default() -> String {
+    "简体中文，古典文言文风格，或诗句对联风格".into()
 }
 
 fn theme_default() -> String {
@@ -308,15 +312,22 @@ mod tests {
             .remove("notifications_enabled");
         value.as_object_mut().unwrap().remove("privacy_screen");
         value.as_object_mut().unwrap().remove("tl_auto_translate");
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("tl_comment_target_lang");
         value.as_object_mut().unwrap().remove("tl_use_proxy");
         value.as_object_mut().unwrap().remove("app_language");
         value.as_object_mut().unwrap().remove("theme");
-
         let settings: Settings = serde_json::from_value(value).unwrap();
 
         assert!(settings.notifications_enabled);
         assert!(!settings.privacy_screen);
         assert!(settings.tl_auto_translate);
+        assert_eq!(
+            settings.tl_comment_target_lang,
+            "简体中文，古典文言文风格，或诗句对联风格"
+        );
         assert!(!settings.tl_use_proxy);
         assert!(settings.app_language.is_empty());
         assert_eq!(settings.theme, "system");

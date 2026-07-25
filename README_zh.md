@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/msprivate67-commits/NClientT?color=green)](https://github.com/msprivate67-commits/NClientT/releases/latest)
 [![License](https://img.shields.io/github/license/msprivate67-commits/NClientT?color=blue)](LICENSE)
 
-**NClientT** 是一款非官方的 [nhentai](https://nhentai.net) 跨平台客户端，提供浏览、搜索、阅读和下载画廊等功能。支持 Android、Windows、macOS 和 Linux，是 [NClientV3](https://github.com/maxwai/NClientV3) 基于 Tauri 2 与 Vue 3 的完整重写版本。
+**NClientT** 是一款非官方的 [nhentai](https://nhentai.net) 跨平台客户端，提供浏览、搜索、阅读、收藏和下载画廊等功能。支持 Android、Windows、macOS 和 Linux。
 
 > ⚠️ 本项目仅供个人学习与使用。请遵守 nhentai 的服务条款以及你所在地区的法律法规。
 
@@ -59,7 +59,7 @@
 - **阅读器**：适应宽度、适应高度、原始尺寸、分页阅读、RTL 和键盘操作
 - **下载管理**：并发下载、暂停、继续、取消和进度跟踪
 - **下载通知**：Android 下载进度与完成通知
-- **收藏**：本地离线收藏和需要 API Key 的在线收藏
+- **收藏**：无 API Key 时保存在本地；登录 API 后自动同步到在线收藏
 - **历史记录**：自动记录浏览过的画廊
 - **本地库**：扫描已下载内容并离线浏览元数据
 - **标签管理**：缓存、搜索以及包含/排除标签
@@ -160,20 +160,18 @@ NClientT/
 └── README_zh.md               # 中文说明
 ```
 
-前端统一从 `@/api` 导入后端操作。模块职责与依赖规则请参阅 [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md)，NClientV3 到 NClientT 的迁移和后端架构请参阅 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+前端统一从 `@/api` 导入后端操作。模块职责与依赖规则请参阅 [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md)，后端架构请参阅 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ## API Key（可选）
 
-浏览、搜索、阅读和下载无需 API Key。在线收藏和评论功能需要在“设置 → API Key 身份验证”中填写 API Key。
+浏览、搜索、阅读和下载无需 API Key。填写 API Key 后，NClientT 可以使用你的 nhentai 账号状态：本地收藏会写入在线收藏，之后的收藏变更会保持同步，详情页能显示在线收藏状态，也可以加载评论等账号功能。
+
+获取方式：登录 nhentai，点击右上角头像，进入 **Settings**，点击 **API Keys**，复制 key，然后粘贴到 NClientT 的“设置 → API Key 与收藏同步”。设置页里的“获取 API Key”按钮也会直接打开对应页面。
 
 ## Cloudflare
 
 当网站启用 Cloudflare 验证时，程序会提示进行验证。点击“立即验证”，在打开的 WebView 中完成验证码，程序会保存 `cf_clearance` Cookie 并用于后续请求。
 
-## 从 NClientV3 迁移
-
-NClientT 是完全重写版本，并非直接升级。下载目录结构和 API 接口保持兼容，因此已下载内容可以继续使用；设置与收藏不会自动迁移，需要重新配置。
-
 ## 许可证
 
-[Apache-2.0](LICENSE)，与 NClientV3 相同。
+[Apache-2.0](LICENSE)。

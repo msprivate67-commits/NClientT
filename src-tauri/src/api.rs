@@ -1,7 +1,6 @@
 //! nhentai API v2 client.
 //!
-//! Port of NClientV3's `InspectorV3`, `SimpleGallery.fromV2ListItem`,
-//! `GalleryData.parseJSON`, `CommentsFetcher` and `loginapi.User`.
+//! Implements the public nhentai API v2 endpoints used by this application.
 //!
 //! Endpoints (relative to `https://<mirror>/api/v2/`):
 //! - `galleries?page=N`                       list / popular
@@ -140,10 +139,9 @@ impl ApiClient {
         // If the query is empty (no text, no tags, no language filter, no page
         // range), nhentai rejects the request with HTTP 400 "query should have
         // at least 1 character".  Use a dummy negative tag that matches every
-        // gallery — exactly what NClientV3 does in `tryByAllPopular()`.
-        // See InspectorV3.java:267-272.
+        // gallery.
         if query.is_empty() {
-            query = "-nclientv3".to_string();
+            query = "-nclientt".to_string();
         }
         let mut url = format!("{}{}&page={}", base, query, q.page);
         if let Some(srt) = q.sort.url_addition() {
@@ -230,7 +228,7 @@ impl ApiClient {
     // Favorites
     // ---------------------------------------------------------------------
 
-    /// Fetch a page of online favorites. Mirrors `ApiRequestType.FAVORITE`.
+    /// Fetch a page of online favorites.
     pub async fn favorites_page(&self, page: u32, query: Option<&str>) -> AppResult<FavoritesPage> {
         let s = self.settings();
         let mut url = format!("{}favorites?page={}", self.config.api_base_url(), page);
@@ -259,6 +257,33 @@ impl ApiClient {
             page,
             num_pages,
         })
+    }
+
+    pub async fn check_favorite(&self, gallery_id: i64) -> AppResult<FavoriteStatus> {
+        let s = self.settings();
+        let url = self.api_url(&format!("galleries/{}/favorite", gallery_id));
+        let (body, _) = self.http.get_text(&url, true, &s).await?;
+        parse_favorite_status(&body)
+    }
+
+    pub async fn add_favorite(&self, gallery_id: i64) -> AppResult<FavoriteStatus> {
+        let s = self.settings();
+        let url = self.api_url(&format!("galleries/{}/favorite", gallery_id));
+        let (body, _) = self
+            .http
+            .request_text(reqwest::Method::POST, &url, true, &s)
+            .await?;
+        parse_favorite_status(&body)
+    }
+
+    pub async fn remove_favorite(&self, gallery_id: i64) -> AppResult<FavoriteStatus> {
+        let s = self.settings();
+        let url = self.api_url(&format!("galleries/{}/favorite", gallery_id));
+        let (body, _) = self
+            .http
+            .request_text(reqwest::Method::DELETE, &url, true, &s)
+            .await?;
+        parse_favorite_status(&body)
     }
 
     // ---------------------------------------------------------------------
@@ -298,17 +323,45 @@ impl ApiClient {
         })
     }
 
-    /// Gallery comments. Mirrors `CommentsFetcher`.
-    pub async fn comments(&self, gallery_id: i64) -> AppResult<CommentsPage> {
+    /// Fetch one page of gallery comments.
+    pub async fn comments(
+        &self,
+        gallery_id: i64,
+        page: u32,
+        per_page: u32,
+    ) -> AppResult<CommentsPage> {
         let s = self.settings();
-        let url = self.api_url(&format!("galleries/{}/comments", gallery_id));
+        let page = page.max(1);
+        let per_page = per_page.clamp(1, 50);
+        let url = self.api_url(&format!(
+            "galleries/{}/comments?page={}&per_page={}",
+            gallery_id, page, per_page
+        ));
         let (body, _) = self.http.get_text(&url, true, &s).await?;
         let v: Value = serde_json::from_str(&body)?;
-        let arr = v.as_array().cloned().unwrap_or_default();
-        let comments = arr.iter().map(parse_comment).collect::<Vec<_>>();
+        let arr = v
+            .get("result")
+            .and_then(|x| x.as_array())
+            .ok_or(AppError::InvalidResponse)?;
+        let comments = arr
+            .iter()
+            .map(|value| parse_comment(value, &s.mirror))
+            .collect::<Vec<_>>();
         Ok(CommentsPage {
             comments,
             gallery_id,
+            page,
+            num_pages: v
+                .get("num_pages")
+                .and_then(|x| x.as_u64())
+                .map(|x| x as u32)
+                .unwrap_or(page),
+            per_page: v
+                .get("per_page")
+                .and_then(|x| x.as_u64())
+                .map(|x| x as u32)
+                .unwrap_or(per_page),
+            total: v.get("total").and_then(|x| x.as_u64()).map(|x| x as u32),
         })
     }
 
@@ -377,7 +430,7 @@ impl ApiClient {
         self.popular_tags().await
     }
 
-    /// Search tags by name. Mirrors NClientV3's tag autocomplete.
+    /// Search tags by name for autocomplete.
     pub async fn search_tags(&self, query: &str, limit: usize) -> AppResult<Vec<Tag>> {
         let q = query.trim().to_ascii_lowercase();
         if q.is_empty() {
@@ -578,6 +631,11 @@ pub fn parse_gallery(body: &str, host: &str) -> AppResult<Gallery> {
     let is_favorited = v
         .get("is_favorited")
         .and_then(|x| x.as_bool())
+        .or_else(|| {
+            v.get("favorite")
+                .and_then(|x| x.get("favorited"))
+                .and_then(|x| x.as_bool())
+        })
         .unwrap_or(false);
 
     let related = v
@@ -620,7 +678,18 @@ fn parse_tag(v: &Value) -> Tag {
     }
 }
 
-fn parse_comment(v: &Value) -> Comment {
+fn parse_favorite_status(body: &str) -> AppResult<FavoriteStatus> {
+    let v: Value = serde_json::from_str(body)?;
+    Ok(FavoriteStatus {
+        favorited: v
+            .get("favorited")
+            .and_then(|x| x.as_bool())
+            .ok_or(AppError::InvalidResponse)?,
+        num_favorites: v.get("num_favorites").and_then(|x| x.as_i64()),
+    })
+}
+
+fn parse_comment(v: &Value, host: &str) -> Comment {
     let poster = v
         .get("poster")
         .map(|p| CommentUser {
@@ -638,7 +707,8 @@ fn parse_comment(v: &Value) -> Comment {
             avatar_url: p
                 .get("avatar_url")
                 .and_then(|x| x.as_str())
-                .map(String::from),
+                .filter(|url| !url.trim().is_empty())
+                .map(|url| absolutize_avatar(url, host)),
             is_superuser: p
                 .get("is_superuser")
                 .and_then(|x| x.as_bool())
@@ -662,18 +732,20 @@ fn parse_comment(v: &Value) -> Comment {
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string(),
-        create_date: v
-            .get("create_date")
-            .and_then(|x| x.as_str())
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map(|d| d.with_timezone(&chrono::Utc)),
-        post_date: v
-            .get("post_date")
-            .and_then(|x| x.as_str())
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map(|d| d.with_timezone(&chrono::Utc)),
+        create_date: v.get("create_date").and_then(parse_datetime),
+        post_date: v.get("post_date").and_then(parse_datetime),
         vote: v.get("vote").and_then(|x| x.as_i64()).map(|x| x as i32),
     }
+}
+
+fn parse_datetime(value: &Value) -> Option<chrono::DateTime<chrono::Utc>> {
+    if let Some(timestamp) = value.as_i64() {
+        return chrono::Utc.timestamp_opt(timestamp, 0).single();
+    }
+    value
+        .as_str()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|date| date.with_timezone(&chrono::Utc))
 }
 
 fn parse_page(v: Option<&Value>, host: &str, _debug: &str, prefix_if_missing: &str) -> Page {
@@ -720,6 +792,14 @@ fn absolutize(path: &str, host: &str, prefix: &str) -> String {
     }
 }
 
+fn absolutize_avatar(path: &str, host: &str) -> String {
+    if path.starts_with("http://") || path.starts_with("https://") {
+        path.to_string()
+    } else {
+        format!("https://i.{}/{}", host, path.trim_start_matches('/'))
+    }
+}
+
 fn infer_language_from_tags(tags: &[Tag]) -> Language {
     for t in tags {
         if t.tag_type == TagType::Language {
@@ -753,7 +833,7 @@ fn language_to_query_tag(lang: Language) -> Option<String> {
     Some(percent_encode(raw))
 }
 
-/// Encode a value for use in a URL query segment. Covers everything NClientV3
+/// Encode a value for use in a URL query segment. Covers everything this app
 /// relies on (`+`, `"`, spaces, etc.).
 fn percent_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -804,5 +884,36 @@ impl LanguageExt for Language {
             }
         }
         Language::All
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_comment;
+
+    #[test]
+    fn parses_v2_comment_with_unix_timestamp() {
+        let value = serde_json::json!({
+            "id": 42,
+            "gallery_id": 666973,
+            "poster": {
+                "id": 7,
+                "username": "reader",
+                "slug": "reader",
+                "avatar_url": "avatars/7.png",
+                "is_superuser": false,
+                "is_staff": false
+            },
+            "post_date": 1_700_000_000,
+            "body": "A current API comment"
+        });
+        let comment = parse_comment(&value, "nhentai.net");
+        assert_eq!(comment.gallery_id, 666973);
+        assert_eq!(comment.poster.username, "reader");
+        assert_eq!(
+            comment.poster.avatar_url.as_deref(),
+            Some("https://i.nhentai.net/avatars/7.png")
+        );
+        assert_eq!(comment.post_date.unwrap().timestamp(), 1_700_000_000);
     }
 }

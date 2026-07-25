@@ -4,7 +4,7 @@ import { save as taSave, open as taOpen } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { platform } from "@tauri-apps/plugin-os";
 import { useI18n } from "vue-i18n";
-import { Check, Monitor, Moon, Sun } from "@lucide/vue";
+import { Check, ExternalLink, Monitor, Moon, Sun } from "@lucide/vue";
 import { SUPPORTED_LANGUAGES, exportLocaleJson, applyImportedMessages, setLocale, getLocale, type AppLanguage } from "@/i18n";
 
 import {
@@ -13,6 +13,7 @@ import {
   cloudflareCheck,
   cloudflareIsSolved,
   cloudflareOpenChallenge,
+  openApiKeyDocs,
   settingsClearCookies,
   settingsGetPaths,
   settingsPickDirectory,
@@ -20,17 +21,21 @@ import {
   testTranslationConnection,
 } from "@/api";
 import {
-  defaultTranslationTarget,
-  isDefaultTranslationTarget,
+  defaultCommentTranslationTarget,
+  defaultTitleTranslationTarget,
+  isDefaultCommentTranslationTarget,
+  isDefaultTitleTranslationTarget,
   useSettingsStore,
 } from "@/stores/settings";
+import { useFavoritesStore } from "@/stores/favorites";
 import { useScrollCache } from "@/composables/useScrollCache";
 import { applyTheme } from "@/composables/useTheme";
-import type { ThemePreference } from "@/types";
+import type { Settings, ThemePreference } from "@/types";
 
 const i18n = useI18n();
 
 const settings = useSettingsStore();
+const favorites = useFavoritesStore();
 const draft = ref(JSON.parse(JSON.stringify(settings.settings)));
 const saved = ref(false);
 const appData = ref<string>("");
@@ -136,15 +141,22 @@ async function pickDownloadDir() {
 
 async function saveApiKey() {
   if (!apiKeyInput.value.trim()) return;
-  await authSetApiKey(apiKeyInput.value.trim());
+  const updated = await authSetApiKey(apiKeyInput.value.trim());
+  settings.settings = updated;
   apiKeyInput.value = "";
   await settings.refreshAuth();
+  draft.value = JSON.parse(JSON.stringify(settings.settings));
+  await favorites.syncAfterLogin();
 }
 
 async function clearAuth() {
-  await authClear();
+  settings.settings = await authClear();
   await settings.refreshAuth();
-  draft.value.auth = { api_key: "", valid: false };
+  draft.value.auth = {
+    api_key: "",
+    valid: false,
+  };
+  await favorites.load();
 }
 
 async function clearCookies() {
@@ -161,13 +173,18 @@ async function solveCf() {
 }
 
 async function changeLang(code: AppLanguage) {
-  const useLanguageDefault = isDefaultTranslationTarget(draft.value.tl_target_lang);
+  const useTitleDefault = isDefaultTitleTranslationTarget(draft.value.tl_target_lang);
+  const useCommentDefault = isDefaultCommentTranslationTarget(
+    draft.value.tl_comment_target_lang,
+  );
   currentLang.value = code;
   setLocale(code);
   i18n.locale.value = code;
-  const patch = useLanguageDefault
-    ? { app_language: code, tl_target_lang: defaultTranslationTarget(code) }
-    : { app_language: code };
+  const patch: Partial<Settings> = { app_language: code };
+  if (useTitleDefault) patch.tl_target_lang = defaultTitleTranslationTarget(code);
+  if (useCommentDefault) {
+    patch.tl_comment_target_lang = defaultCommentTranslationTarget(code);
+  }
   await settings.save(patch);
   draft.value = JSON.parse(JSON.stringify(settings.settings));
   langSaved.value = true;
@@ -334,8 +351,12 @@ onMounted(async () => {
       <div class="row">
         <input v-model="apiKeyInput" type="password" :placeholder="$t('settings.paste_api_key')" />
         <button class="btn primary" @click="saveApiKey">{{ $t('settings.save_key') }}</button>
+        <button class="btn" @click="openApiKeyDocs">
+          <ExternalLink :size="14" /> {{ $t('settings.get_api_key') }}
+        </button>
         <button class="btn danger" :disabled="!settings.auth.has_credentials" @click="clearAuth">{{ $t('settings.clear') }}</button>
       </div>
+      <p class="hint">{{ $t('settings.api_key_steps') }}</p>
       <p class="hint" v-html="$t('settings.api_hint', { code: '<code>Authorization: Key &lt;key&gt;</code>' })"></p>
     </section>
 
@@ -412,11 +433,19 @@ onMounted(async () => {
           <input v-model="draft.tl_api_key" type="password" placeholder="sk-…" />
         </div>
         <div class="field">
-          <label>{{ $t('settings.ai_target_lang') }}</label>
+          <label>{{ $t('settings.ai_title_target_lang') }}</label>
           <input
             v-model="draft.tl_target_lang"
             type="text"
-            :placeholder="defaultTranslationTarget(currentLang)"
+            :placeholder="defaultTitleTranslationTarget(currentLang)"
+          />
+        </div>
+        <div class="field">
+          <label>{{ $t('settings.ai_comment_target_lang') }}</label>
+          <input
+            v-model="draft.tl_comment_target_lang"
+            type="text"
+            :placeholder="defaultCommentTranslationTarget(currentLang)"
           />
         </div>
       </div>

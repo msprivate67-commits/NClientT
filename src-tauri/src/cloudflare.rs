@@ -1,9 +1,8 @@
 //! Cloudflare challenge resolution.
 //!
-//! Port of NClientV3's `CookieInterceptor` + `CFTokenView`. The Android app
-//! embeds a `WebView`, loads the mirror, and lets the user solve the
+//! Opens a webview for the configured mirror and lets the user solve the
 //! challenge; once `cf_clearance` appears in the WebView's cookie jar it is
-//! copied into the OkHttp client's persistent cookie jar.
+//! copied into the persistent HTTP cookie jar.
 //!
 //! On Tauri 2 we open a dedicated webview window, run a small JS probe via
 //! `webview.eval` that polls `document.cookie`, and forward the captured

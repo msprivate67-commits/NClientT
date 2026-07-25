@@ -1,5 +1,5 @@
-//! Serializable data structures mirrored from NClientV3's `api/components` and
-//! `api/enums` packages.
+//! Serializable data structures used by the nhentai API v2 frontend/backend
+//! boundary.
 //!
 //! These types are used for two things:
 //! 1. Deserializing nhentai's API v2 JSON responses.
@@ -279,6 +279,12 @@ pub struct FavoritesPage {
     pub num_pages: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteStatus {
+    pub favorited: bool,
+    pub num_favorites: Option<i64>,
+}
+
 // ---------------------------------------------------------------------------
 // Comments
 // ---------------------------------------------------------------------------
@@ -313,6 +319,10 @@ pub struct Comment {
 pub struct CommentsPage {
     pub comments: Vec<Comment>,
     pub gallery_id: i64,
+    pub page: u32,
+    pub num_pages: u32,
+    pub per_page: u32,
+    pub total: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------

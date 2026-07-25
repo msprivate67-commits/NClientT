@@ -16,13 +16,16 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   Heart,
 } from "@lucide/vue";
 import {
   imageProxyUrl,
   openInBrowser,
+  translateComment,
   translateTitle,
 } from "@/api";
+import type { Comment } from "@/types";
 import { useGalleryStore } from "@/stores/gallery";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useDownloadsStore } from "@/stores/downloads";
@@ -60,6 +63,8 @@ const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
 const commentsOpen = ref(false);
 const tagsExpanded = ref(false);
+const pagesExpanded = ref(true);
+const relatedExpanded = ref(true);
 const loading = ref(false);
 const viewRef = ref<HTMLElement | null>(null);
 
@@ -77,6 +82,221 @@ const translateError = ref("");
 let translationController: AbortController | null = null;
 let translationRequestId = 0;
 let autoTranslatedGalleryId: number | null = null;
+
+interface CommentTranslationState {
+  translated: string;
+  reasoning: string;
+  reasoningExpanded: boolean;
+  queued: boolean;
+  translating: boolean;
+  error: string;
+}
+
+const commentTranslations = ref(new Map<number, CommentTranslationState>());
+const commentTranslationControllers = new Map<number, AbortController>();
+const commentReasoningRefs = new Map<number, HTMLElement>();
+const queuedCommentIds = new Set<number>();
+let commentTranslationQueue: Comment[] = [];
+let activeCommentTranslations = 0;
+let commentTranslationRunId = 0;
+let loadingAllCommentPages = false;
+const COMMENT_TRANSLATION_CONCURRENCY = 4;
+
+function commentTranslation(commentId: number): CommentTranslationState | undefined {
+  return commentTranslations.value.get(commentId);
+}
+
+function updateCommentTranslation(
+  commentId: number,
+  patch: Partial<CommentTranslationState>,
+) {
+  const previous = commentTranslations.value.get(commentId) ?? {
+    translated: "",
+    reasoning: "",
+    reasoningExpanded: false,
+    queued: false,
+    translating: false,
+    error: "",
+  };
+  const next = new Map(commentTranslations.value);
+  next.set(commentId, { ...previous, ...patch });
+  commentTranslations.value = next;
+}
+
+function setCommentReasoningRef(commentId: number, element: unknown) {
+  if (element instanceof HTMLElement) {
+    commentReasoningRefs.set(commentId, element);
+  } else {
+    commentReasoningRefs.delete(commentId);
+  }
+}
+
+async function scrollCommentReasoningToBottom(commentId: number) {
+  await nextTick();
+  const element = commentReasoningRefs.get(commentId);
+  if (element) element.scrollTop = element.scrollHeight;
+}
+
+function resetCommentTranslations() {
+  commentTranslationRunId += 1;
+  commentTranslationControllers.forEach((controller) => controller.abort());
+  commentTranslationControllers.clear();
+  commentReasoningRefs.clear();
+  queuedCommentIds.clear();
+  commentTranslationQueue = [];
+  activeCommentTranslations = 0;
+  loadingAllCommentPages = false;
+  commentTranslations.value = new Map();
+}
+
+function enqueueCommentTranslation(comment: Comment, force = false) {
+  if (!comment.body.trim()) return;
+  const current = commentTranslation(comment.id);
+  if (current?.translating || current?.queued || queuedCommentIds.has(comment.id)) return;
+  if (!force && (current?.translated || current?.error)) return;
+  updateCommentTranslation(comment.id, {
+    translated: force ? "" : current?.translated ?? "",
+    reasoning: force ? "" : current?.reasoning ?? "",
+    reasoningExpanded: false,
+    queued: true,
+    translating: false,
+    error: "",
+  });
+  queuedCommentIds.add(comment.id);
+  commentTranslationQueue.push(comment);
+  pumpCommentTranslations();
+}
+
+function pumpCommentTranslations() {
+  const runId = commentTranslationRunId;
+  while (
+    runId === commentTranslationRunId
+    && activeCommentTranslations < COMMENT_TRANSLATION_CONCURRENCY
+    && commentTranslationQueue.length
+  ) {
+    const comment = commentTranslationQueue.shift();
+    if (!comment) break;
+    queuedCommentIds.delete(comment.id);
+    activeCommentTranslations += 1;
+    void runCommentTranslation(comment, runId).finally(() => {
+      if (runId !== commentTranslationRunId) return;
+      activeCommentTranslations -= 1;
+      pumpCommentTranslations();
+    });
+  }
+}
+
+async function runCommentTranslation(comment: Comment, runId: number) {
+  const controller = new AbortController();
+  commentTranslationControllers.set(comment.id, controller);
+  updateCommentTranslation(comment.id, {
+    translated: "",
+    reasoning: "",
+    reasoningExpanded: true,
+    queued: false,
+    translating: true,
+    error: "",
+  });
+  const s = settings.settings;
+  try {
+    const translated = await translateComment(
+      s.tl_base_url,
+      s.tl_model,
+      s.tl_api_key,
+      comment.body,
+      s.tl_comment_target_lang,
+      s.tl_thinking,
+      s.tl_use_proxy,
+      {
+        signal: controller.signal,
+        onContent: (chunk) => {
+          if (runId !== commentTranslationRunId || controller.signal.aborted) return;
+          const state = commentTranslation(comment.id);
+          updateCommentTranslation(comment.id, {
+            translated: `${state?.translated ?? ""}${chunk}`,
+          });
+        },
+        onReasoning: (chunk) => {
+          if (runId !== commentTranslationRunId || controller.signal.aborted) return;
+          const state = commentTranslation(comment.id);
+          updateCommentTranslation(comment.id, {
+            reasoning: `${state?.reasoning ?? ""}${chunk}`,
+          });
+          void scrollCommentReasoningToBottom(comment.id);
+        },
+      },
+    );
+    if (runId !== commentTranslationRunId || controller.signal.aborted) return;
+    updateCommentTranslation(comment.id, {
+      translated,
+      reasoningExpanded: false,
+      translating: false,
+    });
+  } catch (error: unknown) {
+    if (runId !== commentTranslationRunId || controller.signal.aborted) return;
+    updateCommentTranslation(comment.id, {
+      reasoningExpanded: false,
+      translating: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    if (commentTranslationControllers.get(comment.id) === controller) {
+      commentTranslationControllers.delete(comment.id);
+    }
+  }
+}
+
+async function maybeAutoTranslateComments() {
+  const currentGallery = g.value;
+  if (
+    !commentsOpen.value
+    || !currentGallery
+    || !settings.settings.tl_auto_translate
+    || settings.translationAvailable !== true
+  ) return;
+
+  gallery.comments.forEach((comment) => enqueueCommentTranslation(comment));
+  if (loadingAllCommentPages || gallery.commentsLoading) return;
+
+  loadingAllCommentPages = true;
+  const galleryId = currentGallery.id;
+  try {
+    while (
+      g.value?.id === galleryId
+      && commentsOpen.value
+      && gallery.commentsPage < gallery.commentsNumPages
+    ) {
+      const previousPage = gallery.commentsPage;
+      await gallery.loadMoreComments(galleryId);
+      gallery.comments.forEach((comment) => enqueueCommentTranslation(comment));
+      if (gallery.commentsPage <= previousPage) break;
+    }
+  } catch {
+    // The comment list already displays pagination errors from the store.
+  } finally {
+    loadingAllCommentPages = false;
+  }
+}
+
+function translateSingleComment(comment: Comment) {
+  enqueueCommentTranslation(comment, true);
+}
+
+function toggleCommentReasoning(commentId: number) {
+  const state = commentTranslation(commentId);
+  if (!state?.reasoning) return;
+  updateCommentTranslation(commentId, {
+    reasoningExpanded: !state.reasoningExpanded,
+  });
+  if (!state.reasoningExpanded) void scrollCommentReasoningToBottom(commentId);
+}
+
+async function toggleTitleReasoning() {
+  reasoningExpanded.value = !reasoningExpanded.value;
+  if (!reasoningExpanded.value) return;
+  await nextTick();
+  if (reasoningRef.value) reasoningRef.value.scrollTop = reasoningRef.value.scrollHeight;
+}
 
 async function doTranslate() {
   if (!g.value) return;
@@ -306,8 +526,6 @@ function goBack() {
 }
 
 function goToSettings() {
-  // From an overlay panel, close it first so the settings route renders full
-  // screen (same pattern as onTagClick).
   if (props.overlay) {
     overlay.closeAll();
   }
@@ -317,17 +535,31 @@ function goToSettings() {
 onMounted(load);
 watch(id, () => {
   translationController?.abort();
+  resetCommentTranslations();
   translationRequestId++;
   translating.value = false;
   translatedTitle.value = "";
   reasoningText.value = "";
   translateError.value = "";
   autoTranslatedGalleryId = null;
+  commentsOpen.value = false;
+  pagesExpanded.value = true;
+  relatedExpanded.value = true;
   void load();
 });
 watch(
   [() => settings.translationAvailable, () => settings.settings.tl_auto_translate],
-  maybeAutoTranslate,
+  () => {
+    maybeAutoTranslate();
+    void maybeAutoTranslateComments();
+  },
+);
+watch(
+  [
+    commentsOpen,
+    () => gallery.comments.map((comment) => comment.id).join(","),
+  ],
+  () => void maybeAutoTranslateComments(),
 );
 watch(reasoningText, async () => {
   if (!reasoningExpanded.value) return;
@@ -337,15 +569,21 @@ watch(reasoningText, async () => {
 onUnmounted(() => {
   thumbObserver?.disconnect();
   translationController?.abort();
+  resetCommentTranslations();
   releasePinnedImages.forEach((release) => release());
   releasePinnedImages = [];
 });
 
 async function toggleComments() {
   commentsOpen.value = !commentsOpen.value;
-  if (commentsOpen.value && g.value && gallery.comments.length === 0) {
-    await gallery.loadComments(g.value.id);
+  if (commentsOpen.value && g.value && gallery.commentsPage === 0) {
+    try {
+      await gallery.loadComments(g.value.id);
+    } catch {
+      // The store exposes the request error beside the comment list.
+    }
   }
+  if (commentsOpen.value) void maybeAutoTranslateComments();
 }
 
 async function onTagClick(t: any) {
@@ -382,7 +620,7 @@ async function onTagClick(t: any) {
         <div class="title-stack">
           <h1 class="title">{{ title }}</h1>
           <div v-if="reasoningText" class="reasoning-block">
-            <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
+            <button class="reasoning-toggle" @click="toggleTitleReasoning">
               <ChevronUp v-if="reasoningExpanded" :size="13" />
               <ChevronDown v-else :size="13" />
               {{ $t('gallery.reasoning') }}
@@ -478,8 +716,21 @@ async function onTagClick(t: any) {
       </section>
 
       <section v-if="g.pages.length" class="page-thumbs detail-card">
-        <div class="section-title">{{ $t('gallery.section_pages') }}</div>
+        <div class="section-toggle-bar">
+          <div class="section-title">{{ $t('gallery.section_pages') }}</div>
+          <button
+            class="btn small"
+            type="button"
+            :aria-expanded="pagesExpanded"
+            @click="pagesExpanded = !pagesExpanded"
+          >
+            <ChevronUp v-if="pagesExpanded" :size="14" />
+            <ChevronDown v-else :size="14" />
+            {{ pagesExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
+          </button>
+        </div>
         <div
+          v-show="pagesExpanded"
           class="thumb-grid"
           :style="thumbColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${thumbColumns}, 1fr)` }"
         >
@@ -505,23 +756,116 @@ async function onTagClick(t: any) {
       </section>
 
       <section v-if="g.related.length" class="related detail-card">
-        <div class="section-title">{{ $t('gallery.section_related') }}</div>
-        <GalleryGrid :galleries="g.related" />
+        <div class="section-toggle-bar">
+          <div class="section-title">{{ $t('gallery.section_related') }}</div>
+          <button
+            class="btn small"
+            type="button"
+            :aria-expanded="relatedExpanded"
+            @click="relatedExpanded = !relatedExpanded"
+          >
+            <ChevronUp v-if="relatedExpanded" :size="14" />
+            <ChevronDown v-else :size="14" />
+            {{ relatedExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
+          </button>
+        </div>
+        <div v-show="relatedExpanded" class="related-content">
+          <GalleryGrid :galleries="g.related" />
+        </div>
       </section>
 
       <section class="comments detail-card">
-        <button class="btn" @click="toggleComments">
-          {{ commentsOpen ? $t('gallery.hide_comments') : $t('gallery.show_comments') }}
-        </button>
+        <div class="comments-toolbar">
+          <button class="btn" @click="toggleComments">
+            {{ commentsOpen ? $t('gallery.hide_comments') : $t('gallery.show_comments') }}
+            <span v-if="gallery.commentsTotal !== null">({{ gallery.commentsTotal }})</span>
+          </button>
+          <button v-if="commentsOpen" class="btn" @click="openInBrowser(String(g.id))">
+            <ExternalLink :size="14" /> {{ $t('gallery.open_on_website') }}
+          </button>
+        </div>
+        <p v-if="commentsOpen" class="hint website-actions-hint">
+          {{ $t('gallery.website_actions_hint') }}
+        </p>
         <div v-if="commentsOpen" class="comment-list">
-          <div v-for="c in gallery.comments" :key="c.id" class="comment">
-            <div class="who">
-              <strong>{{ c.poster.username }}</strong>
-              <span v-if="c.post_date">{{ new Date(c.post_date).toLocaleString() }}</span>
-            </div>
-            <div class="body">{{ c.body }}</div>
+          <div v-if="gallery.commentsLoading && gallery.commentsPage === 0" class="empty">
+            {{ $t('common.loading') }}
           </div>
-          <div v-if="!gallery.comments.length" class="empty">{{ $t('gallery.no_comments') }}</div>
+          <div v-for="c in gallery.comments" :key="c.id" class="comment">
+            <div class="comment-avatar" aria-hidden="true">
+              <img
+                v-if="c.poster.avatar_url"
+                :src="imageProxyUrl(c.poster.avatar_url)"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+              <span v-else>{{ c.poster.username.charAt(0).toUpperCase() }}</span>
+            </div>
+            <div class="comment-content">
+              <div class="who">
+                <strong>{{ c.poster.username }}</strong>
+                <span v-if="c.post_date">{{ new Date(c.post_date).toLocaleString() }}</span>
+                <button
+                  class="comment-translate-button"
+                  type="button"
+                  :disabled="commentTranslation(c.id)?.translating || commentTranslation(c.id)?.queued"
+                  @click="translateSingleComment(c)"
+                >
+                  <Loader
+                    v-if="commentTranslation(c.id)?.translating || commentTranslation(c.id)?.queued"
+                    :size="12"
+                    class="spin"
+                  />
+                  <Languages v-else :size="12" />
+                  {{
+                    commentTranslation(c.id)?.translating || commentTranslation(c.id)?.queued
+                      ? $t('gallery.translating')
+                      : commentTranslation(c.id)?.translated
+                        ? $t('gallery.retranslate_comment')
+                        : $t('gallery.translate_comment')
+                  }}
+                </button>
+              </div>
+              <div class="comment-body">{{ c.body }}</div>
+              <div v-if="commentTranslation(c.id)?.reasoning" class="comment-reasoning">
+                <button
+                  class="reasoning-toggle"
+                  type="button"
+                  @click="toggleCommentReasoning(c.id)"
+                >
+                  <ChevronUp v-if="commentTranslation(c.id)?.reasoningExpanded" :size="12" />
+                  <ChevronDown v-else :size="12" />
+                  {{ $t('gallery.reasoning') }}
+                </button>
+                <div
+                  v-show="commentTranslation(c.id)?.reasoningExpanded"
+                  :ref="(element) => setCommentReasoningRef(c.id, element)"
+                  class="reasoning-text comment-reasoning-text"
+                >{{ commentTranslation(c.id)?.reasoning }}</div>
+              </div>
+              <div
+                v-if="commentTranslation(c.id)?.translated"
+                class="translated-comment"
+              >{{ commentTranslation(c.id)?.translated }}</div>
+              <div v-if="commentTranslation(c.id)?.error" class="inline-error comment-translate-error">
+                {{ commentTranslation(c.id)?.error }}
+              </div>
+            </div>
+          </div>
+          <button
+            v-if="gallery.commentsPage < gallery.commentsNumPages"
+            class="btn load-more-comments"
+            :disabled="gallery.commentsLoading"
+            @click="g && gallery.loadMoreComments(g.id)"
+          >
+            <Loader v-if="gallery.commentsLoading" :size="14" class="spin" />
+            {{ $t('gallery.load_more_comments') }}
+          </button>
+          <div v-if="gallery.commentsError" class="inline-error">{{ gallery.commentsError }}</div>
+          <div v-else-if="!gallery.commentsLoading && !gallery.comments.length" class="empty">
+            {{ $t('gallery.no_comments') }}
+          </div>
         </div>
       </section>
     </div>
@@ -824,6 +1168,19 @@ async function onTagClick(t: any) {
 .detail-card > .section-title {
   margin-top: 0;
 }
+.section-toggle-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.section-toggle-bar .section-title {
+  margin: 0;
+}
+.section-toggle-bar + .thumb-grid,
+.related-content {
+  margin-top: 12px;
+}
 .tag-toggle-bar {
   display: flex;
   align-items: center;
@@ -890,21 +1247,109 @@ async function onTagClick(t: any) {
 .comments {
   margin-top: 0;
 }
+.comments-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.comments-toolbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.website-actions-hint {
+  margin: 8px 0 0;
+}
+.load-more-comments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.inline-error {
+  margin-top: 10px;
+  color: #ff9e9e;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
 .comment {
+  display: flex;
+  gap: 10px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
 }
+.comment-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 50%;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.comment-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.comment-content {
+  min-width: 0;
+  flex: 1;
+}
 .comment .who {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: baseline;
   font-size: 0.78rem;
   color: var(--text-dim);
 }
-.comment .body {
+.comment-translate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.comment-translate-button:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+.comment-body {
   margin-top: 4px;
   font-size: 0.88rem;
   white-space: pre-wrap;
+}
+.comment-reasoning {
+  margin-top: 8px;
+}
+.comment-reasoning-text {
+  height: auto;
+  max-height: calc(6 * 1.45em + 12px);
+}
+.translated-comment {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.comment-translate-error {
+  margin-top: 6px;
 }
 .empty {
   color: var(--text-dim);
@@ -1054,6 +1499,9 @@ async function onTagClick(t: any) {
   }
   .title {
     font-size: 1.15rem;
+  }
+  .title-stack .reasoning-text {
+    text-align: left;
   }
   .meta {
     justify-content: center;

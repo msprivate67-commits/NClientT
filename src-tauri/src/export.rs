@@ -1,7 +1,7 @@
 //! Gallery export to ZIP / PDF.
 //!
-//! Port of NClientV3's `PDF` + `ZIP` channels. Given a gallery folder on
-//! disk, packs its page images into a single archive / document.
+//! Given a gallery folder on disk, packs its page images into a single ZIP
+//! archive or PDF document.
 
 use std::path::{Path, PathBuf};
 

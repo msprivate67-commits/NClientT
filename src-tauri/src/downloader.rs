@@ -1,13 +1,8 @@
 //! Gallery download manager.
 //!
-//! Port of NClientV3's `async/downloader` package
-//! (`GalleryDownloaderManager` + `GalleryDownloaderV2` + `DownloadQueue`).
-//!
 //! Each gallery is downloaded into `<download_dir>/<title>/.<id>` (the `.<id>`
-//! marker file mirrors NClientV3's `createIdFile()`), with pages named
-//! `001.<ext>`, `002.<ext>`, ... (mirrors `PageContainer#getPageName`).
-//! A `.nomedia` metadata file stores the gallery JSON (mirrors
-//! `GalleryDownloaderV2#writeNoMedia`).
+//! marker file identifies the gallery), with pages named `001.<ext>`,
+//! `002.<ext>`, ... . A `.nomedia` metadata file stores the gallery JSON.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
