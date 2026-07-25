@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { nextTick, onUnmounted, watch } from "vue";
+
 import GalleryCard from "./GalleryCard.vue";
 import EmptyState from "./EmptyState.vue";
+import { loadImageObjectUrl } from "@/composables/useImageObjectCache";
+import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 import type { SimpleGallery } from "@/types";
 
-defineProps<{
+const props = defineProps<{
   galleries: SimpleGallery[];
   loading?: boolean;
   emptyTitle?: string;
@@ -16,6 +20,41 @@ const emit = defineEmits<{
   (e: "select", id: number): void;
   (e: "deselect", id: number): void;
 }>();
+
+const coverPreloader = usePriorityPreloadQueue(async (index) => {
+  const source = props.galleries[index]?.thumbnail;
+  if (source) await loadImageObjectUrl(source);
+}, 3);
+
+let scheduleGeneration = 0;
+
+function prioritizeCover(id: number) {
+  const index = props.galleries.findIndex((gallery) => gallery.id === id);
+  if (index >= 0) coverPreloader.enqueue([index], true);
+}
+
+watch(
+  () => props.galleries.map((gallery) => `${gallery.id}:${gallery.thumbnail ?? ""}`).join("|"),
+  async () => {
+    const generation = ++scheduleGeneration;
+    coverPreloader.reset();
+
+    // Let cards mount and report visible/nearby covers first. The remainder
+    // then enters the same queue in page order and fills while the user reads.
+    await nextTick();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (generation !== scheduleGeneration) return;
+        coverPreloader.enqueue(props.galleries.map((_, index) => index));
+      });
+    });
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  scheduleGeneration++;
+});
 </script>
 
 <template>
@@ -32,8 +71,10 @@ const emit = defineEmits<{
       :gallery="g"
       :selectable="selectable"
       :selected="selected?.has(g.id)"
+      managed-cover-loading
       @select="emit('select', $event)"
       @deselect="emit('deselect', $event)"
+      @cover-priority="prioritizeCover"
     />
   </div>
 </template>

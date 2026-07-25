@@ -30,7 +30,12 @@ import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useScrollCache } from "@/composables/useScrollCache";
-import { preloadImage, usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
+import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
+import {
+  cachedImageObjectUrl,
+  loadImageObjectUrl,
+  pinImageObjectSource,
+} from "@/composables/useImageObjectCache";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -163,6 +168,7 @@ async function load() {
   loading.value = true;
   try {
     await gallery.load(id.value);
+    pinGalleryImages();
     setupThumbObserver();
     maybeAutoTranslate();
   } catch (e: any) {
@@ -174,24 +180,41 @@ async function load() {
 
 const loadedThumbs = ref(new Set<number>());
 let thumbObserver: IntersectionObserver | null = null;
-const pagePreloader = usePriorityPreloadQueue(async (index) => {
+let releasePinnedImages: Array<() => void> = [];
+
+function pinGalleryImages() {
+  releasePinnedImages.forEach((release) => release());
+  releasePinnedImages = [];
+  const sources = new Set(
+    (g.value?.pages ?? []).flatMap((page) => [page.thumbnail, page.path])
+      .filter((source): source is string => !!source),
+  );
+  releasePinnedImages = [...sources].map(pinImageObjectSource);
+}
+
+const thumbnailPreloader = usePriorityPreloadQueue(async (index) => {
   const page = g.value?.pages[index];
   if (!page) return;
-  const thumbnailUrl = page.thumbnail ? imageProxyUrl(page.thumbnail) : "";
-  const fullImageUrl = page.path ? imageProxyUrl(page.path) : "";
-  await Promise.all([
-    thumbnailUrl ? preloadImage(thumbnailUrl) : Promise.resolve(),
-    fullImageUrl && fullImageUrl !== thumbnailUrl
-      ? preloadImage(fullImageUrl)
-      : Promise.resolve(),
-  ]);
+  await loadImageObjectUrl(page.thumbnail || page.path);
+}, 4);
+
+const fullImagePreloader = usePriorityPreloadQueue(async (index) => {
+  const page = g.value?.pages[index];
+  if (!page?.path) return;
+  await loadImageObjectUrl(page.path);
 }, 2);
+
+function pageThumbnailSrc(index: number): string {
+  const page = g.value?.pages[index];
+  return cachedImageObjectUrl(page?.thumbnail || page?.path);
+}
 
 function setupThumbObserver() {
   thumbObserver?.disconnect();
   thumbObserver = null;
   loadedThumbs.value = new Set<number>();
-  pagePreloader.reset();
+  thumbnailPreloader.reset();
+  fullImagePreloader.reset();
   void nextTick(() => {
     const root = viewRef.value;
     if (!root) return;
@@ -204,7 +227,8 @@ function setupThumbObserver() {
           const index = Number((entry.target as HTMLElement).dataset.pageIndex);
           if (!Number.isInteger(index) || next.has(index)) continue;
           next.add(index);
-          pagePreloader.enqueue([index], true);
+          thumbnailPreloader.enqueue([index], true);
+          fullImagePreloader.enqueue([index], true);
           changed = true;
           thumbObserver?.unobserve(entry.target);
         }
@@ -223,12 +247,17 @@ function setupThumbObserver() {
         return rect.bottom >= rootRect.top - 600 && rect.top <= rootRect.bottom + 600;
       })
       .map((element) => Number(element.dataset.pageIndex));
-    pagePreloader.enqueue(nearby, true);
-    const startIndex = nearby.length > 0 ? Math.min(...nearby) : 0;
-    pagePreloader.enqueue(Array.from(
-      { length: Math.max(0, (g.value?.pages.length ?? 0) - startIndex) },
-      (_, offset) => startIndex + offset,
-    ));
+    thumbnailPreloader.enqueue(nearby, true);
+    fullImagePreloader.enqueue(nearby, true);
+    const allPages = Array.from(
+      { length: g.value?.pages.length ?? 0 },
+      (_, index) => index,
+    );
+    // Independent queues let thumbnails fill in quickly while full images are
+    // downloaded at lower concurrency in the background. Both resolve to the
+    // same shared object cache consumed by ReaderView.
+    thumbnailPreloader.enqueue(allPages);
+    fullImagePreloader.enqueue(allPages);
   });
 }
 
@@ -308,6 +337,8 @@ watch(reasoningText, async () => {
 onUnmounted(() => {
   thumbObserver?.disconnect();
   translationController?.abort();
+  releasePinnedImages.forEach((release) => release());
+  releasePinnedImages = [];
 });
 
 async function toggleComments() {
@@ -461,7 +492,7 @@ async function onTagClick(t: any) {
           >
             <img
               v-if="loadedThumbs.has(i) && (page.thumbnail || page.path)"
-              :src="imageProxyUrl(page.thumbnail || page.path || '')"
+              :src="pageThumbnailSrc(i)"
               :alt="$t('common.page_n', { n: i + 1 })"
               loading="eager"
               decoding="async"

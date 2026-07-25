@@ -69,6 +69,26 @@ export const useGalleryStore = defineStore("gallery", () => {
   const current = ref<Gallery | null>(null);
   const comments = ref<Comment[]>([]);
   const user = ref<User | null>(null);
+  let loadRequestId = 0;
+
+  function isTransientGalleryError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /network error|timed? out|connection|dns|request error/i.test(message);
+  }
+
+  async function fetchGalleryWithStartupRetry(id: number): Promise<Gallery> {
+    try {
+      return await apiGetGallery(id);
+    } catch (error: unknown) {
+      if (!isTransientGalleryError(error)) throw error;
+      // Android can report a transient DNS/socket error while its network is
+      // becoming available immediately after a cold launch. One short retry
+      // makes opening the first gallery deterministic without masking API,
+      // authentication, or Cloudflare errors.
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return apiGetGallery(id);
+    }
+  }
 
   async function browse(page: number, sort: SortType): Promise<SearchPage> {
     loading.value = true;
@@ -109,22 +129,25 @@ export const useGalleryStore = defineStore("gallery", () => {
   }
 
   async function load(id: number): Promise<Gallery> {
+    const requestId = ++loadRequestId;
     loading.value = true;
     error.value = null;
     current.value = null;
     try {
       const local = await localGet(id);
       if (local && local.page_files.length > 0) {
-        current.value = localToGallery(local);
-        return current.value;
+        const result = localToGallery(local);
+        if (requestId === loadRequestId) current.value = result;
+        return result;
       }
-      current.value = await apiGetGallery(id);
-      return current.value;
-    } catch (e: any) {
-      error.value = String(e);
+      const result = await fetchGalleryWithStartupRetry(id);
+      if (requestId === loadRequestId) current.value = result;
+      return result;
+    } catch (e: unknown) {
+      if (requestId === loadRequestId) error.value = String(e);
       throw e;
     } finally {
-      loading.value = false;
+      if (requestId === loadRequestId) loading.value = false;
     }
   }
 

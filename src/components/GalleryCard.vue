@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Check, Download, Loader, Star } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { imageProxyUrl } from "@/api";
+import { cachedImageObjectUrl } from "@/composables/useImageObjectCache";
 import { useLazyVisible } from "@/composables/useLazyVisible";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useOverlayStore } from "@/stores/overlay";
@@ -24,11 +25,14 @@ const props = defineProps<{
   selectable?: boolean;
   /** Whether this card is currently selected. */
   selected?: boolean;
+  /** The parent grid owns cover fetching and fills the shared object cache. */
+  managedCoverLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "select", id: number): void;
   (e: "deselect", id: number): void;
+  (e: "cover-priority", id: number): void;
 }>();
 
 const favorites = useFavoritesStore();
@@ -48,9 +52,21 @@ const displayTitle = computed(
   () => props.displayTitle ?? props.gallery.title,
 );
 const src = computed(() => {
-  if (!coverVisible.value || !thumb.value) return "";
+  if (!thumb.value) return "";
+  if (props.managedCoverLoading) return cachedImageObjectUrl(thumb.value);
+  if (!coverVisible.value) return "";
   return imageProxyUrl(thumb.value);
 });
+
+watch(
+  [coverVisible, thumb],
+  ([visible, source]) => {
+    if (props.managedCoverLoading && visible && source) {
+      emit("cover-priority", props.gallery.id);
+    }
+  },
+  { immediate: true },
+);
 
 // Language -> flag shown in the top-left corner of the cover. English maps
 // to the US flag per the product spec (the dominant English-language audience
@@ -118,7 +134,7 @@ async function toggleFav(e: MouseEvent) {
 <template>
   <div ref="cardRef" class="card" :class="{ selected, selectable }" @click="open">
     <div class="thumb">
-      <img v-if="src" :src="src" loading="lazy" :alt="gallery.title" />
+      <img v-if="src" :src="src" :loading="managedCoverLoading ? 'eager' : 'lazy'" :alt="gallery.title" />
       <div v-else-if="coverVisible && !thumb" class="placeholder">{{ $t('common.no_cover') }}</div>
       <div v-if="selectable" class="select-check" :class="{ checked: selected }" @click.stop="handleSelect">
         <span v-if="selected"><Check :size="14" /></span>

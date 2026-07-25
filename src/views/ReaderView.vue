@@ -2,13 +2,16 @@
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import { imageProxyUrl } from "@/api";
 import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "@lucide/vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
-import { preloadImage, usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
+import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
+import {
+  cachedImageObjectUrl,
+  loadImageObjectUrl,
+} from "@/composables/useImageObjectCache";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -37,13 +40,8 @@ const failedPages = ref(new Set<number>());
 const retries = ref(new Map<number, number>());
 
 function pageSrc(i: number): string {
-  const url = imageProxyUrl(pages.value[i]?.path ?? "");
-  const r = retries.value.get(i);
-  if (r && r > 0 && url) {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}_retry=${r}`;
-  }
-  return url;
+  void retries.value.get(i);
+  return cachedImageObjectUrl(pages.value[i]?.path);
 }
 
 function thumbSrc(i: number): string {
@@ -53,14 +51,14 @@ function thumbSrc(i: number): string {
     || i > currentIndex + THUMBNAIL_NEXT
   ) return "";
   const t = pages.value[i]?.thumbnail;
-  return t ? imageProxyUrl(t) : "";
+  return cachedImageObjectUrl(t);
 }
 
 const pagePreloader = usePriorityPreloadQueue(async (index) => {
   const page = pages.value[index];
   if (!page) return;
   const urls = [...new Set([page.thumbnail, page.path].filter((url): url is string => !!url))];
-  await Promise.all(urls.map((url) => preloadImage(imageProxyUrl(url))));
+  await Promise.all(urls.map((url) => loadImageObjectUrl(url)));
 }, 2);
 
 function prioritizeReaderPages(index: number) {
@@ -69,10 +67,6 @@ function prioritizeReaderPages(index: number) {
 
 function continuePreloadingFrom(index: number) {
   prioritizeReaderPages(index);
-  pagePreloader.enqueue(Array.from(
-    { length: Math.max(0, total.value - index) },
-    (_, offset) => index + offset,
-  ));
 }
 
 function pageWrapStyle(i: number): Record<string, string> {

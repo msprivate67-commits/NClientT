@@ -1,16 +1,5 @@
 import { onUnmounted } from "vue";
 
-export function preloadImage(url: string): Promise<void> {
-  if (!url) return Promise.resolve();
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => resolve();
-    image.onerror = () => resolve();
-    image.src = url;
-  });
-}
-
 /**
  * Runs a small, continuous preload queue. Normal work proceeds in document
  * order, while newly visible indices can be moved to the front immediately.
@@ -33,13 +22,21 @@ export function usePriorityPreloadQueue(
       queued.delete(index);
       running.add(index);
       active++;
-      void task(index).finally(() => {
-        if (generation !== currentGeneration) return;
-        running.delete(index);
-        active--;
-        completed.add(index);
-        pump();
-      });
+      void task(index)
+        .then(() => {
+          if (generation === currentGeneration) completed.add(index);
+        })
+        .catch(() => {
+          // Loading is best-effort. A failed index deliberately remains out of
+          // `completed` so a later visibility/current-page priority can retry
+          // it without producing an unhandled promise rejection.
+        })
+        .finally(() => {
+          if (generation !== currentGeneration) return;
+          running.delete(index);
+          active--;
+          pump();
+        });
     }
   }
 
