@@ -209,7 +209,8 @@ onMounted(async () => {
       <div class="view-title">{{ $t('settings.title') }}</div>
     </div>
 
-    <section>
+    <div class="settings-grid">
+    <section class="settings-card settings-card--wide">
       <div class="section-title">{{ $t('settings.section_language') }}</div>
       <div class="row">
         <label style="min-width: 120px;">{{ $t('settings.app_language') }}</label>
@@ -239,7 +240,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_site') }}</div>
       <div class="fields">
         <div class="field">
@@ -257,7 +258,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_proxy') }}</div>
       <div class="fields">
         <div class="field">
@@ -289,7 +290,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_cloudflare') }}</div>
       <div class="row">
         <span>{{ $t('settings.cf_status') }}</span>
@@ -302,7 +303,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_api') }}</div>
       <div class="row">
         <span>{{ $t('settings.has_key') }}</span>
@@ -319,7 +320,7 @@ onMounted(async () => {
       <p class="hint" v-html="$t('settings.api_hint', { code: '<code>Authorization: Key &lt;key&gt;</code>' })"></p>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_display') }}</div>
       <div class="fields">
         <div class="field">
@@ -345,7 +346,7 @@ onMounted(async () => {
       <p v-if="isAndroid" class="hint">{{ $t('settings.privacy_screen_hint') }}</p>
     </section>
 
-    <section>
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_downloads') }}</div>
       <div class="field path-field">
         <label>{{ $t('settings.download_dir') }}</label>
@@ -363,7 +364,7 @@ onMounted(async () => {
       <p class="hint">{{ $t('settings.download_notifications_hint') }}</p>
     </section>
 
-    <section>
+    <section class="settings-card settings-card--wide">
       <div class="section-title">{{ $t('settings.section_ai') }}</div>
       <div class="fields">
         <div class="field">
@@ -405,10 +406,11 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="appData">
+    <section v-if="appData" class="settings-card settings-card--wide">
       <div class="section-title">{{ $t('settings.section_data') }}</div>
       <p class="hint">{{ $t('settings.app_data_dir') }} <code>{{ appData }}</code></p>
     </section>
+    </div>
 
     <div class="save-bar">
       <button class="btn primary" :disabled="!dirty" @click="save">
@@ -420,24 +422,47 @@ onMounted(async () => {
 
 <style scoped>
 .settings {
-  /* The centered, width-capped content is itself the scroll container so the
-     scrollbar hugs the content's right edge instead of sitting at the window
-     edge on wide screens. height:100% + display:flex column lets the save bar
-     ride along at the bottom of the scroll area. */
+  --settings-gutter: clamp(14px, 2vw, 36px);
   width: 100%;
-  max-width: 720px;
+  max-width: none;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 20px var(--settings-gutter) 104px;
 }
-section {
-  margin-bottom: 22px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
+.view-header {
+  width: min(100%, 1440px);
+  margin: 0 auto 16px;
+  padding: 0 4px;
 }
-section:last-child {
-  border-bottom: none;
+.view-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.settings-grid {
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.settings-card {
+  min-width: 0;
+  margin: 0;
+  padding: clamp(18px, 1.7vw, 26px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.settings-card--wide {
+  grid-column: 1 / -1;
+}
+.settings-card > .section-title {
+  margin-top: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-dim);
 }
 .fields {
   display: grid;
@@ -503,13 +528,60 @@ section:last-child {
   overflow-wrap: anywhere;
 }
 .save-bar {
+  position: fixed;
+  right: clamp(22px, 3vw, 48px);
+  bottom: clamp(18px, 2.5vw, 36px);
+  z-index: 20;
   display: flex;
   justify-content: flex-end;
-  padding: 16px 0 8px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
 }
 .save-bar .btn {
   font-size: 1rem;
-  font-weight: 600;
-  padding: 10px 32px;
+  font-weight: 700;
+  min-width: 132px;
+  padding: 11px 28px;
+  box-shadow: 0 4px 14px var(--accent-soft);
+}
+.save-bar .btn:disabled {
+  box-shadow: none;
+}
+
+@media (max-width: 960px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .settings-card--wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings {
+    --settings-gutter: 14px;
+    padding-top: 14px;
+    padding-bottom: 92px;
+  }
+  .settings-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .save-bar {
+    right: 14px;
+    bottom: 14px;
+  }
+  .save-bar .btn {
+    min-width: 116px;
+    padding: 10px 22px;
+  }
 }
 </style>

@@ -167,14 +167,16 @@ onUnmounted(() => translationController?.abort());
           <img :src="coverSrc" :alt="title" />
         </div>
         <div class="info">
-          <h1 class="title">{{ title }}</h1>
-          <div v-if="reasoningText" class="reasoning-block">
-            <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
-              <ChevronUp v-if="reasoningExpanded" :size="13" />
-              <ChevronDown v-else :size="13" />
-              {{ $t('localDetail.reasoning') }}
-            </button>
-            <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+          <div class="title-stack">
+            <h1 class="title">{{ title }}</h1>
+            <div v-if="reasoningText" class="reasoning-block">
+              <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
+                <ChevronUp v-if="reasoningExpanded" :size="13" />
+                <ChevronDown v-else :size="13" />
+                {{ $t('localDetail.reasoning') }}
+              </button>
+              <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+            </div>
           </div>
           <div v-if="translatedTitle || translated" class="translated-title">
             {{ translated || translatedTitle }}
@@ -189,15 +191,17 @@ onUnmounted(() => translationController?.abort());
           </div>
           <div class="primary-actions">
             <button class="btn primary read-btn" @click="read"><BookOpen :size="18" /> {{ $t('localDetail.read') }}</button>
-            <button
-              class="btn"
-              :disabled="translating"
-              @click="doTranslate"
-            >
-              <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('localDetail.translating') }}</span>
-              <span v-else-if="translatedTitle || translated"><RefreshCw :size="14" /> {{ $t('localDetail.retranslate') }}</span>
-              <span v-else><Languages :size="14" /> {{ $t('localDetail.translate') }}</span>
-            </button>
+            <div class="tool-btns">
+              <button
+                class="btn"
+                :disabled="translating"
+                @click="doTranslate"
+              >
+                <span v-if="translating"><Loader :size="14" class="spin" /> {{ $t('localDetail.translating') }}</span>
+                <span v-else-if="translatedTitle || translated"><RefreshCw :size="14" /> {{ $t('localDetail.retranslate') }}</span>
+                <span v-else><Languages :size="14" /> {{ $t('localDetail.translate') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -206,27 +210,29 @@ onUnmounted(() => translationController?.abort());
            Mirrors the online GalleryView layout. Only rendered when metadata
            is present. -->
       <div v-if="meta" class="body">
-        <div v-if="tagsByType.size" class="tag-toggle-bar">
-          <button class="btn small" @click="tagsExpanded = !tagsExpanded">
-            <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
-          </button>
-        </div>
-        <div v-show="tagsExpanded">
-          <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
-            <div class="section-title">{{ type }}</div>
-            <div class="chips">
-              <TagChip
-                v-for="t in tags"
-                :key="t.id"
-                :tag="t"
-                show-type
-                @click="onTagClick(t)"
-              />
-            </div>
-          </section>
-        </div>
+        <section v-if="tagsByType.size" class="detail-card tags-card">
+          <div class="tag-toggle-bar">
+            <button class="btn small" @click="tagsExpanded = !tagsExpanded">
+              <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
+            </button>
+          </div>
+          <div v-show="tagsExpanded" class="tags-content">
+            <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
+              <div class="section-title">{{ type }}</div>
+              <div class="chips">
+                <TagChip
+                  v-for="t in tags"
+                  :key="t.id"
+                  :tag="t"
+                  show-type
+                  @click="onTagClick(t)"
+                />
+              </div>
+            </section>
+          </div>
+        </section>
 
-        <section v-if="meta.related.length" class="related">
+        <section v-if="meta.related.length" class="related detail-card">
           <div class="section-title">{{ $t('gallery.section_related') }}</div>
           <GalleryGrid :galleries="meta.related" />
         </section>
@@ -238,31 +244,31 @@ onUnmounted(() => translationController?.abort());
 
 <style scoped>
 .view {
+  --detail-gutter: clamp(14px, 2vw, 36px);
   width: 100%;
-  max-width: 1000px;
+  max-width: none;
   /* min-width:0 keeps the page width driven by the window rather than by the
      title's intrinsic (max-content) width — see GalleryView for the same rule. */
   min-width: 0;
-  margin: 0 auto;
-  padding: 14px;
+  margin: 0;
+  padding: 0 var(--detail-gutter) var(--detail-gutter);
   overflow-y: auto;
   height: 100%;
 }
 .overlay-mode {
   height: 100%;
   overflow-y: auto;
-  /* The overlay title bar should start at the panel's actual top edge. */
-  padding-top: 0;
 }
 .overlay-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px;
+  height: var(--app-header-height);
+  padding: 0 var(--detail-gutter);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  margin: 0 -14px 14px;
+  margin: 0 calc(var(--detail-gutter) * -1) 18px;
   position: sticky;
   top: 0;
   z-index: 5;
@@ -293,15 +299,20 @@ onUnmounted(() => translationController?.abort());
 }
 .header {
   display: flex;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: clamp(20px, 2.2vw, 36px);
+  width: min(100%, 1600px);
+  margin: 0 auto 24px;
+  padding: clamp(18px, 1.8vw, 28px);
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 .cover {
-  width: 220px;
+  width: clamp(220px, 15vw, 290px);
   flex-shrink: 0;
   aspect-ratio: 3 / 4;
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 .cover img {
@@ -315,6 +326,8 @@ onUnmounted(() => translationController?.abort());
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-width: 1080px;
+  padding: 4px 0;
 }
 .title {
   margin: 0;
@@ -328,6 +341,14 @@ onUnmounted(() => translationController?.abort());
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.title-stack {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+.title-stack .title {
+  width: auto;
+}
 .translated-title {
   width: 100%;
   max-width: 100%;
@@ -340,6 +361,7 @@ onUnmounted(() => translationController?.abort());
 }
 .reasoning-block {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 .reasoning-toggle {
@@ -400,9 +422,10 @@ onUnmounted(() => translationController?.abort());
   display: flex;
   align-items: stretch;
   gap: 10px;
+  width: min(100%, 900px);
 }
 .read-btn {
-  flex: 1;
+  flex: 1 1 420px;
   font-size: 1rem;
   font-weight: 700;
   padding: 12px 24px;
@@ -412,23 +435,53 @@ onUnmounted(() => translationController?.abort());
   justify-content: center;
   gap: 6px;
 }
+.tool-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tool-btns .btn {
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
 .loading, .error {
   color: var(--text-dim);
   padding: 20px;
 }
 .body {
   margin-top: 8px;
+  width: 100%;
+  display: grid;
+  gap: 18px;
+}
+.detail-card {
+  min-width: 0;
+  padding: clamp(16px, 1.6vw, 24px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.detail-card > .section-title {
+  margin-top: 0;
 }
 .tag-toggle-bar {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+.tags-content {
+  margin-top: 12px;
 }
 .tag-group {
   margin-bottom: 14px;
 }
+.tag-group:last-child {
+  margin-bottom: 0;
+}
 .section-title {
   font-size: 0.82rem;
   color: var(--text-dim);
-  margin-bottom: 6px;
+  margin: 18px 0 6px;
   text-transform: capitalize;
 }
 .chips {
@@ -439,16 +492,19 @@ onUnmounted(() => translationController?.abort());
 /* Related galleries: thumbnail grid (same component as the online detail page).
    GalleryCard handles click → online detail. */
 .related {
-  margin-top: 22px;
+  margin-top: 0;
 }
 @media (max-width: 768px) {
   .view {
+    --detail-gutter: 14px;
     max-width: 100%;
   }
   .header {
     flex-direction: column;
     align-items: center;
     gap: 16px;
+    padding: 16px;
+    border-radius: 10px;
   }
   .cover {
     width: 200px;
@@ -467,11 +523,52 @@ onUnmounted(() => translationController?.abort());
     flex-direction: column;
   }
   .read-btn {
+    flex: 0 0 auto;
+    width: 100%;
     font-size: 1.05rem;
     padding: 14px 20px;
   }
+  .tool-btns {
+    justify-content: center;
+  }
   .primary-actions > .btn:not(.read-btn) {
     text-align: center;
+  }
+  .body {
+    gap: 12px;
+  }
+  .detail-card {
+    padding: 14px;
+    border-radius: 10px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .header {
+    justify-content: center;
+  }
+  .title {
+    font-size: 1.55rem;
+    line-height: 1.4;
+  }
+  .info {
+    flex: 0 1 1000px;
+    width: min(65vw, 1000px);
+    gap: 14px;
+  }
+  .primary-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .read-btn {
+    flex: 0 0 auto;
+    width: min(100%, 360px);
+    min-height: 48px;
+    font-size: 1.05rem;
+  }
+  .tool-btns .btn {
+    min-height: 40px;
   }
 }
 </style>

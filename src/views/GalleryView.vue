@@ -348,14 +348,16 @@ async function onTagClick(t: any) {
         <img v-if="coverSrc" :src="coverSrc" :alt="title" />
       </div>
       <div class="info">
-        <h1 class="title">{{ title }}</h1>
-        <div v-if="reasoningText" class="reasoning-block">
-          <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
-            <ChevronUp v-if="reasoningExpanded" :size="13" />
-            <ChevronDown v-else :size="13" />
-            {{ $t('gallery.reasoning') }}
-          </button>
-          <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+        <div class="title-stack">
+          <h1 class="title">{{ title }}</h1>
+          <div v-if="reasoningText" class="reasoning-block">
+            <button class="reasoning-toggle" @click="reasoningExpanded = !reasoningExpanded">
+              <ChevronUp v-if="reasoningExpanded" :size="13" />
+              <ChevronDown v-else :size="13" />
+              {{ $t('gallery.reasoning') }}
+            </button>
+            <div v-show="reasoningExpanded" ref="reasoningRef" class="reasoning-text">{{ reasoningText }}</div>
+          </div>
         </div>
         <div v-if="translatedTitle" class="translated-title">{{ translatedTitle }}</div>
         <div v-if="translateError" class="tl-error">{{ translateError }}</div>
@@ -422,31 +424,33 @@ async function onTagClick(t: any) {
     </div>
 
     <div v-if="g" class="body">
-      <div class="tag-toggle-bar">
-        <button class="btn small" @click="tagsExpanded = !tagsExpanded">
-          <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
-        </button>
-      </div>
-      <div v-show="tagsExpanded">
-        <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
-          <div class="section-title">{{ type }}</div>
-          <div class="chips">
-            <TagChip
-              v-for="t in tags"
-              :key="t.id"
-              :tag="t"
-              show-type
-              @click="onTagClick(t)"
-            />
-          </div>
-        </section>
-      </div>
+      <section class="detail-card tags-card">
+        <div class="tag-toggle-bar">
+          <button class="btn small" @click="tagsExpanded = !tagsExpanded">
+            <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
+          </button>
+        </div>
+        <div v-show="tagsExpanded" class="tags-content">
+          <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
+            <div class="section-title">{{ type }}</div>
+            <div class="chips">
+              <TagChip
+                v-for="t in tags"
+                :key="t.id"
+                :tag="t"
+                show-type
+                @click="onTagClick(t)"
+              />
+            </div>
+          </section>
+        </div>
+      </section>
 
-      <section v-if="g.pages.length" class="page-thumbs">
+      <section v-if="g.pages.length" class="page-thumbs detail-card">
         <div class="section-title">{{ $t('gallery.section_pages') }}</div>
         <div
           class="thumb-grid"
-          :style="thumbColumns === 'auto' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : { gridTemplateColumns: `repeat(${thumbColumns}, 1fr)` }"
+          :style="thumbColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${thumbColumns}, 1fr)` }"
         >
           <div
             v-for="(page, i) in g.pages"
@@ -469,12 +473,12 @@ async function onTagClick(t: any) {
         </div>
       </section>
 
-      <section v-if="g.related.length" class="related">
+      <section v-if="g.related.length" class="related detail-card">
         <div class="section-title">{{ $t('gallery.section_related') }}</div>
         <GalleryGrid :galleries="g.related" />
       </section>
 
-      <section class="comments">
+      <section class="comments detail-card">
         <button class="btn" @click="toggleComments">
           {{ commentsOpen ? $t('gallery.hide_comments') : $t('gallery.show_comments') }}
         </button>
@@ -531,24 +535,22 @@ async function onTagClick(t: any) {
 
 <style scoped>
 .gallery-view {
-  /* The centered, width-capped content is itself the scroll container, so the
-     scrollbar hugs the content's right edge instead of sitting at the window
-     edge on wide screens. height:100% + flex column keeps sticky positioning
-     (sticky-title-bar / overlay-bar) anchored to this element while it
-     scrolls. */
+  /* Keep the scroll container as wide as the window. Individual sections own
+     their readable widths, while the page grid can use all available space. */
+  --detail-gutter: clamp(14px, 2vw, 36px);
   width: 100%;
-  max-width: 1000px;
+  max-width: none;
   /* min-width:0 is essential: without it a long unbreakable title (or any
      intrinsic-content child) would make this flex/block item grow to its
      content's min-content width, so the whole page would visibly track the
      title length. With it the page width follows the window, not the title. */
   min-width: 0;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
   /* Keep content inset on the sides/bottom, but let the title bar occupy the
      real top edge. This avoids relying on a negative margin to cancel top
      padding, which can leave a gap with sticky positioning in some WebViews. */
-  padding: 0 14px 14px;
+  padding: 0 var(--detail-gutter) var(--detail-gutter);
   overflow-y: auto;
 }
 .error {
@@ -569,8 +571,9 @@ async function onTagClick(t: any) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 4px;
-  margin: 0 -14px 12px;
+  height: var(--app-header-height);
+  padding: 0 var(--detail-gutter);
+  margin: 0 calc(var(--detail-gutter) * -1) 18px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -597,15 +600,20 @@ async function onTagClick(t: any) {
 }
 .header {
   display: flex;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: clamp(20px, 2.2vw, 36px);
+  width: min(100%, 1600px);
+  margin: 0 auto 24px;
+  padding: clamp(18px, 1.8vw, 28px);
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 .cover {
-  width: 220px;
+  width: clamp(220px, 15vw, 290px);
   flex-shrink: 0;
   aspect-ratio: 3 / 4;
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 .cover img {
@@ -619,6 +627,8 @@ async function onTagClick(t: any) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-width: 1080px;
+  padding: 4px 0;
 }
 .title {
   margin: 0;
@@ -635,13 +645,22 @@ async function onTagClick(t: any) {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.title-stack {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+.title-stack .title {
+  width: auto;
+}
 .primary-actions {
   display: flex;
   align-items: stretch;
   gap: 10px;
+  width: min(100%, 900px);
 }
 .read-btn {
-  flex: 1;
+  flex: 1 1 420px;
   font-size: 1rem;
   font-weight: 700;
   padding: 12px 24px;
@@ -674,6 +693,7 @@ async function onTagClick(t: any) {
 }
 .reasoning-block {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 .reasoning-toggle {
@@ -759,21 +779,42 @@ async function onTagClick(t: any) {
 }
 .body {
   margin-top: 8px;
+  width: 100%;
+  display: grid;
+  gap: 18px;
+}
+.detail-card {
+  min-width: 0;
+  padding: clamp(16px, 1.6vw, 24px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.detail-card > .section-title {
+  margin-top: 0;
 }
 .tag-toggle-bar {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+.tags-content {
+  margin-top: 12px;
 }
 .tag-group {
   margin-bottom: 14px;
 }
+.tag-group:last-child {
+  margin-bottom: 0;
+}
 .related {
-  margin-top: 22px;
+  margin-top: 0;
 }
 .page-thumbs {
-  margin-top: 22px;
+  margin-top: 0;
 }
 .thumb-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 8px;
 }
 .thumb-item {
@@ -816,7 +857,7 @@ async function onTagClick(t: any) {
   pointer-events: none;
 }
 .comments {
-  margin-top: 22px;
+  margin-top: 0;
 }
 .comment {
   padding: 10px 0;
@@ -920,11 +961,12 @@ async function onTagClick(t: any) {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px;
+  height: var(--app-header-height);
+  padding: 0 var(--detail-gutter);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  margin: 0 -14px 14px;
+  margin: 0 calc(var(--detail-gutter) * -1) 18px;
   /* Keep the back + title visible while the overlay detail scrolls. */
   position: sticky;
   top: 0;
@@ -959,10 +1001,15 @@ async function onTagClick(t: any) {
    Responsive
    --------------------------------------------------------------------------- */
 @media (max-width: 768px) {
+  .gallery-view {
+    --detail-gutter: 14px;
+  }
   .header {
     flex-direction: column;
     align-items: center;
     gap: 16px;
+    padding: 16px;
+    border-radius: 10px;
   }
   .cover {
     width: 200px;
@@ -984,6 +1031,8 @@ async function onTagClick(t: any) {
     flex-direction: column;
   }
   .read-btn {
+    flex: 0 0 auto;
+    width: 100%;
     font-size: 1.05rem;
     padding: 14px 20px;
   }
@@ -996,6 +1045,46 @@ async function onTagClick(t: any) {
   .actions .btn {
     flex: 1 1 auto;
     text-align: center;
+  }
+  .body {
+    gap: 12px;
+  }
+  .detail-card {
+    padding: 14px;
+    border-radius: 10px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .header {
+    justify-content: center;
+  }
+  .title {
+    font-size: 1.55rem;
+    line-height: 1.4;
+  }
+  .info {
+    flex: 0 1 1000px;
+    width: min(65vw, 1000px);
+    gap: 14px;
+  }
+  .primary-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .read-btn {
+    flex: 0 0 auto;
+    width: min(100%, 360px);
+    min-height: 48px;
+    font-size: 1.05rem;
+  }
+  .actions .btn,
+  .tool-btns .btn {
+    min-height: 40px;
+  }
+  .thumb-grid {
+    gap: 12px;
   }
 }
 </style>

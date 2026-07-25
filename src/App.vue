@@ -439,6 +439,7 @@ function doSearch() {
   display: flex;
   align-items: center;
   gap: 10px;
+  height: var(--app-header-height);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);

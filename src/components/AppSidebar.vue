@@ -179,7 +179,9 @@ const mobileDragStyle = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  height: var(--app-header-height);
+  padding: 0 16px;
+  flex-shrink: 0;
   font-weight: 600;
   border-bottom: 1px solid var(--border);
 }

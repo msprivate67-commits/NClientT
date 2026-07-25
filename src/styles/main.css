@@ -8,6 +8,7 @@
   --text-dim: #9aa0b0;
   --accent: #5b8cff;
   --accent-soft: rgba(91, 140, 255, 0.16);
+  --app-header-height: 56px;
   color-scheme: dark;
 }
 
