@@ -176,6 +176,11 @@ function goBack() {
   router.back();
 }
 
+function shouldRouteBack() {
+  const routeBackRoutes = ["gallery", "reader", "reader-local"];
+  return routeBackRoutes.includes(String(route.name));
+}
+
 // --- Hardware back button (Android) -------------------------------------
 // Tauri routes the Android hardware back button to this JS callback (added in
 // @tauri-apps/api 2.9 / tauri 2.9). Registering it *prevents* the WebView from
@@ -199,7 +204,10 @@ function handleBackButton() {
     overlay.pop();
     return;
   }
-  router.back();
+
+  if (shouldRouteBack()) {
+    router.back();
+  }
 }
 
 // NOTE: the overlay (reader/gallery slide-over) is not a router route, so we do
@@ -210,6 +218,8 @@ function handleBackButton() {
 // presses to actually navigate).
 
 onMounted(() => {
+  window.addEventListener("nclientt:android-back", handleBackButton);
+
   // Hijack the Android hardware back button globally. Registering this callback
   // prevents the WebView from running its default goBack/exit, so the app can
   // never be kicked to the home screen by the back button — it is fully
@@ -225,6 +235,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("nclientt:android-back", handleBackButton);
   backButtonUnlisten?.unregister();
   backButtonUnlisten = null;
 });

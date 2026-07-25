@@ -2,6 +2,9 @@ package com.nclientt.app
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
@@ -27,5 +30,36 @@ class MainActivity : TauriActivity() {
             windowInsets
         }
         ViewCompat.requestApplyInsets(content)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    dispatchHardwareBackToWebView()
+                }
+            },
+        )
+    }
+
+    private fun dispatchHardwareBackToWebView() {
+        val webView = findWebView(findViewById(android.R.id.content))
+        webView?.post {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('nclientt:android-back'));",
+                null,
+            )
+        }
+    }
+
+    private fun findWebView(view: View?): WebView? {
+        if (view is WebView) return view
+        if (view !is ViewGroup) return null
+
+        for (i in 0 until view.childCount) {
+            val webView = findWebView(view.getChildAt(i))
+            if (webView != null) return webView
+        }
+
+        return null
     }
 }
