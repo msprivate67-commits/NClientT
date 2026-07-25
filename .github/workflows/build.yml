@@ -5,10 +5,103 @@ on:
 
 permissions:
   contents: write
+  actions: write
+
+concurrency:
+  group: build-${{ github.repository }}
+  cancel-in-progress: true
 
 jobs:
+  cleanup:
+    name: Stop and delete previous Actions runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove previous workflow runs and artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="repos/${GITHUB_REPOSITORY}"
+          mapfile -t old_run_ids < <(
+            gh api --paginate "$repo/actions/runs?per_page=100" \
+              --jq '.workflow_runs[].id' | grep -vx "$CURRENT_RUN_ID" || true
+          )
+
+          if ((${#old_run_ids[@]} == 0)); then
+            echo "No previous Actions runs to remove."
+            exit 0
+          fi
+
+          echo "Stopping ${#old_run_ids[@]} previous Actions run(s)."
+          for run_id in "${old_run_ids[@]}"; do
+            status="$(gh api "$repo/actions/runs/$run_id" --jq '.status' 2>/dev/null || echo deleted)"
+            if [[ "$status" != "completed" && "$status" != "deleted" ]]; then
+              gh api --method POST "$repo/actions/runs/$run_id/cancel" >/dev/null || true
+            fi
+          done
+
+          wait_for_runs() {
+            local attempts="$1"
+            local attempt active status run_id
+            for ((attempt = 1; attempt <= attempts; attempt++)); do
+              active=0
+              for run_id in "${old_run_ids[@]}"; do
+                status="$(gh api "$repo/actions/runs/$run_id" --jq '.status' 2>/dev/null || echo deleted)"
+                if [[ "$status" != "completed" && "$status" != "deleted" ]]; then
+                  active=$((active + 1))
+                fi
+              done
+              ((active == 0)) && return 0
+              sleep 2
+            done
+            return 1
+          }
+
+          if ! wait_for_runs 30; then
+            echo "Some runs did not stop normally; force-cancelling them."
+            for run_id in "${old_run_ids[@]}"; do
+              status="$(gh api "$repo/actions/runs/$run_id" --jq '.status' 2>/dev/null || echo deleted)"
+              if [[ "$status" != "completed" && "$status" != "deleted" ]]; then
+                gh api --method POST "$repo/actions/runs/$run_id/force-cancel" >/dev/null || true
+              fi
+            done
+            wait_for_runs 15 || {
+              echo "Failed to stop every previous Build run."
+              exit 1
+            }
+          fi
+
+          echo "Deleting artifacts and run records."
+          for run_id in "${old_run_ids[@]}"; do
+            mapfile -t artifact_ids < <(
+              gh api --paginate "$repo/actions/runs/$run_id/artifacts?per_page=100" \
+                --jq '.artifacts[].id' 2>/dev/null || true
+            )
+            for artifact_id in "${artifact_ids[@]}"; do
+              gh api --method DELETE "$repo/actions/artifacts/$artifact_id" >/dev/null
+            done
+
+            deleted=false
+            for attempt in {1..5}; do
+              if gh api --method DELETE "$repo/actions/runs/$run_id" >/dev/null 2>&1; then
+                deleted=true
+                break
+              fi
+              sleep 2
+            done
+            if [[ "$deleted" != true ]]; then
+              echo "Failed to delete workflow run $run_id."
+              exit 1
+            fi
+          done
+
+          echo "Previous Actions runs and artifacts have been removed."
+
   build-android:
     name: Build (Android arm64-v8a)
+    needs: cleanup
     runs-on: ubuntu-22.04
     env:
       NDK_VERSION: "27.0.12077973"
@@ -95,6 +188,7 @@ jobs:
 
   build-windows:
     name: Build (Windows exe + msi)
+    needs: cleanup
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -127,6 +221,7 @@ jobs:
 
   build-linux:
     name: Build (Linux executable + deb)
+    needs: cleanup
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
