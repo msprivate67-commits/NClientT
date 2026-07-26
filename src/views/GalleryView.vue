@@ -778,7 +778,11 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
             <ChevronDown v-else :size="14" />
             {{ commentsOpen ? $t('gallery.collapse') : $t('gallery.expand') }}
           </button>
-          <button v-if="commentsOpen" class="btn" @click="openInBrowser(String(g.id))">
+          <button
+            v-if="commentsOpen"
+            class="btn"
+            @click="openInBrowser(`g/${g.id}/#comment-post-container`)"
+          >
             <ExternalLink :size="14" /> {{ $t('gallery.open_on_website') }}
           </button>
         </div>
@@ -1522,6 +1526,11 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
   }
   .title {
     font-size: 1.15rem;
+  }
+  .title-stack {
+    width: 100%;
+    margin-inline: auto;
+    text-align: center;
   }
   .title-stack .reasoning-text {
     text-align: left;
