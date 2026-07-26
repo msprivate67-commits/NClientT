@@ -3,8 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
-import TagChip from "@/components/TagChip.vue";
-import GalleryGrid from "@/components/GalleryGrid.vue";
+import DetailRelatedSection from "@/components/DetailRelatedSection.vue";
+import DetailTagsSection from "@/components/DetailTagsSection.vue";
 import {
   ArrowLeft,
   RefreshCw,
@@ -693,35 +693,11 @@ async function onTagClick(t: any) {
     </div>
 
     <div v-if="g" class="body">
-      <section class="detail-card tags-card">
-        <div class="section-toggle-bar tag-toggle-bar">
-          <div class="section-title">{{ $t('tags.title') }}</div>
-          <button
-            class="btn small"
-            type="button"
-            :aria-expanded="tagsExpanded"
-            @click="tagsExpanded = !tagsExpanded"
-          >
-            <ChevronUp v-if="tagsExpanded" :size="14" />
-            <ChevronDown v-else :size="14" />
-            {{ tagsExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
-          </button>
-        </div>
-        <div v-show="tagsExpanded" class="tags-content">
-          <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
-            <div class="section-title">{{ type }}</div>
-            <div class="chips">
-              <TagChip
-                v-for="t in tags"
-                :key="t.id"
-                :tag="t"
-                show-type
-                @click="onTagClick(t)"
-              />
-            </div>
-          </section>
-        </div>
-      </section>
+      <DetailTagsSection
+        v-model:expanded="tagsExpanded"
+        :groups="tagsByType"
+        @select="onTagClick"
+      />
 
       <section v-if="g.pages.length" class="page-thumbs detail-card">
         <div class="section-toggle-bar">
@@ -763,24 +739,11 @@ async function onTagClick(t: any) {
         </div>
       </section>
 
-      <section v-if="g.related.length" class="related detail-card">
-        <div class="section-toggle-bar">
-          <div class="section-title">{{ $t('gallery.section_related') }}</div>
-          <button
-            class="btn small"
-            type="button"
-            :aria-expanded="relatedExpanded"
-            @click="relatedExpanded = !relatedExpanded"
-          >
-            <ChevronUp v-if="relatedExpanded" :size="14" />
-            <ChevronDown v-else :size="14" />
-            {{ relatedExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
-          </button>
-        </div>
-        <div v-show="relatedExpanded" class="related-content">
-          <GalleryGrid :galleries="g.related" />
-        </div>
-      </section>
+      <DetailRelatedSection
+        v-if="g.related.length"
+        v-model:expanded="relatedExpanded"
+        :galleries="g.related"
+      />
 
       <section class="comments detail-card">
         <div class="section-toggle-bar comments-toolbar">

@@ -2,7 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import { X, ArrowLeftRight, ArrowUpDown, AlertTriangle, ChevronLeft, ChevronRight } from "@lucide/vue";
+import { AlertTriangle } from "@lucide/vue";
+import ReaderPager from "@/components/ReaderPager.vue";
+import ReaderToolbar from "@/components/ReaderToolbar.vue";
 import { useGalleryStore } from "@/stores/gallery";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
@@ -12,6 +14,11 @@ import {
   cachedImageObjectUrl,
   loadImageObjectUrl,
 } from "@/composables/useImageObjectCache";
+import {
+  type ReaderDirection,
+  type ReaderFitMode,
+  useReaderNavigation,
+} from "@/composables/useReaderNavigation";
 
 const props = defineProps<{ id: number | string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
@@ -23,21 +30,31 @@ const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
 
 const id = computed(() => Number(props.id));
-const fitMode = ref<"width" | "height" | "original">(
-  (settings.settings.reader_fit_mode as "width" | "height" | "original") || "height",
+const fitMode = ref<ReaderFitMode>(
+  (settings.settings.reader_fit_mode as ReaderFitMode) || "height",
 );
-const scrollMode = ref<"vertical" | "horizontal">(
-  (settings.settings.reader_direction as "vertical" | "horizontal") || "vertical",
+const scrollMode = ref<ReaderDirection>(
+  (settings.settings.reader_direction as ReaderDirection) || "vertical",
 );
 
 const pages = computed(() => gallery.current?.pages ?? []);
 const total = computed(() => pages.value.length);
 const rtl = computed(() => settings.settings.use_rtl);
 
-const scrollRef = ref<HTMLElement | null>(null);
-const currentPage = ref(1);
 const failedPages = ref(new Set<number>());
 const retries = ref(new Map<number, number>());
+const {
+  scrollRef,
+  currentPage,
+  onScroll,
+  scrollToPage,
+  previous: prev,
+  next,
+  reset: resetNavigation,
+} = useReaderNavigation(total, scrollMode, {
+  rtl,
+  onPageSettled: () => reportProgress(),
+});
 
 function pageSrc(i: number): string {
   void retries.value.get(i);
@@ -99,40 +116,6 @@ function reloadPage(i: number) {
 const THUMBNAIL_PREVIOUS = 3;
 const THUMBNAIL_NEXT = 4;
 
-function computeCurrentPage() {
-  if (!scrollRef.value || !total.value) return;
-  const container = scrollRef.value;
-  const isH = scrollMode.value === "horizontal";
-  const viewCenter = isH
-    ? container.scrollLeft + container.clientWidth / 2
-    : container.scrollTop + container.clientHeight / 2;
-
-  let best = 0;
-  let bestDist = Infinity;
-  const wraps = container.querySelectorAll<HTMLElement>(".page-wrap");
-  for (let i = 0; i < wraps.length; i++) {
-    const el = wraps[i];
-    const pos = isH ? el.offsetLeft : el.offsetTop;
-    const size = isH ? el.offsetWidth : el.offsetHeight;
-    const center = pos + size / 2;
-    const dist = Math.abs(viewCenter - center);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = i;
-    }
-  }
-  currentPage.value = best + 1;
-}
-
-let scrollTimer: ReturnType<typeof setTimeout> | null = null;
-function onScroll() {
-  if (scrollTimer) clearTimeout(scrollTimer);
-  scrollTimer = setTimeout(() => {
-    computeCurrentPage();
-    reportProgress();
-  }, 150);
-}
-
 /**
  * Persist how far the user has read. We report the furthest page *viewed*
  * (high-water mark), not the page currently on screen, so scrolling back to
@@ -150,31 +133,6 @@ function reportProgress() {
   if (reportedMax > 0) {
     void readProgress.report(gallery.current.id, reportedMax, totalVal);
   }
-}
-
-function scrollToPage(idx: number, smooth = true) {
-  if (!scrollRef.value || idx < 0 || idx >= total.value) return;
-  const el = scrollRef.value.querySelectorAll<HTMLElement>(".page-wrap")[idx];
-  if (!el) return;
-  const container = scrollRef.value;
-  if (scrollMode.value === "horizontal") {
-    container.scrollTo({ left: el.offsetLeft, behavior: smooth ? "smooth" : "auto" });
-  } else {
-    container.scrollTo({ top: el.offsetTop, behavior: smooth ? "smooth" : "auto" });
-  }
-}
-
-function goPage(delta: number) {
-  const next = currentPage.value - 1 + delta;
-  if (next < 0 || next >= total.value) return;
-  scrollToPage(next);
-}
-
-function prev() {
-  goPage(rtl.value ? 1 : -1);
-}
-function next() {
-  goPage(rtl.value ? -1 : 1);
 }
 
 function onKey(e: KeyboardEvent) {
@@ -209,11 +167,7 @@ async function load() {
     currentPage.value = start;
     scrollToPage(start - 1, false);
   } else {
-    currentPage.value = 1;
-    if (scrollRef.value) {
-      scrollRef.value.scrollTop = 0;
-      scrollRef.value.scrollLeft = 0;
-    }
+    resetNavigation();
   }
   continuePreloadingFrom(currentPage.value - 1);
   if (props.overlay) overlay.readerPage = null;
@@ -247,41 +201,13 @@ watch(scrollMode, () => {
 
 <template>
   <div class="reader" :class="[`fit-${fitMode}`, `direction-${scrollMode}`, { rtl }]">
-    <header class="bar glass-surface glass-surface--dark">
-      <button class="btn" @click="props.overlay ? emit('back') : router.back()"><X :size="16" /></button>
-      <span class="counter">{{ currentPage }} / {{ total || "?" }}</span>
-      <div class="fit">
-        <button
-          class="btn small icon-only"
-          :title="scrollMode === 'vertical' ? $t('reader.horizontal') : $t('reader.vertical')"
-          @click="scrollMode = scrollMode === 'vertical' ? 'horizontal' : 'vertical'"
-        >
-          <ArrowLeftRight v-if="scrollMode === 'vertical'" :size="14" />
-          <ArrowUpDown v-if="scrollMode === 'horizontal'" :size="14" />
-        </button>
-        <button
-          class="btn small"
-          :class="{ primary: fitMode === 'height' }"
-          @click="fitMode = 'height'"
-        >
-          {{ $t('reader.fit_height') }}
-        </button>
-        <button
-          class="btn small"
-          :class="{ primary: fitMode === 'width' }"
-          @click="fitMode = 'width'"
-        >
-          {{ $t('reader.fit_width') }}
-        </button>
-        <button
-          class="btn small"
-          :class="{ primary: fitMode === 'original' }"
-          @click="fitMode = 'original'"
-        >
-          {{ $t('reader.fit_original') }}
-        </button>
-      </div>
-    </header>
+    <ReaderToolbar
+      v-model:fit-mode="fitMode"
+      v-model:direction="scrollMode"
+      :current-page="currentPage"
+      :total="total"
+      @close="props.overlay ? emit('back') : router.back()"
+    />
 
     <div ref="scrollRef" class="scroll-strip" @scroll="onScroll">
       <div v-if="!total" class="loading">{{ $t('reader.loading') }}</div>
@@ -318,17 +244,13 @@ watch(scrollMode, () => {
       </div>
     </div>
 
-    <footer class="bar glass-surface glass-surface--dark">
-      <button class="btn" @click="prev"><ChevronLeft :size="16" /> {{ $t('reader.prev') }}</button>
-      <input
-        type="range"
-        min="1"
-        :max="Math.max(1, total)"
-        v-model.number.lazy="currentPage"
-        @change="scrollToPage(currentPage - 1, false)"
-      />
-      <button class="btn" @click="next">{{ $t('reader.next') }} <ChevronRight :size="16" /></button>
-    </footer>
+    <ReaderPager
+      :current-page="currentPage"
+      :total="total"
+      @previous="prev"
+      @next="next"
+      @select="(page) => { currentPage = page; scrollToPage(page - 1, false); }"
+    />
   </div>
 </template>
 

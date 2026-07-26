@@ -21,8 +21,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from "@lucide/vue";
-import TagChip from "@/components/TagChip.vue";
-import GalleryGrid from "@/components/GalleryGrid.vue";
+import DetailRelatedSection from "@/components/DetailRelatedSection.vue";
+import DetailTagsSection from "@/components/DetailTagsSection.vue";
 import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
 import { stripLeadingId } from "@/utils/title";
@@ -503,40 +503,18 @@ onUnmounted(() => {
            Mirrors the online GalleryView layout. Only rendered when metadata
            is present. -->
       <div class="body">
-        <section v-if="tagsByType.size" class="detail-card tags-card">
-          <div class="section-toggle-bar tag-toggle-bar">
-            <div class="section-title">{{ $t('tags.title') }}</div>
-            <button
-              class="btn small"
-              type="button"
-              :aria-expanded="tagsExpanded"
-              @click="tagsExpanded = !tagsExpanded"
-            >
-              <ChevronUp v-if="tagsExpanded" :size="14" />
-              <ChevronDown v-else :size="14" />
-              {{ tagsExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
-            </button>
-          </div>
-          <div v-show="tagsExpanded" class="tags-content">
-            <section v-for="[type, tags] in tagsByType" :key="type" class="tag-group">
-              <div class="section-title">{{ type }}</div>
-              <div class="chips">
-                <TagChip
-                  v-for="t in tags"
-                  :key="t.id"
-                  :tag="t"
-                  show-type
-                  @click="onTagClick(t)"
-                />
-              </div>
-            </section>
-          </div>
-        </section>
+        <DetailTagsSection
+          v-if="tagsByType.size"
+          v-model:expanded="tagsExpanded"
+          :groups="tagsByType"
+          @select="onTagClick"
+        />
 
-        <section v-if="meta && meta.related.length" class="related detail-card">
-          <div class="section-title">{{ $t('gallery.section_related') }}</div>
-          <GalleryGrid :galleries="meta.related" />
-        </section>
+        <DetailRelatedSection
+          v-if="meta && meta.related.length"
+          :galleries="meta.related"
+          :collapsible="false"
+        />
 
         <section v-if="onlineGalleryId" class="comments detail-card">
           <div class="section-toggle-bar comments-toolbar">
