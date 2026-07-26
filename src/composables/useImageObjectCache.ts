@@ -1,6 +1,5 @@
 import { shallowRef } from "vue";
-
-import { imageProxyUrl } from "@/api";
+import { invoke } from "@tauri-apps/api/core";
 
 interface CachedImage {
   objectUrl: string | null;
@@ -111,10 +110,12 @@ export function loadImageObjectUrl(source: string | null | undefined): Promise<s
     pinCount: pendingPins.get(source) ?? 0,
   };
   pendingPins.delete(source);
-  const fetchBlob = () => fetch(imageProxyUrl(source), { cache: "force-cache" })
+  const fetchBlob = () => invoke<ArrayBuffer | Uint8Array>("image_fetch", { source })
     .then((response) => {
-      if (!response.ok) throw new Error(`image request failed: HTTP ${response.status}`);
-      return response.blob();
+      const bytes = response instanceof ArrayBuffer
+        ? response
+        : Uint8Array.from(response).buffer;
+      return new Blob([bytes], { type: imageMimeType(source) });
     });
   entry.promise = fetchBlob()
     .catch(async () => {
@@ -141,4 +142,13 @@ export function loadImageObjectUrl(source: string | null | undefined): Promise<s
     });
   entries.set(source, entry);
   return entry.promise;
+}
+
+function imageMimeType(source: string): string {
+  const pathname = source.split(/[?#]/, 1)[0].toLowerCase();
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".webp")) return "image/webp";
+  if (pathname.endsWith(".gif")) return "image/gif";
+  if (pathname.endsWith(".avif")) return "image/avif";
+  return "image/jpeg";
 }

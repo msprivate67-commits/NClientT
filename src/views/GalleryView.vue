@@ -205,6 +205,7 @@ async function runCommentTranslation(comment: Comment, runId: number) {
       s.tl_base_url,
       s.tl_model,
       s.tl_api_key,
+      title.value,
       comment.body,
       s.tl_comment_target_lang,
       s.tl_thinking,
@@ -254,7 +255,7 @@ async function maybeAutoTranslateComments() {
     !commentsOpen.value
     || !currentGallery
     || !settings.settings.tl_auto_translate
-    || settings.translationAvailable !== true
+    || !settings.settings.tl_api_key.trim()
   ) return;
 
   gallery.comments.forEach((comment) => enqueueCommentTranslation(comment));
@@ -344,7 +345,7 @@ function maybeAutoTranslate() {
   if (
     !g.value
     || !settings.settings.tl_auto_translate
-    || settings.translationAvailable !== true
+    || !settings.settings.tl_api_key.trim()
     || autoTranslatedGalleryId === g.value.id
   ) return;
   autoTranslatedGalleryId = g.value.id;
@@ -550,7 +551,7 @@ watch(id, () => {
   void load();
 });
 watch(
-  [() => settings.translationAvailable, () => settings.settings.tl_auto_translate],
+  [() => settings.settings.tl_api_key, () => settings.settings.tl_auto_translate],
   () => {
     maybeAutoTranslate();
     void maybeAutoTranslateComments();
@@ -871,9 +872,22 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
       <div class="header">
         <div class="cover skeleton-pulse"></div>
         <div class="info">
+          <div class="loading-status" role="status">
+            <Loader :size="20" class="spin" />
+            <span>{{ $t('common.loading') }}</span>
+          </div>
           <div class="skeleton-line w-70"></div>
           <div class="skeleton-line w-30"></div>
-          <div class="skeleton-line w-100"></div>
+          <div class="primary-actions loading-actions" aria-hidden="true">
+            <button class="btn primary read-btn" disabled>
+              <BookOpen :size="18" /> {{ $t('gallery.read') }}
+            </button>
+            <div class="tool-btns">
+              <button class="btn" disabled><RefreshCw :size="14" /> {{ $t('common.refresh') }}</button>
+              <button class="btn" disabled><Download :size="14" /> {{ $t('common.download') }}</button>
+              <button class="btn" disabled><Star :size="14" /> {{ $t('gallery.favorite') }}</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="skeleton-section">
@@ -1374,6 +1388,17 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
   flex-direction: column;
   gap: 12px;
   padding-top: 6px;
+}
+.loading-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.loading-actions {
+  opacity: 0.72;
 }
 .skeleton-pulse {
   background: var(--surface-2);

@@ -1,4 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
+import GalleryView from "@/views/GalleryView.vue";
+import LocalReaderView from "@/views/LocalReaderView.vue";
+import ReaderView from "@/views/ReaderView.vue";
 
 const routes = [
   {
@@ -14,19 +17,19 @@ const routes = [
   {
     name: "gallery",
     path: "/gallery/:id",
-    component: () => import("@/views/GalleryView.vue"),
+    component: GalleryView,
     props: true,
   },
   {
     name: "reader",
     path: "/gallery/:id/read",
-    component: () => import("@/views/ReaderView.vue"),
+    component: ReaderView,
     props: true,
   },
   {
     name: "reader-local",
     path: "/local/:folder",
-    component: () => import("@/views/LocalReaderView.vue"),
+    component: LocalReaderView,
     props: true,
   },
   {

@@ -533,8 +533,7 @@ pub fn local_reader_progress_get(
 // ===========================================================================
 
 #[tauri::command]
-pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
-    let mut found = Vec::new();
+pub async fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
     // `mut` is only needed on Android, where we may push an extra scan dir.
     #[allow(unused_mut)]
     let mut dirs = vec![state.config.download_dir()];
@@ -546,28 +545,34 @@ pub fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
             dirs.push(internal.clone());
         }
     }
-    for dir in &dirs {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for e in entries.flatten() {
-                if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    continue;
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut found = Vec::new();
+        for dir in &dirs {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for e in entries.flatten() {
+                    if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        continue;
+                    }
+                    if let Some(lg) = read_local_gallery(&e.path()) {
+                        let _ = db.local_upsert(&lg);
+                        found.push(lg);
+                    }
                 }
-                if let Some(lg) = read_local_gallery(&e.path()) {
-                    let _ = state.db.local_upsert(&lg);
+            }
+        }
+        // Merge any DB-only entries.
+        if let Ok(all) = db.local_all() {
+            for lg in all {
+                if !found.iter().any(|f| f.folder == lg.folder) {
                     found.push(lg);
                 }
             }
         }
-    }
-    // Merge any DB-only entries.
-    if let Ok(all) = state.db.local_all() {
-        for lg in all {
-            if !found.iter().any(|f| f.folder == lg.folder) {
-                found.push(lg);
-            }
-        }
-    }
-    Ok(found)
+        Ok(found)
+    })
+    .await
+    .map_err(|error| AppError::Other(error.to_string()))?
 }
 
 /// IDs of galleries the user has downloaded (present on disk in the local
@@ -1035,6 +1040,22 @@ pub fn image_proxy_url(url: String) -> String {
     } else {
         asset_url(url.trim_start_matches('/'))
     }
+}
+
+/// Fetch image bytes through the native HTTP client and return a raw IPC body.
+///
+/// Do not make Android WebView wait on an asynchronous custom-scheme request:
+/// pending intercepted requests can suppress otherwise-ready UI frames. Raw
+/// IPC lets the page shell paint immediately while Rust downloads in the
+/// background; the frontend converts these bytes to a shared blob URL.
+#[tauri::command]
+pub async fn image_fetch(
+    state: State<'_, AppState>,
+    source: String,
+) -> Result<tauri::ipc::Response, String> {
+    let current_settings = settings(&state);
+    let image = crate::image_protocol::load_image(&state.http, &current_settings, &source).await?;
+    Ok(tauri::ipc::Response::new(image.body.as_ref().to_vec()))
 }
 
 /// Build a per-platform asset URL for a local path. Mirrors the scheme

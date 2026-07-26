@@ -185,6 +185,7 @@ pub fn run() {
             open_path,
             resolve_asset,
             image_proxy_url,
+            image_fetch,
             read_local_image,
             register_app,
         ])

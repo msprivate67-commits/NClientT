@@ -7,7 +7,6 @@ import {
   cloudflareIsSolved,
   settingsGet,
   settingsSet,
-  testTranslationConnection,
   type AuthStatus,
 } from "@/api";
 import type { Settings } from "@/types";
@@ -102,10 +101,6 @@ export const useSettingsStore = defineStore("settings", () => {
     cloudflare_solved: false,
   });
   const cloudflareNeeded = ref(false);
-  const translationAvailable = ref<boolean | null>(null);
-  const translationStatusMessage = ref("");
-  const translationChecking = ref(false);
-  let translationCheckId = 0;
 
   const mirror = computed(() => settings.value.mirror);
   const baseUrl = computed(() => `https://${settings.value.mirror}/`);
@@ -123,43 +118,9 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   async function save(patch: Partial<Settings>) {
-    const translationSettingsChanged = [
-      "tl_base_url",
-      "tl_model",
-      "tl_api_key",
-      "tl_target_lang",
-      "tl_comment_target_lang",
-      "tl_thinking",
-      "tl_auto_translate",
-      "tl_use_proxy",
-    ]
-      .some((key) => key in patch && patch[key as keyof Settings] !== settings.value[key as keyof Settings]);
     const next = { ...settings.value, ...patch };
     settings.value = await settingsSet(next);
-    if (translationSettingsChanged) void refreshTranslationAvailability();
     return settings.value;
-  }
-
-  async function refreshTranslationAvailability() {
-    const checkId = ++translationCheckId;
-    translationChecking.value = true;
-    translationAvailable.value = null;
-    translationStatusMessage.value = "";
-    try {
-      const result = await testTranslationConnection(
-        settings.value.tl_base_url,
-        settings.value.tl_model,
-        settings.value.tl_api_key,
-        settings.value.tl_use_proxy,
-      );
-      if (checkId === translationCheckId) {
-        translationAvailable.value = result.ok;
-        translationStatusMessage.value = result.message;
-      }
-      return result;
-    } finally {
-      if (checkId === translationCheckId) translationChecking.value = false;
-    }
   }
 
   async function syncTranslationTargetsForLanguage(language: string) {
@@ -207,15 +168,11 @@ export const useSettingsStore = defineStore("settings", () => {
     loaded,
     auth,
     cloudflareNeeded,
-    translationAvailable,
-    translationStatusMessage,
-    translationChecking,
     mirror,
     baseUrl,
     load,
     save,
     refreshAuth,
-    refreshTranslationAvailability,
     syncTranslationTargetsForLanguage,
     checkCloudflare,
     isCloudflareSolved,

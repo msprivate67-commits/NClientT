@@ -230,6 +230,7 @@ async function runCommentTranslation(comment: Comment, runId: number) {
       s.tl_base_url,
       s.tl_model,
       s.tl_api_key,
+      title.value,
       comment.body,
       s.tl_comment_target_lang,
       s.tl_thinking,
@@ -279,7 +280,7 @@ async function maybeAutoTranslateComments() {
     !commentsOpen.value
     || !galleryId
     || !settingsStore.settings.tl_auto_translate
-    || settingsStore.translationAvailable !== true
+    || !settingsStore.settings.tl_api_key.trim()
   ) return;
 
   comments.value.forEach((comment) => enqueueCommentTranslation(comment));
@@ -455,7 +456,7 @@ watch(
   [
     commentsOpen,
     () => comments.value.map((comment) => comment.id).join(","),
-    () => settingsStore.translationAvailable,
+    () => settingsStore.settings.tl_api_key,
     () => settingsStore.settings.tl_auto_translate,
   ],
   () => void maybeAutoTranslateComments(),

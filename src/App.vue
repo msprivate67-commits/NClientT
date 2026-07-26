@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { onBackButtonPress } from "@tauri-apps/api/app";
 import type { PluginListener } from "@tauri-apps/api/core";
 
-import { ArrowLeft, Menu, Search as SearchIcon } from "@lucide/vue";
+import { ArrowLeft, Loader, Menu, Search as SearchIcon } from "@lucide/vue";
 import AppSidebar from "@/components/AppSidebar.vue";
+import GalleryView from "@/views/GalleryView.vue";
+import ReaderView from "@/views/ReaderView.vue";
+import LocalDetailView from "@/views/LocalDetailView.vue";
+import LocalReaderView from "@/views/LocalReaderView.vue";
 import { androidPrivacySet, cloudflareOpenChallenge, onDownloadProgress } from "@/api";
 import { setLocale, detectPlatformLanguage, isValidLanguage } from "@/i18n";
 import { useSettingsStore } from "@/stores/settings";
@@ -22,11 +26,6 @@ import { useEdgeSwipe } from "@/composables/useEdgeSwipe";
 import { useResponsiveSidebar } from "@/composables/useResponsiveSidebar";
 import { useSwipeDismiss } from "@/composables/useSwipeDismiss";
 import { applyTheme } from "@/composables/useTheme";
-
-const GalleryView = defineAsyncComponent(() => import("@/views/GalleryView.vue"));
-const ReaderView = defineAsyncComponent(() => import("@/views/ReaderView.vue"));
-const LocalDetailView = defineAsyncComponent(() => import("@/views/LocalDetailView.vue"));
-const LocalReaderView = defineAsyncComponent(() => import("@/views/LocalReaderView.vue"));
 
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
@@ -102,10 +101,10 @@ onMounted(async () => {
       await settings.save({ app_language: detected });
     }
 
-    // Keep untouched translation defaults aligned with the UI language, then
-    // run exactly one silent AI availability probe for this app launch.
+    // Keep untouched translation defaults aligned with the UI language.
+    // Translation requests report their own errors; startup must not probe the
+    // configured provider or gate automatic translation on a stale status.
     await settings.syncTranslationTargetsForLanguage(i18n.locale.value);
-    void settings.refreshTranslationAvailability();
 
     await Promise.allSettled([
       downloads.init(),
@@ -366,9 +365,17 @@ function doSearch() {
       </div>
 
       <RouterView v-slot="{ Component }">
-        <KeepAlive>
-          <component :is="Component" />
-        </KeepAlive>
+        <Suspense>
+          <KeepAlive>
+            <component :is="Component" />
+          </KeepAlive>
+          <template #fallback>
+            <div class="route-loading" role="status">
+              <Loader :size="24" class="spin" />
+              <span>{{ $t('common.loading') }}</span>
+            </div>
+          </template>
+        </Suspense>
       </RouterView>
     </main>
 
@@ -554,6 +561,22 @@ function doSearch() {
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.route-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+  background: var(--bg);
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .overlay-wrapper {

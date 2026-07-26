@@ -27,9 +27,9 @@ static REMOTE_IMAGE_LOCKS: Lazy<Mutex<HashMap<String, Weak<AsyncMutex<()>>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone)]
-struct CachedImage {
-    content_type: String,
-    body: Arc<[u8]>,
+pub(crate) struct CachedImage {
+    pub(crate) content_type: String,
+    pub(crate) body: Arc<[u8]>,
 }
 
 #[derive(Default)]
@@ -90,33 +90,46 @@ pub fn handle(
     let config = state.config.clone();
 
     tauri::async_runtime::spawn(async move {
-        let response = if source.starts_with("http://") || source.starts_with("https://") {
-            let settings = config.get();
-            remote_image_response(&http, &settings, &source).await
-        } else {
-            let path = local_path(&source);
-            match std::fs::read(&path) {
-                Ok(body) => {
-                    let content_type = mime_guess::from_path(&path)
-                        .first_or_octet_stream()
-                        .essence_str()
-                        .to_string();
-                    build_response(200, &content_type, body)
-                }
-                Err(error) => error_response(404, &error.to_string()),
-            }
+        let settings = config.get();
+        let response = match load_image(&http, &settings, &source).await {
+            Ok(image) => cached_response(image),
+            Err(error) => error_response(502, &error),
         };
         responder.respond(response);
     });
 }
 
-async fn remote_image_response(
+/// Load an image without involving the WebView resource loader.
+///
+/// Android's `WebViewClient.shouldInterceptRequest` path can delay compositor
+/// commits while an asynchronous custom-protocol response is outstanding. The
+/// frontend therefore uses this through a raw Tauri IPC command for remote
+/// preloading and turns the returned bytes into a blob URL. The custom protocol
+/// remains available for local files and compatibility, and both paths share
+/// this cache.
+pub(crate) async fn load_image(
     http: &HttpClient,
     settings: &Settings,
     source: &str,
-) -> http::Response<Vec<u8>> {
+) -> Result<CachedImage, String> {
+    if !source.starts_with("http://") && !source.starts_with("https://") {
+        let path = local_path(source);
+        let content_type = mime_guess::from_path(&path)
+            .first_or_octet_stream()
+            .essence_str()
+            .to_string();
+        let body = tauri::async_runtime::spawn_blocking(move || std::fs::read(path))
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+        return Ok(CachedImage {
+            content_type,
+            body: Arc::from(body),
+        });
+    }
+
     if let Some(image) = cached_image(source) {
-        return cached_response(image);
+        return Ok(image);
     }
 
     // The gallery preloader and the reader can request the same URL at almost
@@ -135,45 +148,38 @@ async fn remote_image_response(
     };
     let _request_guard = request_lock.lock().await;
     if let Some(image) = cached_image(source) {
-        return cached_response(image);
+        return Ok(image);
     }
 
     let _permit = REMOTE_IMAGE_LIMIT
         .acquire()
         .await
         .expect("remote image semaphore closed");
-    match http
+    let response = http
         .request(reqwest::Method::GET, source, false, settings)
         .send()
         .await
-    {
-        Ok(response) => {
-            let status = response.status();
-            let content_type = response
-                .headers()
-                .get(CONTENT_TYPE)
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or("application/octet-stream")
-                .to_string();
-            match response.bytes().await {
-                Ok(body) => {
-                    if status.is_success() {
-                        let image = CachedImage {
-                            content_type: content_type.clone(),
-                            body: Arc::from(body.as_ref()),
-                        };
-                        REMOTE_IMAGE_CACHE
-                            .lock()
-                            .unwrap()
-                            .insert(source.to_string(), image);
-                    }
-                    build_response(status.as_u16(), &content_type, body.to_vec())
-                }
-                Err(error) => error_response(502, &error.to_string()),
-            }
-        }
-        Err(error) => error_response(502, &error.to_string()),
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    if !status.is_success() {
+        return Err(format!("image request failed: HTTP {}", status.as_u16()));
     }
+    let body = response.bytes().await.map_err(|error| error.to_string())?;
+    let image = CachedImage {
+        content_type,
+        body: Arc::from(body.as_ref()),
+    };
+    REMOTE_IMAGE_CACHE
+        .lock()
+        .unwrap()
+        .insert(source.to_string(), image.clone());
+    Ok(image)
 }
 
 fn cached_image(source: &str) -> Option<CachedImage> {
