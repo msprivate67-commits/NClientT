@@ -199,6 +199,10 @@
   },
   "tags": {
     "title": "标签",
+    "translate_all": "一键翻译",
+    "retranslate_all": "重新翻译",
+    "translating": "翻译中…",
+    "translate_error": "标签翻译失败：{message}",
     "filter": "筛选…",
     "tag_type_all": "全部",
     "tag_type_tag": "标签",

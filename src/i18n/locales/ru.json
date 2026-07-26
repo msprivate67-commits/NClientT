@@ -199,6 +199,10 @@
   },
   "tags": {
     "title": "Теги",
+    "translate_all": "Перевести все",
+    "retranslate_all": "Перевести снова",
+    "translating": "Перевод…",
+    "translate_error": "Не удалось перевести теги: {message}",
     "filter": "Фильтр…",
     "tag_type_all": "все",
     "tag_type_tag": "тег",

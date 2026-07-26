@@ -199,6 +199,10 @@
   },
   "tags": {
     "title": "タグ",
+    "translate_all": "すべて翻訳",
+    "retranslate_all": "再翻訳",
+    "translating": "翻訳中…",
+    "translate_error": "タグを翻訳できませんでした：{message}",
     "filter": "フィルター…",
     "tag_type_all": "すべて",
     "tag_type_tag": "タグ",
