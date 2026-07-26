@@ -199,6 +199,10 @@
   },
   "tags": {
     "title": "Tags",
+    "translate_all": "Translate all",
+    "retranslate_all": "Translate again",
+    "translating": "Translating…",
+    "translate_error": "Could not translate tags: {message}",
     "filter": "Filter…",
     "tag_type_all": "all",
     "tag_type_tag": "tag",

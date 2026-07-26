@@ -8,6 +8,7 @@ const props = withDefaults(
     tag: Tag;
     clickable?: boolean;
     showType?: boolean;
+    translatedName?: string;
   }>(),
   { clickable: true, showType: false },
 );
@@ -46,7 +47,10 @@ function onContextmenu(e: MouseEvent) {
     @contextmenu="onContextmenu"
   >
     <span v-if="showType && typeLabel" class="type">{{ typeLabel }}:</span>
-    <span class="name">{{ tag.name }}</span>
+    <span class="name-stack">
+      <span class="name">{{ tag.name }}</span>
+      <span v-if="translatedName" class="translated-name">{{ translatedName }}</span>
+    </span>
     <span v-if="tag.count" class="count">{{ formatCount(tag.count) }}</span>
   </span>
 </template>
@@ -81,6 +85,16 @@ function formatCount(n: number): string {
 .type {
   color: var(--text-dim);
   font-size: 0.72rem;
+}
+.name-stack {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.translated-name {
+  color: var(--accent);
+  font-size: 0.7rem;
 }
 .count {
   color: var(--text-dim);
