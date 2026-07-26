@@ -36,6 +36,7 @@ export interface Tag {
   type: TagType;
   count: number;
   status?: TagStatus;
+  blacklisted?: boolean;
 }
 
 export interface Page {
@@ -106,6 +107,7 @@ export interface FavoritesPage {
   galleries: SimpleGallery[];
   page: number;
   num_pages: number;
+  blacklisted?: boolean;
 }
 
 export interface FavoriteStatus {

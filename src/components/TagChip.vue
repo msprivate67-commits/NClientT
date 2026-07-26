@@ -40,7 +40,7 @@ function onContextmenu(e: MouseEvent) {
 <template>
   <span
     class="chip"
-    :class="[statusClass, { clickable }]"
+    :class="[statusClass, { clickable, blacklisted: tag.blacklisted }]"
     :title="$t('tags.cycle_hint', { type: tag.type, name: tag.name, count: tag.count })"
     @click="onClick"
     @contextmenu="onContextmenu"
@@ -96,5 +96,9 @@ function formatCount(n: number): string {
   border-color: rgba(220, 50, 50, 0.6);
   color: #ff8e8e;
   text-decoration: line-through;
+}
+.blacklisted {
+  border-color: #e05252;
+  box-shadow: inset 0 0 0 1px rgba(224, 82, 82, 0.25);
 }
 </style>

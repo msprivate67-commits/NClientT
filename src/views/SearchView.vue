@@ -9,7 +9,6 @@ import TagChip from "@/components/TagChip.vue";
 import { RefreshCw, X, CheckSquare } from "@lucide/vue";
 import { tagsSearch } from "@/api";
 import { useGalleryStore } from "@/stores/gallery";
-import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useTagsStore } from "@/stores/tags";
 import { useScrollCache } from "@/composables/useScrollCache";
@@ -19,14 +18,14 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const gallery = useGalleryStore();
-const settings = useSettingsStore();
 const downloads = useDownloadsStore();
 const tagsStore = useTagsStore();
 
 const query = ref(String(route.query.q ?? ""));
-const lang = ref<Language>((route.query.lang as Language) ?? settings.settings.only_language);
-const sort = ref<SortType>((route.query.sort as SortType) ?? settings.settings.sort_type);
+const lang = ref<Language>((route.query.lang as Language) ?? "all");
+const sort = ref<SortType>((route.query.sort as SortType) ?? "recent_all_time");
 const selected = ref<Tag[]>(parseTagsParam(String(route.query.tags ?? "")));
+const applyManagedFilters = ref(route.query.managed !== "off");
 
 const page = ref(Number(route.query.page ?? 1));
 const numPages = ref(0);
@@ -80,15 +79,20 @@ const langs: { value: Language; label: string }[] = [
   { value: "japanese", label: "JP" },
   { value: "chinese", label: "CN" },
 ];
-const sorts: { value: SortType; label: string }[] = [
-  { value: "recent_all_time", label: "Recent" },
-  { value: "popular_all_time", label: "Popular" },
-  { value: "popular_week", label: "Week" },
-  { value: "popular_day", label: "Day" },
-];
+const sorts = computed<{ value: SortType; label: string }[]>(() => [
+  { value: "recent_all_time", label: t("search.sort_recent") },
+  { value: "popular_all_time", label: t("search.sort_popular") },
+  { value: "popular_week", label: t("search.sort_week") },
+  { value: "popular_day", label: t("search.sort_day") },
+]);
 
 const hasQuery = computed(
-  () => query.value.trim() || selected.value.length || lang.value !== "all",
+  () =>
+    query.value.trim()
+    || selected.value.length
+    || lang.value !== "all"
+    || (applyManagedFilters.value
+      && (tagsStore.accepted.length > 0 || tagsStore.avoided.length > 0)),
 );
 
 function parseTagsParam(s: string): Tag[] {
@@ -116,6 +120,7 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
+    await tagsStore.load();
     // Resolve tag names if missing.
     if (selected.value.some((t) => !t.name)) {
       const all = await tagsStore.load();
@@ -133,6 +138,12 @@ async function load() {
     const result = await gallery.search({
       query: query.value.trim(),
       tags: selected.value,
+      accepted_tag_ids: applyManagedFilters.value
+        ? tagsStore.accepted.map((tag) => tag.id)
+        : [],
+      avoided_tag_ids: applyManagedFilters.value
+        ? tagsStore.avoided.map((tag) => tag.id)
+        : [],
       page: page.value,
       sort: sort.value,
       only_language: lang.value,
@@ -190,9 +201,40 @@ function syncUrl() {
   if (query.value.trim()) params.q = query.value.trim();
   if (lang.value !== "all") params.lang = lang.value;
   if (sort.value !== "recent_all_time") params.sort = sort.value;
-  if (selected.value.length) params.tags = selected.value.map((t) => `${t.id}:${t.status}`).join(",");
+  if (selected.value.length) {
+    params.tags = selected.value
+      .map((tag) => [
+        tag.id,
+        tag.status,
+        encodeURIComponent(tag.name),
+        encodeURIComponent(tag.type),
+      ].join(":"))
+      .join(",");
+  }
+  if (!applyManagedFilters.value) params.managed = "off";
   if (page.value > 1) params.page = String(page.value);
   router.replace({ query: params });
+}
+
+function chooseLanguage(value: Language) {
+  lang.value = lang.value === value && value !== "all" ? "all" : value;
+  submit();
+}
+
+function chooseSort(value: SortType) {
+  sort.value =
+    sort.value === value && value !== "recent_all_time"
+      ? "recent_all_time"
+      : value;
+  submit();
+}
+
+function clearFilters() {
+  lang.value = "all";
+  sort.value = "recent_all_time";
+  selected.value = [];
+  applyManagedFilters.value = false;
+  submit();
 }
 
 function submit() {
@@ -212,9 +254,10 @@ onMounted(load);
 watch(() => route.query, () => {
   // Sync from URL when navigated externally (e.g. from the search box).
   query.value = String(route.query.q ?? "");
-  lang.value = (route.query.lang as Language) ?? lang.value;
-  sort.value = (route.query.sort as SortType) ?? sort.value;
+  lang.value = (route.query.lang as Language) ?? "all";
+  sort.value = (route.query.sort as SortType) ?? "recent_all_time";
   selected.value = parseTagsParam(String(route.query.tags ?? ""));
+  applyManagedFilters.value = route.query.managed !== "off";
   page.value = Number(route.query.page ?? 1);
   load();
 });
@@ -237,7 +280,7 @@ watch(() => route.query, () => {
           class="btn"
           :class="{ primary: lang === l.value }"
           type="button"
-          @click="lang = l.value; submit()"
+          @click="chooseLanguage(l.value)"
         >{{ l.label }}</button>
       </div>
       <div class="toolbar">
@@ -247,9 +290,19 @@ watch(() => route.query, () => {
           class="btn"
           :class="{ primary: sort === s.value }"
           type="button"
-          @click="sort = s.value; submit()"
+          @click="chooseSort(s.value)"
         >{{ s.label }}</button>
       </div>
+      <label class="managed-filter-toggle">
+        <input v-model="applyManagedFilters" type="checkbox" @change="submit" />
+        {{ $t('search.apply_managed_filters') }}
+        <span>
+          ({{ tagsStore.accepted.length }} + / {{ tagsStore.avoided.length }} −)
+        </span>
+      </label>
+      <button type="button" class="btn" @click="clearFilters">
+        <X :size="14" /> {{ $t('search.clear_filters') }}
+      </button>
       <button
         type="button"
         class="btn"
@@ -293,20 +346,19 @@ watch(() => route.query, () => {
     </div>
 
     <div v-if="selected.length" class="chips selected">
-      <TagChip
-        v-for="t in selected"
-        :key="t.id"
-        :tag="t"
-        show-type
-        @click="cycleTag(t)"
-      />
-      <button
-        v-for="t in selected"
-        :key="'rm-' + t.id"
-        class="btn small"
-        type="button"
-        @click="removeTag(t)"
-      ><X :size="12" /></button>
+      <span v-for="tag in selected" :key="tag.id" class="selected-tag">
+        <TagChip
+          :tag="tag"
+          show-type
+          @click="cycleTag(tag)"
+        />
+        <button
+          class="remove-tag"
+          type="button"
+          :title="$t('search.remove_tag')"
+          @click="removeTag(tag)"
+        ><X :size="12" /></button>
+      </span>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -413,5 +465,33 @@ watch(() => route.query, () => {
 }
 .results {
   margin-top: 14px;
+}
+.selected-tag {
+  display: inline-flex;
+  align-items: center;
+}
+.remove-tag {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -4px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.remove-tag:hover {
+  border-color: #e05252;
+  color: #ff8e8e;
+}
+.managed-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
 }
 </style>

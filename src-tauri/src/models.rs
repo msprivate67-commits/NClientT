@@ -93,6 +93,9 @@ pub struct Tag {
     /// Local-only: a user-set status. Defaults to `default`.
     #[serde(default)]
     pub status: TagStatus,
+    /// Whether this tag is in the authenticated user's online blacklist.
+    #[serde(default)]
+    pub blacklisted: bool,
 }
 
 impl Tag {
@@ -240,6 +243,9 @@ pub struct SimpleGallery {
     pub tags: Vec<Tag>,
     #[serde(default)]
     pub num_pages: usize,
+    /// The API marks list entries matching the user's online blacklist.
+    #[serde(default)]
+    pub blacklisted: bool,
 }
 
 // ---------------------------------------------------------------------------

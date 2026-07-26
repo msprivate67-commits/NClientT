@@ -5,6 +5,7 @@ import {
   apiGetTags,
   tagsAddBlacklist,
   tagsGetAll,
+  tagsGetBlacklist,
   tagsRemoveBlacklist,
   tagsSearch,
   tagsSetStatus,
@@ -14,6 +15,7 @@ import type { Tag, TagStatus, TagType } from "@/types";
 export const useTagsStore = defineStore("tags", () => {
   const tags = ref<Tag[]>([]);
   const loaded = ref(false);
+  const blacklistLoaded = ref(false);
 
   const grouped = computed(() => {
     const map = new Map<TagType, Tag[]>();
@@ -27,7 +29,8 @@ export const useTagsStore = defineStore("tags", () => {
 
   const accepted = computed(() => tags.value.filter((t) => t.status === "accepted"));
   const avoided = computed(() => tags.value.filter((t) => t.status === "avoided"));
-  const blacklisted = computed(() => tags.value.filter((t) => (t as any).blacklisted));
+  const blacklisted = computed(() => tags.value.filter((t) => t.blacklisted));
+  const blacklistedIds = computed(() => new Set(blacklisted.value.map((t) => t.id)));
 
   async function load(force = false) {
     if (loaded.value && !force) return tags.value;
@@ -50,6 +53,19 @@ export const useTagsStore = defineStore("tags", () => {
     return remote;
   }
 
+  async function loadBlacklist(force = false): Promise<Tag[]> {
+    if (blacklistLoaded.value && !force) return blacklisted.value;
+    const remote = await tagsGetBlacklist();
+    for (const tag of tags.value) tag.blacklisted = false;
+    merge(remote.map((tag) => ({ ...tag, blacklisted: true })));
+    for (const remoteTag of remote) {
+      const tag = tags.value.find((candidate) => candidate.id === remoteTag.id);
+      if (tag) tag.blacklisted = true;
+    }
+    blacklistLoaded.value = true;
+    return blacklisted.value;
+  }
+
   async function setStatus(id: number, status: TagStatus) {
     await tagsSetStatus(id, status);
     const t = tags.value.find((x) => x.id === id);
@@ -67,15 +83,26 @@ export const useTagsStore = defineStore("tags", () => {
 
   async function addBlacklist(id: number) {
     await tagsAddBlacklist(id);
+    const tag = tags.value.find((candidate) => candidate.id === id);
+    if (tag) tag.blacklisted = true;
   }
   async function removeBlacklist(id: number) {
     await tagsRemoveBlacklist(id);
+    const tag = tags.value.find((candidate) => candidate.id === id);
+    if (tag) tag.blacklisted = false;
   }
 
   function merge(newTags: Tag[]) {
     for (const t of newTags) {
-      if (!tags.value.some((x) => x.id === t.id)) {
+      const existing = tags.value.find((x) => x.id === t.id);
+      if (!existing) {
         tags.value.push(t);
+      } else {
+        existing.name = t.name;
+        existing.type = t.type;
+        existing.count = t.count;
+        if (t.status && t.status !== "default") existing.status = t.status;
+        if (t.blacklisted) existing.blacklisted = true;
       }
     }
   }
@@ -87,11 +114,14 @@ export const useTagsStore = defineStore("tags", () => {
     accepted,
     avoided,
     blacklisted,
+    blacklistedIds,
     load,
+    loadBlacklist,
     search,
     setStatus,
     cycle,
     addBlacklist,
     removeBlacklist,
+    merge,
   };
 });

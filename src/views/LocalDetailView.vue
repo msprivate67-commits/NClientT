@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import {
   apiGetComments,
   imageProxyUrl,
@@ -25,14 +26,17 @@ import DetailRelatedSection from "@/components/DetailRelatedSection.vue";
 import DetailTagsSection from "@/components/DetailTagsSection.vue";
 import { useOverlayStore } from "@/stores/overlay";
 import { useSettingsStore } from "@/stores/settings";
+import { useTagsStore } from "@/stores/tags";
 import { stripLeadingId } from "@/utils/title";
 import type { Comment, Gallery, LocalGallery, Tag } from "@/types";
 
 const props = defineProps<{ folder: string; overlay?: boolean }>();
 const emit = defineEmits<{ back: [] }>();
 const router = useRouter();
+const { t: i18n } = useI18n();
 const overlayStore = useOverlayStore();
 const settingsStore = useSettingsStore();
+const tagsStore = useTagsStore();
 
 const local = ref<LocalGallery | null>(null);
 const loading = ref(true);
@@ -42,6 +46,7 @@ const reasoningText = ref("");
 const reasoningExpanded = ref(false);
 const reasoningRef = ref<HTMLElement | null>(null);
 const translateError = ref("");
+const tagActionError = ref("");
 let translationController: AbortController | null = null;
 // Offline metadata (tags + related) read from the folder's `.nomedia` file.
 // May be `null` for imported folders without a cached gallery JSON; the tags and
@@ -404,6 +409,23 @@ function onTagClick(t: Tag) {
   router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
 
+async function toggleTagBlacklist(tag: Tag) {
+  if (!settingsStore.settings.auth.api_key.trim()) {
+    tagActionError.value = String(i18n("tags.blacklist_requires_api_key"));
+    return;
+  }
+  try {
+    tagsStore.merge([tag]);
+    if (tagsStore.blacklistedIds.has(tag.id)) {
+      await tagsStore.removeBlacklist(tag.id);
+    } else {
+      await tagsStore.addBlacklist(tag.id);
+    }
+  } catch (cause) {
+    tagActionError.value = String(cause);
+  }
+}
+
 function goToSettings() {
   // From an overlay panel, close it first so the settings route renders full
   // screen (same pattern as onTagClick).
@@ -503,11 +525,14 @@ onUnmounted(() => {
            Mirrors the online GalleryView layout. Only rendered when metadata
            is present. -->
       <div class="body">
+        <div v-if="tagActionError" class="error">{{ tagActionError }}</div>
         <DetailTagsSection
           v-if="tagsByType.size"
           v-model:expanded="tagsExpanded"
           :groups="tagsByType"
+          :blacklisted-ids="tagsStore.blacklistedIds"
           @select="onTagClick"
+          @toggle-blacklist="toggleTagBlacklist"
         />
 
         <DetailRelatedSection

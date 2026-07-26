@@ -277,7 +277,7 @@ pub fn tags_get_by_ids(ids: &[i64]) -> AppResult<Vec<Tag>> {
     db.with_conn(|c| {
         let placeholders = (0..ids.len()).map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT id, name, type, count, status FROM tags WHERE id IN ({})",
+            "SELECT id, name, type, count, status, online_blacklist FROM tags WHERE id IN ({})",
             placeholders
         );
         let mut stmt = c.prepare(&sql)?;
@@ -458,7 +458,7 @@ impl Database {
         self.with_conn(|c| {
             c.execute(
                 "INSERT INTO tags (id, name, type, count, status, online_blacklist)
-                 VALUES (?1, ?2, ?3, ?4, ?5, 0)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                  ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     type = excluded.type,
@@ -468,7 +468,8 @@ impl Database {
                     t.name,
                     t.tag_type.single(),
                     t.count,
-                    status_str(t.status)
+                    status_str(t.status),
+                    if t.blacklisted { 1 } else { 0 }
                 ],
             )?;
             Ok(())
@@ -495,9 +496,31 @@ impl Database {
         })
     }
 
+    pub fn replace_blacklist(&self, tags: &[Tag]) -> AppResult<()> {
+        self.with_conn(|c| {
+            let tx = c.unchecked_transaction()?;
+            tx.execute("UPDATE tags SET online_blacklist = 0", [])?;
+            for tag in tags {
+                tx.execute(
+                    "INSERT INTO tags (id, name, type, count, status, online_blacklist)
+                     VALUES (?1, ?2, ?3, ?4, 'default', 1)
+                     ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        type = excluded.type,
+                        count = excluded.count,
+                        online_blacklist = 1",
+                    params![tag.id, tag.name, tag.tag_type.single(), tag.count,],
+                )?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+    }
+
     pub fn tags_by_type(&self, type_filter: Option<TagType>) -> AppResult<Vec<Tag>> {
         self.with_conn(|c| {
-            let mut sql = String::from("SELECT id, name, type, count, status FROM tags");
+            let mut sql =
+                String::from("SELECT id, name, type, count, status, online_blacklist FROM tags");
             let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
             if let Some(t) = type_filter {
                 sql.push_str(" WHERE type = ?1");
@@ -519,8 +542,10 @@ impl Database {
 
     pub fn tags_status(&self, status: TagStatus) -> AppResult<Vec<Tag>> {
         self.with_conn(|c| {
-            let mut stmt =
-                c.prepare("SELECT id, name, type, count, status FROM tags WHERE status = ?1")?;
+            let mut stmt = c.prepare(
+                "SELECT id, name, type, count, status, online_blacklist
+                     FROM tags WHERE status = ?1",
+            )?;
             let rows = stmt
                 .query_map(params![status_str(status)], row_to_tag)?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -531,7 +556,8 @@ impl Database {
     pub fn tags_blacklisted(&self) -> AppResult<Vec<Tag>> {
         self.with_conn(|c| {
             let mut stmt = c.prepare(
-                "SELECT id, name, type, count, status FROM tags WHERE online_blacklist = 1",
+                "SELECT id, name, type, count, status, online_blacklist
+                 FROM tags WHERE online_blacklist = 1",
             )?;
             let rows = stmt
                 .query_map([], row_to_tag)?
@@ -544,7 +570,7 @@ impl Database {
         self.with_conn(|c| {
             let pattern = format!("%{}%", query.to_ascii_lowercase());
             let mut stmt = c.prepare(
-                "SELECT id, name, type, count, status FROM tags
+                "SELECT id, name, type, count, status, online_blacklist FROM tags
                  WHERE LOWER(name) LIKE ?1
                  ORDER BY count DESC LIMIT ?2",
             )?;
@@ -780,6 +806,7 @@ fn row_to_tag(row: &rusqlite::Row<'_>) -> rusqlite::Result<Tag> {
         tag_type: TagType::from_name(&type_str),
         count: row.get(3)?,
         status: parse_status(&status_str),
+        blacklisted: row.get::<_, i64>(5)? != 0,
     })
 }
 

@@ -253,6 +253,9 @@ pub async fn api_random(state: State<'_, AppState>) -> AppResult<Gallery> {
 #[tauri::command]
 pub async fn api_get_gallery(state: State<'_, AppState>, id: i64) -> AppResult<Gallery> {
     let g = api(&state).gallery(id).await?;
+    for tag in &g.tags {
+        let _ = state.db.tag_insert_or_update(tag);
+    }
     let s = settings(&state);
     // Record visit in local history.
     if s.keep_history {
@@ -407,12 +410,21 @@ pub fn tags_set_status(state: State<'_, AppState>, id: i64, status: TagStatus) -
 }
 
 #[tauri::command]
-pub fn tags_add_blacklist(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+pub async fn tags_get_blacklist(state: State<'_, AppState>) -> AppResult<Vec<Tag>> {
+    let remote = api(&state).blacklist().await?;
+    state.db.replace_blacklist(&remote)?;
+    Ok(remote)
+}
+
+#[tauri::command]
+pub async fn tags_add_blacklist(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    api(&state).update_blacklist(&[id], &[]).await?;
     state.db.tag_set_blacklist(id, true)
 }
 
 #[tauri::command]
-pub fn tags_remove_blacklist(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+pub async fn tags_remove_blacklist(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    api(&state).update_blacklist(&[], &[id]).await?;
     state.db.tag_set_blacklist(id, false)
 }
 

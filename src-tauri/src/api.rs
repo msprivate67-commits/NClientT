@@ -12,6 +12,7 @@
 //! - `user`                                   current user (requires auth)
 //! - `galleries/<id>/comments`                gallery comments
 //! - `tags/popular`                           popular tags
+//! - `blacklist`                              user tag blacklist
 
 use std::sync::Arc;
 
@@ -73,7 +74,6 @@ impl ApiClient {
 
     /// Search by query + tags + ranges. Mirrors `InspectorV3#searchInspector`.
     pub async fn search(&self, q: &SearchQuery) -> AppResult<SearchPage> {
-        let s = self.settings();
         let base = self.api_url("search?query=");
 
         // Collect non-empty query tokens, then join with `+`. nhentai rejects a
@@ -119,7 +119,10 @@ impl ApiClient {
             }
         }
         // Language filter.
-        if let Some(encoded) = language_to_query_tag(q.only_language.or_all(s.only_language)) {
+        // `All` is an explicit search-page choice. Do not replace it with the
+        // browsing default from Settings, otherwise an ALL search can silently
+        // remain restricted to (for example) Chinese galleries.
+        if let Some(encoded) = search_language_filter(q) {
             parts.push(encoded);
         }
         // Page range filter (mirrors `Ranges`).
@@ -160,10 +163,13 @@ impl ApiClient {
             .ok_or(AppError::InvalidResponse)?
             .as_array()
             .ok_or(AppError::InvalidResponse)?;
-        let galleries = results
+        let mut galleries = results
             .iter()
             .map(|j| simple_gallery_from_v2_list(j, &s.mirror))
             .collect::<Vec<_>>();
+        if s.remove_avoided_galleries {
+            galleries.retain(|gallery| !gallery.blacklisted);
+        }
         let page = v
             .get("page")
             .and_then(|x| x.as_u64())
@@ -389,6 +395,50 @@ impl ApiClient {
         Ok(arr.iter().map(parse_tag).collect())
     }
 
+    /// Fetch the authenticated user's complete online tag blacklist.
+    pub async fn blacklist(&self) -> AppResult<Vec<Tag>> {
+        let s = self.settings();
+        let url = self.api_url("blacklist");
+        let (body, _) = self.http.get_text(&url, true, &s).await?;
+        let value: Value = serde_json::from_str(&body)?;
+        let tags = value
+            .get("tags")
+            .and_then(Value::as_array)
+            .ok_or(AppError::InvalidResponse)?;
+        Ok(tags
+            .iter()
+            .map(|value| {
+                let mut tag = parse_tag(value);
+                tag.blacklisted = true;
+                tag
+            })
+            .collect())
+    }
+
+    /// Add and remove tag IDs in one API v2 blacklist mutation.
+    pub async fn update_blacklist(&self, added: &[i64], removed: &[i64]) -> AppResult<()> {
+        let s = self.settings();
+        let url = self.api_url("blacklist");
+        let response = self
+            .http
+            .request(reqwest::Method::POST, &url, true, &s)
+            .json(&serde_json::json!({ "added": added, "removed": removed }))
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Unauthorized);
+        }
+        let body = response.text().await?;
+        if !status.is_success() {
+            return Err(AppError::Http {
+                status: status.as_u16(),
+                body,
+            });
+        }
+        Ok(())
+    }
+
     /// Fetch full tag objects for a list of IDs. The list endpoint does not
     /// support multi-fetch; we use a search trick (`include tag` would be
     /// ideal but is rate-limited). Falls back to the local DB when available.
@@ -562,6 +612,10 @@ pub fn simple_gallery_from_v2_list(j: &Value, host: &str) -> SimpleGallery {
         language,
         tags,
         num_pages,
+        blacklisted: j
+            .get("blacklisted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     }
 }
 
@@ -675,6 +729,10 @@ fn parse_tag(v: &Value) -> Tag {
         tag_type: TagType::from_name(v.get("type").and_then(|x| x.as_str()).unwrap_or("tag")),
         count: v.get("count").and_then(|x| x.as_i64()).unwrap_or(0),
         status: TagStatus::Default,
+        blacklisted: v
+            .get("blacklisted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     }
 }
 
@@ -833,6 +891,10 @@ fn language_to_query_tag(lang: Language) -> Option<String> {
     Some(percent_encode(raw))
 }
 
+fn search_language_filter(query: &SearchQuery) -> Option<String> {
+    language_to_query_tag(query.only_language)
+}
+
 /// Encode a value for use in a URL query segment. Covers everything this app
 /// relies on (`+`, `"`, spaces, etc.).
 fn percent_encode(s: &str) -> String {
@@ -858,19 +920,11 @@ fn url_encoded(s: &str) -> String {
 
 /// Local helper trait to make language fallback read nicely.
 trait LanguageExt {
-    fn or_all(self, other: Language) -> Language;
     /// If this is `Language::All`, try to derive a language from a list of tag
     /// IDs by matching the well-known nhentai language tag IDs.
     fn or_else_from_ids(self, ids: &[i64]) -> Language;
 }
 impl LanguageExt for Language {
-    fn or_all(self, other: Language) -> Language {
-        if self == Language::All {
-            other
-        } else {
-            self
-        }
-    }
     fn or_else_from_ids(self, ids: &[i64]) -> Language {
         if self != Language::All {
             return self;
@@ -889,7 +943,9 @@ impl LanguageExt for Language {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_comment;
+    use super::{parse_comment, search_language_filter, simple_gallery_from_v2_list};
+    use crate::config::Language;
+    use crate::models::SearchQuery;
 
     #[test]
     fn parses_v2_comment_with_unix_timestamp() {
@@ -915,5 +971,30 @@ mod tests {
             Some("https://i.nhentai.net/avatars/7.png")
         );
         assert_eq!(comment.post_date.unwrap().timestamp(), 1_700_000_000);
+    }
+
+    #[test]
+    fn parses_blacklisted_v2_gallery_list_item() {
+        let value = serde_json::json!({
+            "id": 12,
+            "media_id": "34",
+            "english_title": "Filtered gallery",
+            "thumbnail": "galleries/34/thumb.jpg",
+            "thumbnail_width": 250,
+            "thumbnail_height": 350,
+            "tag_ids": [],
+            "blacklisted": true
+        });
+        let gallery = simple_gallery_from_v2_list(&value, "nhentai.net");
+        assert!(gallery.blacklisted);
+    }
+
+    #[test]
+    fn all_language_search_has_no_language_query_token() {
+        let query = SearchQuery {
+            only_language: Language::All,
+            ..Default::default()
+        };
+        assert_eq!(search_language_filter(&query), None);
     }
 }

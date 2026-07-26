@@ -131,6 +131,7 @@ pub fn run() {
             tags_get_all,
             tags_get_by_type,
             tags_set_status,
+            tags_get_blacklist,
             tags_add_blacklist,
             tags_remove_blacklist,
             tags_search,

@@ -25,6 +25,7 @@ export const tagsGetByType = (typeFilter?: TagType | null): Promise<Tag[]> =>
   invoke("tags_get_by_type", { typeFilter });
 export const tagsSetStatus = (id: number, status: TagStatus): Promise<void> =>
   invoke("tags_set_status", { id, status });
+export const tagsGetBlacklist = (): Promise<Tag[]> => invoke("tags_get_blacklist");
 export const tagsAddBlacklist = (id: number): Promise<void> => invoke("tags_add_blacklist", { id });
 export const tagsRemoveBlacklist = (id: number): Promise<void> =>
   invoke("tags_remove_blacklist", { id });

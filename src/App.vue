@@ -110,7 +110,7 @@ onMounted(async () => {
     await Promise.allSettled([
       downloads.init(),
       favorites.load(),
-      tags.load(),
+      tags.load().then(() => tags.loadBlacklist()),
       readProgress.load(),
       downloaded.load(),
     ]);

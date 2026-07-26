@@ -32,6 +32,7 @@ import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
 import { useOverlayStore } from "@/stores/overlay";
 import { useDownloadedStore } from "@/stores/downloaded";
+import { useTagsStore } from "@/stores/tags";
 import { useScrollCache } from "@/composables/useScrollCache";
 import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 import {
@@ -47,6 +48,7 @@ const gallery = useGalleryStore();
 const favorites = useFavoritesStore();
 const downloads = useDownloadsStore();
 const downloaded = useDownloadedStore();
+const tagsStore = useTagsStore();
 
 const downloadState = computed(() => {
   if (!g.value) return null;
@@ -594,6 +596,23 @@ async function onTagClick(t: any) {
   const type = encodeURIComponent(t.type);
   router.push({ name: "search", query: { tags: `${t.id}:accepted:${name}:${type}` } });
 }
+
+async function toggleTagBlacklist(tag: import("@/types").Tag) {
+  if (!settings.settings.auth.api_key.trim()) {
+    error.value = i18n("tags.blacklist_requires_api_key");
+    return;
+  }
+  try {
+    if (tagsStore.blacklistedIds.has(tag.id)) {
+      await tagsStore.removeBlacklist(tag.id);
+    } else {
+      tagsStore.merge([tag]);
+      await tagsStore.addBlacklist(tag.id);
+    }
+  } catch (cause) {
+    error.value = String(cause);
+  }
+}
 </script>
 
 <template>
@@ -696,7 +715,9 @@ async function onTagClick(t: any) {
       <DetailTagsSection
         v-model:expanded="tagsExpanded"
         :groups="tagsByType"
+        :blacklisted-ids="tagsStore.blacklistedIds"
         @select="onTagClick"
+        @toggle-blacklist="toggleTagBlacklist"
       />
 
       <section v-if="g.pages.length" class="page-thumbs detail-card">
