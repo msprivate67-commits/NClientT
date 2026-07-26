@@ -694,9 +694,17 @@ async function onTagClick(t: any) {
 
     <div v-if="g" class="body">
       <section class="detail-card tags-card">
-        <div class="tag-toggle-bar">
-          <button class="btn small" @click="tagsExpanded = !tagsExpanded">
-            <ChevronUp v-if="tagsExpanded" :size="14" /> {{ tagsExpanded ? $t('gallery.collapse_tags') : '' }}<ChevronDown v-if="!tagsExpanded" :size="14" /> {{ !tagsExpanded ? $t('gallery.expand_tags') : '' }}
+        <div class="section-toggle-bar tag-toggle-bar">
+          <div class="section-title">{{ $t('tags.title') }}</div>
+          <button
+            class="btn small"
+            type="button"
+            :aria-expanded="tagsExpanded"
+            @click="tagsExpanded = !tagsExpanded"
+          >
+            <ChevronUp v-if="tagsExpanded" :size="14" />
+            <ChevronDown v-else :size="14" />
+            {{ tagsExpanded ? $t('gallery.collapse') : $t('gallery.expand') }}
           </button>
         </div>
         <div v-show="tagsExpanded" class="tags-content">
@@ -775,10 +783,15 @@ async function onTagClick(t: any) {
       </section>
 
       <section class="comments detail-card">
-        <div class="comments-toolbar">
-          <button class="btn" @click="toggleComments">
-            {{ commentsOpen ? $t('gallery.hide_comments') : $t('gallery.show_comments') }}
+        <div class="section-toggle-bar comments-toolbar">
+          <div class="section-title">
+            {{ $t('gallery.section_comments') }}
             <span v-if="gallery.commentsTotal !== null">({{ gallery.commentsTotal }})</span>
+          </div>
+          <button class="btn small" type="button" :aria-expanded="commentsOpen" @click="toggleComments">
+            <ChevronUp v-if="commentsOpen" :size="14" />
+            <ChevronDown v-else :size="14" />
+            {{ commentsOpen ? $t('gallery.collapse') : $t('gallery.expand') }}
           </button>
           <button v-if="commentsOpen" class="btn" @click="openInBrowser(String(g.id))">
             <ExternalLink :size="14" /> {{ $t('gallery.open_on_website') }}
@@ -1176,6 +1189,7 @@ async function onTagClick(t: any) {
 }
 .section-toggle-bar .section-title {
   margin: 0;
+  margin-right: auto;
 }
 .section-toggle-bar + .thumb-grid,
 .related-content {
