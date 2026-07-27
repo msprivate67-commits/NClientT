@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { nextTick, onUnmounted, watch } from "vue";
+import { nextTick, onActivated, onDeactivated, onUnmounted, watch } from "vue";
 
 import GalleryCard from "./GalleryCard.vue";
 import EmptyState from "./EmptyState.vue";
-import { loadImageObjectUrl } from "@/composables/useImageObjectCache";
+import {
+  loadImageObjectUrl,
+  pinImageObjectSource,
+} from "@/composables/useImageObjectCache";
 import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 import type { SimpleGallery } from "@/types";
 
@@ -27,32 +30,71 @@ const coverPreloader = usePriorityPreloadQueue(async (index) => {
 }, 3);
 
 let scheduleGeneration = 0;
+let coverPinsActive = true;
+let releasePinnedCovers: Array<() => void> = [];
+
+function releaseCoverPins() {
+  releasePinnedCovers.forEach((release) => release());
+  releasePinnedCovers = [];
+}
+
+function syncCoverPins() {
+  releaseCoverPins();
+  if (!coverPinsActive) return;
+
+  const sources = new Set(
+    props.galleries
+      .map((gallery) => gallery.thumbnail)
+      .filter((source): source is string => !!source),
+  );
+  releasePinnedCovers = [...sources].map(pinImageObjectSource);
+}
 
 function prioritizeCover(id: number) {
   const index = props.galleries.findIndex((gallery) => gallery.id === id);
   if (index >= 0) coverPreloader.enqueue([index], true);
 }
 
+async function scheduleCoverLoading() {
+  const generation = ++scheduleGeneration;
+  coverPreloader.reset();
+
+  // Let cards mount and report visible/nearby covers first. The remainder
+  // then enters the same queue in page order and fills while the user reads.
+  await nextTick();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (generation !== scheduleGeneration || !coverPinsActive) return;
+      coverPreloader.enqueue(props.galleries.map((_, index) => index));
+    });
+  });
+}
+
 watch(
   () => props.galleries.map((gallery) => `${gallery.id}:${gallery.thumbnail ?? ""}`).join("|"),
-  async () => {
-    const generation = ++scheduleGeneration;
-    coverPreloader.reset();
-
-    // Let cards mount and report visible/nearby covers first. The remainder
-    // then enters the same queue in page order and fills while the user reads.
-    await nextTick();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (generation !== scheduleGeneration) return;
-        coverPreloader.enqueue(props.galleries.map((_, index) => index));
-      });
-    });
+  () => {
+    syncCoverPins();
+    if (coverPinsActive) void scheduleCoverLoading();
   },
   { immediate: true },
 );
 
+onActivated(() => {
+  coverPinsActive = true;
+  syncCoverPins();
+  void scheduleCoverLoading();
+});
+
+onDeactivated(() => {
+  coverPinsActive = false;
+  releaseCoverPins();
+  scheduleGeneration++;
+  coverPreloader.reset();
+});
+
 onUnmounted(() => {
+  coverPinsActive = false;
+  releaseCoverPins();
   scheduleGeneration++;
 });
 </script>
