@@ -22,6 +22,28 @@ const tauriCli = join(
   "cli",
   "tauri.js",
 );
+const requestedTarget = process.env.ANDROID_BUILD_TARGET ?? "armv7";
+const requireSigning = process.env.ANDROID_REQUIRE_SIGNING === "1";
+const targetConfig = {
+  armv7: {
+    rustTarget: "armv7-linux-androideabi",
+    outputDirectory: "arm",
+    artifactAbi: "armeabi-v7a",
+    description: "32-bit ARM",
+  },
+  aarch64: {
+    rustTarget: "aarch64-linux-android",
+    outputDirectory: "arm64",
+    artifactAbi: "arm64-v8a",
+    description: "64-bit ARM",
+  },
+}[requestedTarget];
+
+if (!targetConfig) {
+  throw new Error(
+    `Unsupported ANDROID_BUILD_TARGET: ${requestedTarget}. Use armv7 or aarch64.`,
+  );
+}
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -80,8 +102,10 @@ function findJava() {
   return "java";
 }
 
-console.log("Building the legacy Android APK for 32-bit ARM (armeabi-v7a)...");
-run("rustup", ["target", "add", "armv7-linux-androideabi"]);
+console.log(
+  `Building the Android APK for ${targetConfig.description} (${targetConfig.artifactAbi})...`,
+);
+run("rustup", ["target", "add", targetConfig.rustTarget]);
 if (!existsSync(tauriCli)) {
   throw new Error("Tauri CLI not found. Run npm ci before building.");
 }
@@ -91,7 +115,7 @@ run(process.execPath, [
   "build",
   "--apk",
   "--target",
-  "armv7",
+  requestedTarget,
   "--split-per-abi",
   "--ci",
 ]);
@@ -105,7 +129,7 @@ const releaseDir = join(
   "build",
   "outputs",
   "apk",
-  "arm",
+  targetConfig.outputDirectory,
   "release",
 );
 const unsignedApk = existsSync(releaseDir)
@@ -130,7 +154,7 @@ const apkSignerJar = androidSdk ? findApkSigner(androidSdk) : undefined;
 if (existsSync(keystorePath) && apkSignerJar) {
   const signedApk = join(
     artifactDir,
-    `NClientT-${version}-android-armeabi-v7a.apk`,
+    `NClientT-${version}-android-${targetConfig.artifactAbi}.apk`,
   );
   const keystorePassword = process.env.ANDROID_KEYSTORE_PASSWORD ?? "nclientt";
   const keyAlias = process.env.ANDROID_KEY_ALIAS ?? "nclientt";
@@ -155,11 +179,16 @@ if (existsSync(keystorePath) && apkSignerJar) {
     unsignedApk,
   ]);
   run(java, ["-jar", apkSignerJar, "verify", "--verbose", signedApk]);
-  console.log(`Legacy Android APK created: ${signedApk}`);
+  console.log(`Signed Android APK created: ${signedApk}`);
 } else {
+  if (requireSigning) {
+    throw new Error(
+      "Signing tools or keystore not found. A signed APK is required for this build.",
+    );
+  }
   const copiedApk = join(
     artifactDir,
-    `NClientT-${version}-android-armeabi-v7a-unsigned.apk`,
+    `NClientT-${version}-android-${targetConfig.artifactAbi}-unsigned.apk`,
   );
   copyFileSync(unsignedApk, copiedApk);
   console.warn(
