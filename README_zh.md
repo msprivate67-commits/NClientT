@@ -34,21 +34,26 @@
 ## 手机截图
 
 <div align="center">
-  <img src="screenshoot/gallery.jpg" alt="画廊" width="30%" />
-  <img src="screenshoot/manga-info-page.jpg" alt="漫画信息" width="30%" />
-  <img src="screenshoot/manga-info-thumbs.jpg" alt="缩略图" width="30%" />
+  <img src="screenshoot/phone-online-gallery.jpg" alt="在线画廊" width="30%" />
+  <img src="screenshoot/phone-local-library.jpg" alt="本地库" width="30%" />
+  <img src="screenshoot/phone-gallery-detail.jpg" alt="画廊详情" width="30%" />
 </div>
 
 <div align="center">
-  <img src="screenshoot/reader-phone-adaptive.jpg" alt="手机阅读器" width="60%" />
+  <img src="screenshoot/phone-page-thumbnails.jpg" alt="页面缩略图" width="45%" />
+  <img src="screenshoot/phone-comment-translation.jpg" alt="评论翻译" width="45%" />
 </div>
 
-## 平板截图
+## PC 截图
 
 <div align="center">
-  <img src="screenshoot/reader-pad-adaptive.jpg" alt="平板阅读器" width="60%" />
-  <br/>
-  <img src="screenshoot/setings-pad.jpg" alt="平板设置" width="60%" />
+  <img src="screenshoot/desktop-gallery.png" alt="PC 画廊" width="48%" />
+  <img src="screenshoot/desktop-detail.png" alt="PC 画廊详情" width="48%" />
+</div>
+
+<div align="center">
+  <img src="screenshoot/desktop-local-library.png" alt="PC 本地库" width="48%" />
+  <img src="screenshoot/desktop-reader.png" alt="PC 阅读器" width="48%" />
 </div>
 
 ## 主要功能

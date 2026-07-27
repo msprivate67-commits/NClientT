@@ -41,21 +41,14 @@
 ## 📱 Phone Screenshots
 
 <div align="center">
-  <img src="screenshoot/gallery.jpg" alt="Gallery" width="30%" />
-  <img src="screenshoot/manga-info-page.jpg" alt="Manga Info" width="30%" />
-  <img src="screenshoot/manga-info-thumbs.jpg" alt="Thumbnail View" width="30%" />
+  <img src="screenshoot/phone-online-gallery.jpg" alt="Online Gallery" width="30%" />
+  <img src="screenshoot/phone-local-library.jpg" alt="Local Library" width="30%" />
+  <img src="screenshoot/phone-gallery-detail.jpg" alt="Gallery Detail" width="30%" />
 </div>
 
 <div align="center">
-  <img src="screenshoot/reader-phone-adaptive.jpg" alt="Phone Reader" width="60%" />
-</div>
-
-## 📟 Tablet Screenshots
-
-<div align="center">
-  <img src="screenshoot/reader-pad-adaptive.jpg" alt="Tablet Reader" width="60%" />
-  <br/>
-  <img src="screenshoot/setings-pad.jpg" alt="Tablet Settings" width="60%" />
+  <img src="screenshoot/phone-page-thumbnails.jpg" alt="Page Thumbnails" width="45%" />
+  <img src="screenshoot/phone-comment-translation.jpg" alt="Comment Translation" width="45%" />
 </div>
 
 ## Desktop Screenshots
