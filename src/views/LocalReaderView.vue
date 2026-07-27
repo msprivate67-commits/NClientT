@@ -432,7 +432,7 @@ async function remove() {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
-  touch-action: pan-x pinch-zoom;
+  touch-action: pan-x;
 }
 .direction-horizontal .page-wrap {
   flex-shrink: 0;

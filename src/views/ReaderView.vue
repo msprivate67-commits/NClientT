@@ -136,10 +136,10 @@ function reportProgress() {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === "ArrowRight") {
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
     e.preventDefault();
     rtl.value ? prev() : next();
-  } else if (e.key === "ArrowLeft") {
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
     e.preventDefault();
     rtl.value ? next() : prev();
   } else if (e.key === "Escape") {
@@ -394,7 +394,7 @@ watch(scrollMode, () => {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
-  touch-action: pan-x pinch-zoom;
+  touch-action: pan-x;
 }
 .direction-horizontal .page-wrap {
   flex-shrink: 0;
