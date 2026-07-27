@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import {
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/EmptyState.vue";
 import { RefreshCw } from "@lucide/vue";
-import { historyClear, historyList, imageProxyUrl } from "@/api";
+import { historyClear, historyList } from "@/api";
+import {
+  cachedImageObjectUrl,
+  loadImageObjectUrl,
+} from "@/composables/useImageObjectCache";
+import { usePriorityPreloadQueue } from "@/composables/usePriorityPreloadQueue";
 import { useOverlayStore } from "@/stores/overlay";
 import { useScrollCache } from "@/composables/useScrollCache";
 import type { HistoryEntry } from "@/types";
@@ -14,6 +27,55 @@ const overlay = useOverlayStore();
 const items = ref<HistoryEntry[]>([]);
 const viewRef = ref<HTMLElement | null>(null);
 useScrollCache(viewRef);
+
+let viewActive = true;
+let scheduleGeneration = 0;
+let coverObserver: IntersectionObserver | null = null;
+
+const coverPreloader = usePriorityPreloadQueue(async (index) => {
+  const source = items.value[index]?.thumbnail;
+  if (source) await loadImageObjectUrl(source);
+}, 2);
+
+function coverSrc(source: string): string {
+  return cachedImageObjectUrl(source);
+}
+
+function coverLoadingPaused(): boolean {
+  return !viewActive || overlay.hasAny();
+}
+
+function stopCoverLoading() {
+  scheduleGeneration++;
+  coverObserver?.disconnect();
+  coverObserver = null;
+  coverPreloader.reset();
+}
+
+async function scheduleCoverLoading() {
+  stopCoverLoading();
+  if (coverLoadingPaused()) return;
+
+  const generation = scheduleGeneration;
+  await nextTick();
+  const root = viewRef.value;
+  if (!root || generation !== scheduleGeneration || coverLoadingPaused()) return;
+
+  coverObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const index = Number((entry.target as HTMLElement).dataset.historyIndex);
+        if (Number.isInteger(index)) coverPreloader.enqueue([index], true);
+      }
+    },
+    { root, rootMargin: "400px 0px", threshold: 0.01 },
+  );
+
+  root.querySelectorAll<HTMLElement>("[data-history-index]")
+    .forEach((element) => coverObserver?.observe(element));
+  coverPreloader.enqueue(items.value.map((_, index) => index));
+}
 
 async function load() {
   items.value = await historyList(200);
@@ -30,6 +92,26 @@ async function clear() {
 }
 
 onMounted(load);
+watch(
+  () => items.value.map((item) => `${item.gallery_id}:${item.thumbnail}`).join("|"),
+  () => void scheduleCoverLoading(),
+);
+watch(
+  () => overlay.hasAny(),
+  (covered) => {
+    if (covered) stopCoverLoading();
+    else void scheduleCoverLoading();
+  },
+);
+onActivated(() => {
+  viewActive = true;
+  void scheduleCoverLoading();
+});
+onDeactivated(() => {
+  viewActive = false;
+  stopCoverLoading();
+});
+onUnmounted(stopCoverLoading);
 </script>
 
 <template>
@@ -42,9 +124,15 @@ onMounted(load);
       </div>
     </div>
     <div v-if="items.length" class="list">
-      <div v-for="h in items" :key="h.gallery_id" class="row" @click="open(h.gallery_id)">
+      <div
+        v-for="(h, index) in items"
+        :key="h.gallery_id"
+        class="row"
+        :data-history-index="index"
+        @click="open(h.gallery_id)"
+      >
         <div class="thumb">
-          <img v-if="h.thumbnail" :src="imageProxyUrl(h.thumbnail)" :alt="h.title" />
+          <img v-if="coverSrc(h.thumbnail)" :src="coverSrc(h.thumbnail)" :alt="h.title" />
         </div>
         <div class="info">
           <div class="title">{{ h.title || `#${h.gallery_id}` }}</div>
