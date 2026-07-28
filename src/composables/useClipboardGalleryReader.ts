@@ -25,6 +25,7 @@ export function useClipboardGalleryReader(i18n: Composer): void {
   let unlisten: (() => void) | null = null;
   let checking = false;
   let processingShare = false;
+  let suppressClipboardUntil = 0;
   let lastPromptedGalleryId: number | null = null;
 
   async function inspectClipboard(): Promise<void> {
@@ -72,15 +73,18 @@ export function useClipboardGalleryReader(i18n: Composer): void {
     }
   }
 
-  async function inspectSharedText(): Promise<void> {
-    if (!settings.loaded || processingShare) return;
+  async function inspectSharedText(): Promise<boolean> {
+    if (!settings.loaded) return false;
+    if (processingShare) return true;
 
     processingShare = true;
+    let receivedSharedText = false;
     try {
       const text = await androidShareTake();
-      if (!text) return;
+      if (!text) return false;
+      receivedSharedText = true;
       const galleryId = extractNhentaiGalleryId(text);
-      if (galleryId === null) return;
+      if (galleryId === null) return true;
       lastPromptedGalleryId = galleryId;
 
       const shouldOpen = await ask(
@@ -93,12 +97,20 @@ export function useClipboardGalleryReader(i18n: Composer): void {
         },
       );
       if (shouldOpen) overlay.openGallery(galleryId);
+      return true;
     } catch (error) {
       // Desktop returns no shared text; Android retries only when a new share
       // Intent arrives, so a transient bridge error remains harmless.
       console.warn("shared link inspection failed", error);
+      return false;
     } finally {
       processingShare = false;
+      if (receivedSharedText) {
+        // Closing the native confirmation dialog focuses the app again. Keep
+        // that synthetic focus transition from falling through to clipboard
+        // inspection after the share has already been handled.
+        suppressClipboardUntil = Date.now() + 1500;
+      }
     }
   }
 
@@ -106,10 +118,19 @@ export function useClipboardGalleryReader(i18n: Composer): void {
     void inspectSharedText();
   }
 
+  async function onWindowFocused(): Promise<void> {
+    // Android stores ACTION_SEND text before focusing the activity. Always
+    // consume that first; clipboard inspection is only the fallback when this
+    // focus was unrelated to sharing.
+    const receivedSharedText = await inspectSharedText();
+    if (receivedSharedText || Date.now() < suppressClipboardUntil) return;
+    await inspectClipboard();
+  }
+
   onMounted(async () => {
     window.addEventListener("nclientt:android-share", onAndroidShare);
     unlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) void inspectClipboard();
+      if (focused) void onWindowFocused();
     });
   });
 

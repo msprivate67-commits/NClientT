@@ -198,7 +198,7 @@ pub struct Settings {
     pub privacy_screen: bool,
     /// Inspect clipboard text for nhentai gallery links whenever the main
     /// window regains focus.
-    #[serde(default)]
+    #[serde(default = "clipboard_link_reader_default")]
     pub clipboard_link_reader: bool,
 
     // --- security -----------------------------------------------------------
@@ -271,7 +271,7 @@ impl Default for Settings {
             parallel_pages: 8,
             notifications_enabled: true,
             privacy_screen: false,
-            clipboard_link_reader: false,
+            clipboard_link_reader: true,
             lock_screen: false,
             pin: String::new(),
             tl_base_url: "https://api.deepseek.com".into(),
@@ -289,6 +289,10 @@ impl Default for Settings {
 }
 
 fn notifications_enabled_default() -> bool {
+    true
+}
+
+fn clipboard_link_reader_default() -> bool {
     true
 }
 
@@ -332,7 +336,7 @@ mod tests {
 
         assert!(settings.notifications_enabled);
         assert!(!settings.privacy_screen);
-        assert!(!settings.clipboard_link_reader);
+        assert!(settings.clipboard_link_reader);
         assert!(settings.tl_auto_translate);
         assert_eq!(
             settings.tl_comment_target_lang,
