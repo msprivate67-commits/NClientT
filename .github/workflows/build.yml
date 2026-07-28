@@ -267,7 +267,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Replace pre-release
+    name: Publish release
     runs-on: ubuntu-latest
     needs: [build-android, build-windows, build-linux]
     if: github.ref == 'refs/heads/main'
@@ -283,57 +283,54 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          SHORT_SHA="${GITHUB_SHA:0:7}"
+          VERSION="$(node -p "require('./package.json').version")"
           echo "BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=prerelease-${GITHUB_RUN_NUMBER}-${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v${VERSION}" >> "$GITHUB_ENV"
+          echo "RELEASE_TITLE=NClientT v${VERSION}" >> "$GITHUB_ENV"
 
           windows_exe=$(find artifacts/NClientT-windows -type f -name "nclientt-bin.exe" | head -n1 || true)
           [ -n "$windows_exe" ] || { echo "ERROR: no portable Windows executable found"; exit 1; }
-          cp "$windows_exe" "release/NClientT-${SHORT_SHA}-windows.exe"
+          cp "$windows_exe" "release/NClientT-v${VERSION}-windows.exe"
 
           windows_msi=$(find artifacts/NClientT-windows -type f -name "*.msi" | head -n1 || true)
           [ -n "$windows_msi" ] || { echo "ERROR: no Windows MSI found"; exit 1; }
-          cp "$windows_msi" "release/NClientT-${SHORT_SHA}-windows.msi"
+          cp "$windows_msi" "release/NClientT-v${VERSION}-windows.msi"
 
           linux_bin=$(find artifacts/NClientT-linux -type f -name "nclientt-bin" | head -n1 || true)
           [ -n "$linux_bin" ] || { echo "ERROR: no portable Linux executable found"; exit 1; }
-          cp "$linux_bin" "release/NClientT-${SHORT_SHA}-linux-x86_64"
-          chmod +x "release/NClientT-${SHORT_SHA}-linux-x86_64"
+          cp "$linux_bin" "release/NClientT-v${VERSION}-linux-x86_64"
+          chmod +x "release/NClientT-v${VERSION}-linux-x86_64"
 
           linux_deb=$(find artifacts/NClientT-linux -type f -name "*.deb" | head -n1 || true)
           [ -n "$linux_deb" ] || { echo "ERROR: no Linux DEB package found"; exit 1; }
-          cp "$linux_deb" "release/NClientT-${SHORT_SHA}-linux-amd64.deb"
+          cp "$linux_deb" "release/NClientT-v${VERSION}-linux-amd64.deb"
 
           android_apk=$(find artifacts/NClientT-android -type f -name "*.apk" | head -n1 || true)
           [ -n "$android_apk" ] || { echo "ERROR: no Android arm64-v8a APK found"; exit 1; }
-          cp "$android_apk" "release/NClientT-${SHORT_SHA}-android-arm64-v8a.apk"
+          cp "$android_apk" "release/NClientT-v${VERSION}-android-arm64-v8a.apk"
 
           echo "Staged release assets:"
           ls -la release/
 
-      - name: Delete all existing pre-releases
+      - name: Replace an existing release for this version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mapfile -t prerelease_tags < <(
-            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.prerelease) | .tag_name'
-          )
-          for tag in "${prerelease_tags[@]}"; do
-            echo "Deleting pre-release: $tag"
-            gh release delete "$tag" \
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Deleting existing release: $RELEASE_TAG"
+            gh release delete "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --cleanup-tag \
               --yes
-          done
+          fi
 
-      - name: Create new pre-release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<EOF
-          Automated pre-release build from commit [${GITHUB_SHA:0:7}](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}).
+          Official ${RELEASE_TITLE} build from commit [${GITHUB_SHA:0:7}](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}).
 
           Build time: ${BUILD_TIME}
 
@@ -345,9 +342,9 @@ jobs:
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Pre-release ${GITHUB_SHA:0:7}" \
+            --title "$RELEASE_TITLE" \
             --notes-file release-notes.md \
-            --prerelease
+            --latest
 
       - name: Upload release assets
         env:
