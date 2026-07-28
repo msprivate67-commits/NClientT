@@ -96,6 +96,10 @@
   "gallery": {
     "load_more_comments": "加载更多评论",
     "open_on_website": "在网页中打开",
+    "add_comment": "添加评论",
+    "share": "分享",
+    "link_copied": "链接已复制",
+    "share_chooser_title": "分享漫画链接",
     "website_actions_hint": "如需发表评论或参与标签建议投票，请在浏览器中打开此漫画并登录。",
     "back": "返回",
     "reload_gallery": "重新加载画廊",
@@ -107,6 +111,7 @@
     "translate_title": "翻译标题",
     "pages": "页",
     "open": "打开",
+    "webpage": "网页",
     "downloading": "下载中…",
     "queued": "排队中…",
     "downloaded": "已下载",
@@ -310,6 +315,8 @@
     "hide_avoided": "隐藏已排除",
     "rtl_reader": "从右到左阅读",
     "keep_history": "保留历史记录",
+    "clipboard_link_reader": "从剪贴板识别 nhentai 链接",
+    "clipboard_link_reader_hint": "应用窗口获得焦点时读取剪贴板；发现 nhentai 漫画链接后询问是否查看详情。",
     "page_thumb_columns": "页面缩略图列数（0 = 自动）",
     "default_zoom": "默认缩放（%）",
     "page_change_buttons": "分页按钮",
@@ -341,6 +348,12 @@
     "ai_testing": "测试中…",
     "ai_connection_ok": "已连接",
     "ai_connection_fail": "失败"
+  },
+  "clipboard": {
+    "gallery_found": "发现漫画链接",
+    "gallery_prompt": "剪贴板中包含 nhentai 漫画 #{id}，是否查看详情？",
+    "shared_gallery_prompt": "分享内容中包含 nhentai 漫画 #{id}，是否查看详情？",
+    "view_details": "查看详情"
   },
   "notification": {
     "download_complete": "下载完成",

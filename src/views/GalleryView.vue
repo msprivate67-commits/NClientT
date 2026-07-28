@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { platform } from "@tauri-apps/plugin-os";
 
 import DetailRelatedSection from "@/components/DetailRelatedSection.vue";
 import DetailTagsSection from "@/components/DetailTagsSection.vue";
@@ -18,8 +20,10 @@ import {
   ChevronUp,
   ExternalLink,
   Heart,
+  Share2,
 } from "@lucide/vue";
 import {
+  androidShareText,
   imageProxyUrl,
   openInBrowser,
   translateComment,
@@ -60,6 +64,7 @@ const downloadState = computed(() => {
 const settings = useSettingsStore();
 const { t: i18n } = useI18n();
 const overlay = useOverlayStore();
+const isAndroid = platform() === "android";
 
 const id = computed(() => Number(props.id));
 const error = ref<string | null>(null);
@@ -68,6 +73,8 @@ const tagsExpanded = ref(false);
 const pagesExpanded = ref(true);
 const relatedExpanded = ref(true);
 const loading = ref(false);
+const shareCopied = ref(false);
+let shareCopiedTimer: ReturnType<typeof setTimeout> | null = null;
 const viewRef = ref<HTMLElement | null>(null);
 
 // Is this gallery already on disk in the local library? When true the download
@@ -494,6 +501,23 @@ async function toggleFavorite() {
   });
 }
 
+async function shareGallery() {
+  if (!g.value) return;
+  const url = `https://nhentai.net/g/${g.value.id}/`;
+  if (isAndroid) {
+    await androidShareText(url, i18n("gallery.share_chooser_title"));
+    return;
+  }
+
+  await writeText(url);
+  shareCopied.value = true;
+  if (shareCopiedTimer !== null) clearTimeout(shareCopiedTimer);
+  shareCopiedTimer = setTimeout(() => {
+    shareCopied.value = false;
+    shareCopiedTimer = null;
+  }, 1800);
+}
+
 async function download() {
   if (!g.value) return;
   if (downloadState.value !== null) return;
@@ -575,6 +599,7 @@ onUnmounted(() => {
   resetCommentTranslations();
   releasePinnedImages.forEach((release) => release());
   releasePinnedImages = [];
+  if (shareCopiedTimer !== null) clearTimeout(shareCopiedTimer);
 });
 
 async function toggleComments() {
@@ -688,7 +713,7 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
           </div>
         </div>
         <div class="actions">
-          <button class="btn" @click="openInBrowser(String(g.id))">{{ $t('gallery.open') }}</button>
+          <button class="btn" @click="openInBrowser(String(g.id))">{{ $t('gallery.webpage') }}</button>
           <button
             class="btn"
             :disabled="downloadState !== null || isDownloaded"
@@ -707,6 +732,11 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
             @click="toggleFavorite"
           >
             {{ '' }}<Star :size="14" :fill="g.is_favorited || favorites.ids.has(g.id) ? 'currentColor' : 'none'" /> {{ $t('gallery.favorite') }}
+          </button>
+          <button class="btn" type="button" @click="shareGallery">
+            <Check v-if="shareCopied" :size="14" />
+            <Share2 v-else :size="14" />
+            {{ shareCopied ? $t('gallery.link_copied') : $t('gallery.share') }}
           </button>
         </div>
       </div>
@@ -783,7 +813,7 @@ async function toggleTagBlacklist(tag: import("@/types").Tag) {
             class="btn"
             @click="openInBrowser(`g/${g.id}/#comment-post-container`)"
           >
-            <ExternalLink :size="14" /> {{ $t('gallery.open_on_website') }}
+            <ExternalLink :size="14" /> {{ $t('gallery.add_comment') }}
           </button>
         </div>
         <p v-if="commentsOpen" class="hint website-actions-hint">

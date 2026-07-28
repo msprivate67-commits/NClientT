@@ -361,6 +361,17 @@ onMounted(async () => {
     </section>
 
     <section class="settings-card">
+      <div class="section-title">{{ $t('settings.section_browsing') }}</div>
+      <div class="checkboxes">
+        <label>
+          <input v-model="draft.clipboard_link_reader" type="checkbox" />
+          {{ $t('settings.clipboard_link_reader') }}
+        </label>
+      </div>
+      <p class="hint">{{ $t('settings.clipboard_link_reader_hint') }}</p>
+    </section>
+
+    <section class="settings-card">
       <div class="section-title">{{ $t('settings.section_display') }}</div>
       <div class="theme-setting">
         <span class="theme-label">{{ $t('settings.theme') }}</span>

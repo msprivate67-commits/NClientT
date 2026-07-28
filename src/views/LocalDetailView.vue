@@ -563,7 +563,7 @@ onUnmounted(() => {
               class="btn"
               @click="openInBrowser(`g/${onlineGalleryId}/#comment-post-container`)"
             >
-              <ExternalLink :size="14" /> {{ $t('gallery.open_on_website') }}
+              <ExternalLink :size="14" /> {{ $t('gallery.add_comment') }}
             </button>
           </div>
           <p v-if="commentsOpen" class="hint website-actions-hint">

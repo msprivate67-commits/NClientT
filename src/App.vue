@@ -26,6 +26,7 @@ import { useEdgeSwipe } from "@/composables/useEdgeSwipe";
 import { useResponsiveSidebar } from "@/composables/useResponsiveSidebar";
 import { useSwipeDismiss } from "@/composables/useSwipeDismiss";
 import { applyTheme } from "@/composables/useTheme";
+import { useClipboardGalleryReader } from "@/composables/useClipboardGalleryReader";
 
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
@@ -37,6 +38,7 @@ const downloaded = useDownloadedStore();
 const router = useRouter();
 const route = useRoute();
 const i18n = useI18n();
+useClipboardGalleryReader(i18n);
 
 const cloudflareBanner = ref(false);
 const { isCompact, sidebarOpen, toggleSidebar } = useResponsiveSidebar();

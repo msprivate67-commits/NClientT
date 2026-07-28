@@ -1,6 +1,6 @@
 {
   "name": "nclientt",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Unofficial cross-platform nhentai desktop client with optional online favorite sync",
   "license": "Apache-2.0",
   "type": "module",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@lucide/vue": "^1.26.0",
     "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "2.7.2",
     "@tauri-apps/plugin-fs": "2.5.1",
     "@tauri-apps/plugin-notification": "^2.3.3",

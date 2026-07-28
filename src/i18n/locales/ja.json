@@ -96,6 +96,10 @@
   "gallery": {
     "load_more_comments": "コメントをさらに読み込む",
     "open_on_website": "ウェブサイトで開く",
+    "add_comment": "コメントを追加",
+    "share": "共有",
+    "link_copied": "リンクをコピーしました",
+    "share_chooser_title": "ギャラリーリンクを共有",
     "website_actions_hint": "コメント投稿やタグ候補への投票は、ブラウザでこのギャラリーを開いてログインしてください。",
     "back": "戻る",
     "reload_gallery": "ギャラリーを再読み込み",
@@ -107,6 +111,7 @@
     "translate_title": "タイトルを翻訳",
     "pages": "ページ",
     "open": "開く",
+    "webpage": "ウェブページ",
     "downloading": "ダウンロード中…",
     "queued": "待機中…",
     "downloaded": "ダウンロード済み",
@@ -310,6 +315,8 @@
     "hide_avoided": "除外を隠す",
     "rtl_reader": "右から左の読者",
     "keep_history": "履歴を保持",
+    "clipboard_link_reader": "クリップボードの nhentai リンクを検出",
+    "clipboard_link_reader_hint": "アプリがフォーカスされたときにクリップボードを読み取り、nhentai ギャラリーが見つかった場合は詳細を表示するか確認します。",
     "page_thumb_columns": "ページサムネイル列数（0 = 自動）",
     "default_zoom": "デフォルトズーム（%）",
     "page_change_buttons": "ページ切替ボタン",
@@ -341,6 +348,12 @@
     "ai_testing": "テスト中…",
     "ai_connection_ok": "接続済み",
     "ai_connection_fail": "失敗"
+  },
+  "clipboard": {
+    "gallery_found": "ギャラリーリンクを検出",
+    "gallery_prompt": "クリップボードに nhentai ギャラリー #{id} があります。詳細を表示しますか？",
+    "shared_gallery_prompt": "共有テキストに nhentai ギャラリー #{id} があります。詳細を表示しますか？",
+    "view_details": "詳細を表示"
   },
   "notification": {
     "download_complete": "ダウンロード完了",

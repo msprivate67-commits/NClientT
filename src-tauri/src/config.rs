@@ -196,6 +196,10 @@ pub struct Settings {
     /// Use Android FLAG_SECURE to hide content from Recents and captures.
     #[serde(default)]
     pub privacy_screen: bool,
+    /// Inspect clipboard text for nhentai gallery links whenever the main
+    /// window regains focus.
+    #[serde(default)]
+    pub clipboard_link_reader: bool,
 
     // --- security -----------------------------------------------------------
     pub lock_screen: bool,
@@ -267,6 +271,7 @@ impl Default for Settings {
             parallel_pages: 8,
             notifications_enabled: true,
             privacy_screen: false,
+            clipboard_link_reader: false,
             lock_screen: false,
             pin: String::new(),
             tl_base_url: "https://api.deepseek.com".into(),
@@ -311,6 +316,10 @@ mod tests {
             .unwrap()
             .remove("notifications_enabled");
         value.as_object_mut().unwrap().remove("privacy_screen");
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("clipboard_link_reader");
         value.as_object_mut().unwrap().remove("tl_auto_translate");
         value
             .as_object_mut()
@@ -323,6 +332,7 @@ mod tests {
 
         assert!(settings.notifications_enabled);
         assert!(!settings.privacy_screen);
+        assert!(!settings.clipboard_link_reader);
         assert!(settings.tl_auto_translate);
         assert_eq!(
             settings.tl_comment_target_lang,

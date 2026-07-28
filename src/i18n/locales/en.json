@@ -96,6 +96,10 @@
   "gallery": {
     "load_more_comments": "Load more comments",
     "open_on_website": "Open on website",
+    "add_comment": "Add comment",
+    "share": "Share",
+    "link_copied": "Link copied",
+    "share_chooser_title": "Share gallery link",
     "website_actions_hint": "To post comments or vote on tag suggestions, open this gallery in your browser and sign in there.",
     "back": "Back",
     "reload_gallery": "Reload gallery",
@@ -107,6 +111,7 @@
     "translate_title": "Translate title",
     "pages": "pages",
     "open": "Open",
+    "webpage": "Webpage",
     "downloading": "Downloading…",
     "queued": "Queued…",
     "downloaded": "Downloaded",
@@ -310,6 +315,8 @@
     "hide_avoided": "Hide avoided",
     "rtl_reader": "RTL reader",
     "keep_history": "Keep history",
+    "clipboard_link_reader": "Detect nhentai links in the clipboard",
+    "clipboard_link_reader_hint": "Read the clipboard when the app gains focus and ask whether to open any detected nhentai gallery.",
     "page_thumb_columns": "Page thumbnail columns (0 = auto)",
     "default_zoom": "Default zoom (%)",
     "page_change_buttons": "Page-change buttons",
@@ -341,6 +348,12 @@
     "ai_testing": "Testing…",
     "ai_connection_ok": "Connected",
     "ai_connection_fail": "Failed"
+  },
+  "clipboard": {
+    "gallery_found": "Gallery link found",
+    "gallery_prompt": "The clipboard contains nhentai gallery #{id}. View its details?",
+    "shared_gallery_prompt": "The shared text contains nhentai gallery #{id}. View its details?",
+    "view_details": "View details"
   },
   "notification": {
     "download_complete": "Download complete",

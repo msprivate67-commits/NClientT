@@ -217,6 +217,7 @@ export interface Settings {
   parallel_pages: number;
   notifications_enabled: boolean;
   privacy_screen: boolean;
+  clipboard_link_reader: boolean;
 
   lock_screen: boolean;
   pin: string;

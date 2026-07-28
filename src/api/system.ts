@@ -14,6 +14,9 @@ export const readLocalImage = (path: string): Promise<string | null> =>
 export const registerApp = (): Promise<void> => invoke("register_app");
 export const androidPrivacySet = (enabled: boolean): Promise<void> =>
   invoke("android_privacy_set", { enabled });
+export const androidShareTake = (): Promise<string | null> => invoke("android_share_take");
+export const androidShareText = (text: string, title: string): Promise<void> =>
+  invoke("android_share_text", { text, title });
 
 export function imageProxyUrl(url: string): string {
   if (!url) return "";

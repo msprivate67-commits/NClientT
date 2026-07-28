@@ -96,6 +96,10 @@
   "gallery": {
     "load_more_comments": "Загрузить ещё",
     "open_on_website": "Открыть на сайте",
+    "add_comment": "Добавить комментарий",
+    "share": "Поделиться",
+    "link_copied": "Ссылка скопирована",
+    "share_chooser_title": "Поделиться ссылкой на галерею",
     "website_actions_hint": "Чтобы комментировать или голосовать за теги, откройте галерею в браузере и войдите на сайт.",
     "back": "Назад",
     "reload_gallery": "Перезагрузить галерею",
@@ -107,6 +111,7 @@
     "translate_title": "Перевести заголовок",
     "pages": "стр.",
     "open": "Открыть",
+    "webpage": "Веб-страница",
     "downloading": "Загрузка…",
     "queued": "В очереди…",
     "downloaded": "Загружено",
@@ -310,6 +315,8 @@
     "hide_avoided": "Скрыть исключённые",
     "rtl_reader": "Чтение справа налево",
     "keep_history": "Сохранять историю",
+    "clipboard_link_reader": "Распознавать ссылки nhentai в буфере обмена",
+    "clipboard_link_reader_hint": "При получении фокуса читать буфер обмена и предлагать открыть найденную галерею nhentai.",
     "page_thumb_columns": "Колонок миниатюр (0 = авто)",
     "default_zoom": "Масштаб по умолчанию (%)",
     "page_change_buttons": "Кнопки смены страниц",
@@ -341,6 +348,12 @@
     "ai_testing": "Проверка…",
     "ai_connection_ok": "Подключено",
     "ai_connection_fail": "Ошибка"
+  },
+  "clipboard": {
+    "gallery_found": "Найдена ссылка на галерею",
+    "gallery_prompt": "В буфере обмена находится галерея nhentai #{id}. Открыть подробности?",
+    "shared_gallery_prompt": "В отправленном тексте находится галерея nhentai #{id}. Открыть подробности?",
+    "view_details": "Подробнее"
   },
   "notification": {
     "download_complete": "Загрузка завершена",

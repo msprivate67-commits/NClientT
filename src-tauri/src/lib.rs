@@ -12,6 +12,7 @@
 //! - [`export`]    : PDF / ZIP export
 //! - [`commands`]  : Tauri command handlers exposed to the frontend
 
+pub mod android_share;
 pub mod api;
 pub mod cloudflare;
 pub mod commands;
@@ -30,6 +31,7 @@ use commands::*;
 use std::sync::Arc;
 use tauri::Manager;
 
+use crate::android_share::*;
 use crate::config::ConfigStore;
 use crate::db::Database;
 use crate::downloader::DownloadManager;
@@ -56,10 +58,12 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol(image_protocol::SCHEME, image_protocol::handle)
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(android_share::init())
         .plugin(privacy::init())
         .setup(|app| {
             let app_data = app
@@ -173,6 +177,8 @@ pub fn run() {
             windows_download_progress,
             windows_download_complete,
             android_privacy_set,
+            android_share_take,
+            android_share_text,
             // export
             export_pdf,
             export_zip,

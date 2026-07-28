@@ -1,6 +1,6 @@
 [package]
 name = "nclientt"
-version = "0.1.8"
+version = "0.1.9"
 description = "Unofficial cross-platform nhentai desktop client with optional online favorite sync"
 authors = ["NClientT"]
 license = "Apache-2.0"
@@ -81,6 +81,7 @@ mime_guess = "2.0"
 
 # Archives / PDF (PDF writer is hand-rolled in export.rs — no lopdf dependency)
 zip = { version = "2.2", default-features = false, features = ["deflate", "time"] }
+tauri-plugin-clipboard-manager = "2.3"
 
 # Platform-specific
 [target.'cfg(windows)'.dependencies]

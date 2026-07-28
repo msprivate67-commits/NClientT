@@ -1,5 +1,6 @@
 package com.nclientt.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +12,7 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : TauriActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureSharedText(intent)
 
         // Android 15+ enforces edge-to-edge layouts for apps targeting recent
         // SDKs. Inset Tauri's WebView by the system bars and any display cutout
@@ -39,6 +41,30 @@ class MainActivity : TauriActivity() {
                 }
             },
         )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (captureSharedText(intent)) dispatchShareToWebView()
+    }
+
+    private fun captureSharedText(intent: Intent?): Boolean {
+        if (intent?.action != Intent.ACTION_SEND) return false
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()
+        if (text.isNullOrEmpty()) return false
+        ShareTextStore.store(this, text)
+        return true
+    }
+
+    private fun dispatchShareToWebView() {
+        val webView = findWebView(findViewById(android.R.id.content))
+        webView?.post {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('nclientt:android-share'));",
+                null,
+            )
+        }
     }
 
     private fun dispatchHardwareBackToWebView() {
