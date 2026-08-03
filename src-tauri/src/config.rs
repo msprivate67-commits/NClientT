@@ -511,19 +511,14 @@ fn default_download_dir(app_data: &Path) -> PathBuf {
 /// `settings_list_download_candidates` command so the frontend can offer a
 /// chooser when the native directory dialog is unavailable (e.g. Android).
 ///
-/// On Android this surfaces (1) the public shared Download folder (needs
-/// `MANAGE_EXTERNAL_STORAGE` / all-files-access), (2) the app's own external
-/// files directory under `Android/data/<pkg>/files` (no permission needed), and
-/// (3) internal app storage as a last resort. On other platforms only the
-/// default app-data directory is returned.
+/// On Android this surfaces the app's own external files directory under
+/// `Android/data/<pkg>/files` (no storage permission needed), plus internal app
+/// storage as a last resort. On other platforms only the default app-data
+/// directory is returned.
 pub fn download_candidates(app_data: &Path) -> Vec<(&'static str, PathBuf)> {
     let mut out = Vec::new();
     #[cfg(target_os = "android")]
     {
-        out.push((
-            "Public Download (requires all-files access)",
-            PathBuf::from("/storage/emulated/0/Download/NClientT"),
-        ));
         if let Some(ext) = android_external_files_dir() {
             out.push((
                 "App external storage (recommended)",

@@ -159,24 +159,50 @@ jobs:
       - name: Build Android APK
         run: npx tauri android build --apk --target aarch64 --split-per-abi
 
-      - name: Sign Android APK
-        if: hashFiles('src-tauri/nclientt.keystore') != ''
+      - name: Restore Android release keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 Actions secret}"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nclientt-release.keystore"
+          chmod 600 "$RUNNER_TEMP/nclientt-release.keystore"
+
+      - name: Sign Android APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD Actions secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS Actions secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD Actions secret}"
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
           APK_DIR="src-tauri/gen/android/app/build/outputs/apk"
           shopt -s nullglob
-          for apk in "$APK_DIR"/*/release/*-unsigned.apk; do
+          unsigned_apks=("$APK_DIR"/*/release/*-unsigned.apk)
+          if ((${#unsigned_apks[@]} == 0)); then
+            echo "No unsigned release APK was produced."
+            exit 1
+          fi
+          for apk in "${unsigned_apks[@]}"; do
             signed="${apk%-unsigned.apk}.apk"
             "$BUILD_TOOLS/apksigner" sign \
-              --ks src-tauri/nclientt.keystore \
-              --ks-pass pass:nclientt \
-              --ks-key-alias nclientt \
-              --key-pass pass:nclientt \
+              --ks "$RUNNER_TEMP/nclientt-release.keystore" \
+              --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --key-pass env:ANDROID_KEY_PASSWORD \
               --out "$signed" \
               --in "$apk"
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$signed"
             rm -f "$apk"
           done
+
+      - name: Remove temporary Android keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nclientt-release.keystore"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v7

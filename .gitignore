@@ -6,6 +6,11 @@ dist/
 dist-ssr/
 artifacts/
 
+# Android release signing material
+*.keystore
+*.jks
+.android-signing-backup.env
+
 # Rust / Tauri
 src-tauri/target/
 src-tauri/Cargo.lock

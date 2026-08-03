@@ -110,8 +110,7 @@ async function pickDownloadDir() {
     // Dialog might fail on some platforms (e.g. Android) — try backend fallback
   }
   // No native dialog (typical on Android): offer the backend-provided
-  // candidate directories so the user can switch between public Download,
-  // the app's own external storage, and internal storage.
+  // app-scoped candidate directories so no broad storage permission is needed.
   try {
     const candidates = await settingsListDownloadCandidates();
     if (candidates.length === 0) {

@@ -109,7 +109,8 @@ pub fn settings_get_paths(app: AppHandle) -> AppResult<serde_json::Value> {
 pub async fn settings_pick_directory(state: State<'_, AppState>) -> AppResult<Option<String>> {
     // No native directory dialog on Android — return the recommended default
     // (the app's external files directory) so the frontend can prefill the field
-    // and the user can switch via `settings_list_download_candidates`.
+    // and the user can switch between app-scoped storage candidates via
+    // `settings_list_download_candidates`.
     #[cfg(target_os = "android")]
     {
         let candidates = crate::config::download_candidates(&state.config.app_data);

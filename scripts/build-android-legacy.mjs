@@ -147,18 +147,23 @@ mkdirSync(artifactDir, { recursive: true });
 
 const keystorePath = process.env.ANDROID_KEYSTORE_PATH
   ? resolve(process.env.ANDROID_KEYSTORE_PATH)
-  : join(repoRoot, "src-tauri", "nclientt.keystore");
+  : undefined;
 const androidSdk = findAndroidSdk();
 const apkSignerJar = androidSdk ? findApkSigner(androidSdk) : undefined;
 
-if (existsSync(keystorePath) && apkSignerJar) {
+if (keystorePath && existsSync(keystorePath) && apkSignerJar) {
   const signedApk = join(
     artifactDir,
     `NClientT-${version}-android-${targetConfig.artifactAbi}.apk`,
   );
-  const keystorePassword = process.env.ANDROID_KEYSTORE_PASSWORD ?? "nclientt";
-  const keyAlias = process.env.ANDROID_KEY_ALIAS ?? "nclientt";
-  const keyPassword = process.env.ANDROID_KEY_PASSWORD ?? keystorePassword;
+  const keystorePassword = process.env.ANDROID_KEYSTORE_PASSWORD;
+  const keyAlias = process.env.ANDROID_KEY_ALIAS;
+  const keyPassword = process.env.ANDROID_KEY_PASSWORD;
+  if (!keystorePassword || !keyAlias || !keyPassword) {
+    throw new Error(
+      "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD are required for signing.",
+    );
+  }
 
   const java = findJava();
   run(java, [
