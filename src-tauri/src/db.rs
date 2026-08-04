@@ -631,6 +631,16 @@ impl Database {
         })
     }
 
+    pub fn download_set_status(&self, id: i64, status: &str) -> AppResult<()> {
+        self.with_conn(|c| {
+            c.execute(
+                "UPDATE downloads SET status = ?1, updated_at = ?2 WHERE id = ?3",
+                params![status, Utc::now().to_rfc3339(), id],
+            )?;
+            Ok(())
+        })
+    }
+
     pub fn downloads_all(&self) -> AppResult<Vec<DownloadRow>> {
         self.with_conn(|c| {
             let mut stmt = c.prepare(
@@ -682,7 +692,7 @@ impl Database {
                     g.thumbnail_path,
                     g.num_pages as i64,
                     page_files,
-                    Utc::now().to_rfc3339()
+                    g.scanned_at
                 ],
             )?;
             Ok(())
@@ -715,7 +725,11 @@ impl Database {
     /// marker can't be matched against online galleries anyway.
     pub fn local_ids(&self) -> AppResult<Vec<i64>> {
         self.with_conn(|c| {
-            let mut stmt = c.prepare("SELECT gallery_id FROM local_meta WHERE gallery_id != 0")?;
+            let mut stmt = c.prepare(
+                "SELECT gallery_id FROM local_meta
+                 WHERE gallery_id != 0
+                   AND gallery_id NOT IN (SELECT id FROM downloads)",
+            )?;
             let rows = stmt
                 .query_map([], |r| r.get::<_, i64>(0))?
                 .collect::<Result<Vec<_>, _>>()?;

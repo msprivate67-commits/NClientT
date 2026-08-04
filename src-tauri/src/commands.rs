@@ -13,7 +13,7 @@ use crate::api::ApiClient;
 use crate::cloudflare;
 use crate::config::{AuthCredentials, Settings};
 use crate::db::{DownloadRow, FavoriteRow, ReadProgressRow};
-use crate::downloader::{DownloadRequest, DownloadStatus};
+use crate::downloader::{DownloadRequest, DownloadStatus, COMPLETED_MARKER};
 use crate::error::{AppError, AppResult};
 use crate::http::HttpClient;
 use crate::models::*;
@@ -555,18 +555,33 @@ pub async fn local_scan(state: State<'_, AppState>) -> AppResult<Vec<LocalGaller
                     if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                         continue;
                     }
-                    if let Some(lg) = read_local_gallery(&e.path()) {
+                    let path = e.path();
+                    if let Some(lg) = read_local_gallery(&path) {
                         let _ = db.local_upsert(&lg);
                         found.push(lg);
+                    } else {
+                        let _ = db.local_remove(&path.to_string_lossy());
                     }
                 }
             }
         }
-        // Merge any DB-only entries.
+        // Disk is the source of truth. Remove cached rows for folders deleted
+        // from the configured scan roots instead of resurrecting DB-only data.
         if let Ok(all) = db.local_all() {
             for lg in all {
-                if !found.iter().any(|f| f.folder == lg.folder) {
-                    found.push(lg);
+                let path = PathBuf::from(&lg.folder);
+                if found.iter().any(|item| item.folder == lg.folder) {
+                    continue;
+                }
+                if !dirs.iter().any(|dir| path.starts_with(dir)) {
+                    if let Some(revalidated) = read_local_gallery(&path) {
+                        let _ = db.local_upsert(&revalidated);
+                        found.push(revalidated);
+                        continue;
+                    }
+                }
+                if dirs.iter().any(|dir| path.starts_with(dir)) || !path.exists() {
+                    let _ = db.local_remove(&lg.folder);
                 }
             }
         }
@@ -619,8 +634,18 @@ pub fn local_get_meta(state: State<'_, AppState>, gallery_id: i64) -> AppResult<
 
 #[tauri::command]
 pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
-    let mut items = state.db.local_all().unwrap_or_default();
-    // Quick scan of download dir: add folders on disk but missing from DB.
+    // Revalidate every folder so an interrupted download cannot survive in the
+    // cache as a completed local gallery.
+    let mut found_folders = Vec::new();
+    for item in state.db.local_all().unwrap_or_default() {
+        let path = PathBuf::from(&item.folder);
+        if let Some(revalidated) = read_local_gallery(&path) {
+            found_folders.push(revalidated.folder.clone());
+            let _ = state.db.local_upsert(&revalidated);
+        } else {
+            let _ = state.db.local_remove(&item.folder);
+        }
+    }
     let dir = state.config.download_dir();
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for e in entries.flatten() {
@@ -628,17 +653,20 @@ pub fn local_list(state: State<'_, AppState>) -> AppResult<Vec<LocalGallery>> {
                 continue;
             }
             let p = e.path();
-            let folder_str = p.to_string_lossy().to_string();
-            if items.iter().any(|i| i.folder == folder_str) {
-                continue;
-            }
             if let Some(lg) = read_local_gallery(&p) {
+                found_folders.push(lg.folder.clone());
                 let _ = state.db.local_upsert(&lg);
-                items.push(lg);
+            } else {
+                let _ = state.db.local_remove(&p.to_string_lossy());
             }
         }
     }
-    Ok(items)
+    Ok(state
+        .db
+        .local_all()?
+        .into_iter()
+        .filter(|item| found_folders.iter().any(|folder| folder == &item.folder))
+        .collect())
 }
 
 #[tauri::command]
@@ -663,6 +691,8 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let mut media_id = 0i64;
+    let mut expected_pages = None;
+    let mut has_gallery_metadata = false;
 
     // Read the `.<id>` marker file.
     if let Ok(entries) = std::fs::read_dir(folder) {
@@ -680,6 +710,7 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
     let nomedia = folder.join(".nomedia");
     if let Ok(content) = std::fs::read_to_string(&nomedia) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+            has_gallery_metadata = true;
             if id == 0 {
                 id = v.get("id").and_then(|x| x.as_i64()).unwrap_or(0);
             }
@@ -689,6 +720,15 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
                 .and_then(|s| s.parse().ok())
                 .or_else(|| v.get("media_id").and_then(|x| x.as_i64()))
                 .unwrap_or(0);
+            expected_pages = v
+                .get("pages")
+                .and_then(|pages| pages.as_array())
+                .map(Vec::len)
+                .or_else(|| {
+                    v.get("num_pages")
+                        .and_then(|pages| pages.as_u64())
+                        .map(|pages| pages as usize)
+                });
             // The .nomedia file stores a full `Gallery` whose title object is
             // serialized as `titles` (plural). Restore the gallery title from
             // it so the library shows the real title instead of the on-disk
@@ -736,6 +776,51 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
         return None;
     }
 
+    // New downloads carry an explicit completion manifest. For galleries made
+    // by older releases, a full set of files from `.nomedia` is accepted and
+    // its newest page timestamp becomes the stable completion time.
+    let completion_path = folder.join(COMPLETED_MARKER);
+    let completion = std::fs::read_to_string(&completion_path).ok();
+    let mut completed_at = None;
+    let mut manifest_valid = false;
+    if let Some(raw) = completion.as_deref() {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+            completed_at = value
+                .get("completed_at")
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            if let Some(files) = value.get("page_files").and_then(|value| value.as_array()) {
+                manifest_valid = !files.is_empty()
+                    && files.iter().all(|value| {
+                        value
+                            .as_str()
+                            .map(|name| folder.join(name).is_file())
+                            .unwrap_or(false)
+                    });
+            }
+        } else if !raw.trim().is_empty() {
+            // Compatibility with the short-lived plain timestamp format.
+            completed_at = Some(raw.trim().to_string());
+        }
+    }
+    if !manifest_valid {
+        let looks_complete = expected_pages
+            .map(|expected| expected > 0 && page_files.len() >= expected)
+            .unwrap_or(!has_gallery_metadata && !page_files.is_empty() || completion.is_some());
+        if !looks_complete {
+            return None;
+        }
+    }
+    let completed_at = completed_at.unwrap_or_else(|| {
+        page_files
+            .iter()
+            .filter_map(|path| std::fs::metadata(path).ok()?.modified().ok())
+            .max()
+            .map(chrono::DateTime::<Utc>::from)
+            .unwrap_or_else(Utc::now)
+            .to_rfc3339()
+    });
+
     Some(LocalGallery {
         id,
         title,
@@ -744,7 +829,7 @@ fn read_local_gallery(folder: &std::path::Path) -> Option<LocalGallery> {
         num_pages: page_files.len(),
         page_files,
         media_id,
-        scanned_at: Utc::now().to_rfc3339(),
+        scanned_at: completed_at,
         translated_title: String::new(),
     })
 }
@@ -1142,3 +1227,75 @@ pub fn register_app(app: AppHandle, state: State<'_, AppState>) -> AppResult<()>
 // `DownloadStatus` reachable for type inference in tooling.
 #[allow(dead_code)]
 fn _type_anchors(_h: &HttpClient, _s: DownloadStatus, _t: &Tag) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_folder(name: &str) -> PathBuf {
+        let folder = std::env::temp_dir().join(format!(
+            "nclientt-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&folder).unwrap();
+        folder
+    }
+
+    #[test]
+    fn interrupted_gallery_is_not_added_to_local_library() {
+        let folder = test_folder("partial-gallery");
+        std::fs::write(folder.join(".123"), []).unwrap();
+        std::fs::write(folder.join("001.jpg"), [0xff, 0xd8, 0xff, 0xd9]).unwrap();
+        std::fs::write(
+            folder.join(".nomedia"),
+            serde_json::json!({
+                "id": 123,
+                "pages": [{"path": "one.jpg"}, {"path": "two.jpg"}]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        assert!(read_local_gallery(&folder).is_none());
+        std::fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn completion_manifest_supports_finished_page_ranges_and_stable_time() {
+        let folder = test_folder("range-gallery");
+        let completed_at = "2026-07-28T12:34:56+00:00";
+        std::fs::write(folder.join(".456"), []).unwrap();
+        std::fs::write(folder.join("002.jpg"), [0xff, 0xd8, 0xff, 0xd9]).unwrap();
+        std::fs::write(
+            folder.join(".nomedia"),
+            serde_json::json!({
+                "id": 456,
+                "pages": [
+                    {"path": "one.jpg"},
+                    {"path": "two.jpg"},
+                    {"path": "three.jpg"}
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            folder.join(COMPLETED_MARKER),
+            serde_json::json!({
+                "completed_at": completed_at,
+                "page_files": ["002.jpg"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let gallery = read_local_gallery(&folder).unwrap();
+        assert_eq!(gallery.num_pages, 1);
+        assert_eq!(gallery.scanned_at, completed_at);
+        std::fs::remove_dir_all(folder).unwrap();
+    }
+}
