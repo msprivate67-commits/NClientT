@@ -336,6 +336,7 @@
     "ai_comment_target_lang": "Comment target language and style",
     "ai_thinking": "Enable thinking",
     "ai_auto_translate": "Automatically translate online gallery titles and comments",
+    "ai_auto_translate_gallery_titles": "Translate all online gallery titles automatically in the background",
     "ai_use_proxy": "Use the configured proxy for AI requests",
     "app_data_dir": "App data directory:",
     "app_language": "App Language",

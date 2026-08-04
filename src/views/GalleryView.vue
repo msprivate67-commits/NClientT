@@ -27,13 +27,13 @@ import {
   imageProxyUrl,
   openInBrowser,
   translateComment,
-  translateTitle,
 } from "@/api";
 import type { Comment } from "@/types";
 import { useGalleryStore } from "@/stores/gallery";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
+import { useTitleTranslationsStore } from "@/stores/titleTranslations";
 import { useOverlayStore } from "@/stores/overlay";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useTagsStore } from "@/stores/tags";
@@ -62,6 +62,7 @@ const downloadState = computed(() => {
   return entry?.status ?? null;
 });
 const settings = useSettingsStore();
+const titleTranslations = useTitleTranslationsStore();
 const { t: i18n } = useI18n();
 const overlay = useOverlayStore();
 const isAndroid = platform() === "android";
@@ -82,15 +83,15 @@ const viewRef = ref<HTMLElement | null>(null);
 const isDownloaded = computed(() => (g.value ? downloaded.has(g.value.id) : false));
 useScrollCache(viewRef);
 
-const translating = ref(false);
-const translatedTitle = ref("");
-const reasoningText = ref("");
+const titleTranslation = computed(() => titleTranslations.entry(id.value));
+const translating = computed(() => Boolean(
+  titleTranslation.value?.queued || titleTranslation.value?.translating,
+));
+const translatedTitle = computed(() => titleTranslation.value?.translated ?? "");
+const reasoningText = computed(() => titleTranslation.value?.reasoning ?? "");
 const reasoningExpanded = ref(false);
 const reasoningRef = ref<HTMLElement | null>(null);
-const translateError = ref("");
-let translationController: AbortController | null = null;
-let translationRequestId = 0;
-let autoTranslatedGalleryId: number | null = null;
+const translateError = computed(() => titleTranslation.value?.error ?? "");
 
 interface CommentTranslationState {
   translated: string;
@@ -310,42 +311,8 @@ async function toggleTitleReasoning() {
 
 async function doTranslate() {
   if (!g.value) return;
-  translationController?.abort();
-  const controller = new AbortController();
-  translationController = controller;
-  const requestId = ++translationRequestId;
-  translating.value = true;
-  translatedTitle.value = "";
-  reasoningText.value = "";
   reasoningExpanded.value = true;
-  translateError.value = "";
-  const s = settings.settings;
-  try {
-    const result = await translateTitle(
-      s.tl_base_url, s.tl_model, s.tl_api_key,
-      title.value, s.tl_target_lang, s.tl_thinking,
-      s.tl_use_proxy,
-      {
-        signal: controller.signal,
-        onContent: (chunk) => {
-          if (requestId === translationRequestId) translatedTitle.value += chunk;
-        },
-        onReasoning: (chunk) => {
-          if (requestId === translationRequestId) reasoningText.value += chunk;
-        },
-      },
-    );
-    if (requestId === translationRequestId) translatedTitle.value = result;
-  } catch (e: unknown) {
-    if (controller.signal.aborted || requestId !== translationRequestId) return;
-    translateError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    if (requestId === translationRequestId) {
-      translating.value = false;
-      translationController = null;
-      if (reasoningText.value) reasoningExpanded.value = false;
-    }
-  }
+  titleTranslations.enqueue(g.value.id, title.value, { priority: true, force: true });
 }
 
 function maybeAutoTranslate() {
@@ -353,10 +320,8 @@ function maybeAutoTranslate() {
     !g.value
     || !settings.settings.tl_auto_translate
     || !settings.settings.tl_api_key.trim()
-    || autoTranslatedGalleryId === g.value.id
   ) return;
-  autoTranslatedGalleryId = g.value.id;
-  void doTranslate();
+  titleTranslations.enqueue(g.value.id, title.value, { priority: true });
 }
 
 const g = computed(() => gallery.current);
@@ -561,21 +526,23 @@ function goToSettings() {
 
 onMounted(load);
 watch(id, () => {
-  translationController?.abort();
   resetCommentTranslations();
-  translationRequestId++;
-  translating.value = false;
-  translatedTitle.value = "";
-  reasoningText.value = "";
-  translateError.value = "";
-  autoTranslatedGalleryId = null;
+  reasoningExpanded.value = false;
   commentsOpen.value = false;
   pagesExpanded.value = true;
   relatedExpanded.value = true;
   void load();
 });
 watch(
-  [() => settings.settings.tl_api_key, () => settings.settings.tl_auto_translate],
+  [
+    () => settings.settings.tl_base_url,
+    () => settings.settings.tl_model,
+    () => settings.settings.tl_api_key,
+    () => settings.settings.tl_target_lang,
+    () => settings.settings.tl_thinking,
+    () => settings.settings.tl_use_proxy,
+    () => settings.settings.tl_auto_translate,
+  ],
   () => {
     maybeAutoTranslate();
     void maybeAutoTranslateComments();
@@ -593,9 +560,11 @@ watch(reasoningText, async () => {
   await nextTick();
   if (reasoningRef.value) reasoningRef.value.scrollTop = reasoningRef.value.scrollHeight;
 });
+watch(translating, (active, wasActive) => {
+  if (!active && wasActive && reasoningText.value) reasoningExpanded.value = false;
+});
 onUnmounted(() => {
   thumbObserver?.disconnect();
-  translationController?.abort();
   resetCommentTranslations();
   releasePinnedImages.forEach((release) => release());
   releasePinnedImages = [];

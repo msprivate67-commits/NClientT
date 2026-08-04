@@ -336,6 +336,7 @@
     "ai_comment_target_lang": "コメント翻訳の言語と文体",
     "ai_thinking": "思考を有効にする",
     "ai_auto_translate": "オンラインギャラリーのタイトルとコメントを自動翻訳する",
+    "ai_auto_translate_gallery_titles": "オンラインギャラリーの全タイトルをバックグラウンドで自動翻訳する",
     "ai_use_proxy": "AI リクエストに設定済みプロキシを使用する",
     "app_data_dir": "アプリデータディレクトリ：",
     "app_language": "アプリ言語",

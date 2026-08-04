@@ -32,6 +32,7 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use crate::android_share::*;
+use crate::api::ApiClient;
 use crate::config::ConfigStore;
 use crate::db::Database;
 use crate::downloader::DownloadManager;
@@ -85,6 +86,12 @@ pub fn run() {
             let downloads_for_handle = downloads.clone();
             let app_handle = app.handle().clone();
             downloads_for_handle.set_app_handle(app_handle);
+
+            // Rebuild interrupted queue entries and continue from valid page
+            // files already present in their original folders.
+            downloads
+                .clone()
+                .restore_unfinished(ApiClient::new(http.clone(), config.clone()));
 
             app.manage(AppState {
                 config,

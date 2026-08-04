@@ -229,6 +229,7 @@ export interface Settings {
   tl_comment_target_lang: string;
   tl_thinking: boolean;
   tl_auto_translate: boolean;
+  tl_auto_translate_gallery_titles: boolean;
   tl_use_proxy: boolean;
 
   app_language: string;

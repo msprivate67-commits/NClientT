@@ -4,7 +4,7 @@
 //! marker file identifies the gallery), with pages named `001.<ext>`,
 //! `002.<ext>`, ... . A `.nomedia` metadata file stores the gallery JSON.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -17,10 +17,12 @@ use tokio::sync::Semaphore;
 
 use crate::api::ApiClient;
 use crate::config::is_jpeg_corrupted;
-use crate::db::Database;
+use crate::db::{Database, DownloadRow};
 use crate::error::{AppError, AppResult};
 use crate::http::HttpClient;
 use crate::models::Gallery;
+
+pub const COMPLETED_MARKER: &str = ".completed";
 
 /// Per-gallery status, mirrors `GalleryDownloaderV2.Status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,6 +143,8 @@ pub struct DownloadManager {
     db: Database,
     /// Per-gallery active tasks.
     tasks: RwLock<HashMap<i64, Arc<DownloadTask>>>,
+    /// Gallery ids whose metadata is currently being fetched for restoration.
+    restoring: Mutex<HashSet<i64>>,
     /// -----------------------------------------------------------------------
     /// WARNING — SERVER-SIDE RATE LIMITING
     /// -----------------------------------------------------------------------
@@ -168,6 +172,7 @@ impl DownloadManager {
             http,
             db,
             tasks: RwLock::new(HashMap::new()),
+            restoring: Mutex::new(HashSet::new()),
             sem: Arc::new(Semaphore::new(1)), // MUST stay at 1 to avoid server IP bans / rate limiting. DO NOT CHANGE.
             app: Mutex::new(None),
         }
@@ -207,7 +212,7 @@ impl DownloadManager {
                     "paused" => DownloadStatus::Paused,
                     "canceled" => DownloadStatus::Canceled,
                     "failed" => DownloadStatus::Failed,
-                    "downloading" => DownloadStatus::Paused,
+                    "downloading" => DownloadStatus::Pending,
                     _ => DownloadStatus::Pending,
                 };
                 entries.push(DownloadEntry {
@@ -250,10 +255,22 @@ impl DownloadManager {
         from_page: Option<usize>,
         to_page: Option<usize>,
     ) -> AppResult<DownloadEntry> {
+        self.spawn_for_gallery_at(api, gallery, from_page, to_page, None)
+    }
+
+    fn spawn_for_gallery_at(
+        self: Arc<Self>,
+        api: ApiClient,
+        gallery: Gallery,
+        from_page: Option<usize>,
+        to_page: Option<usize>,
+        existing_folder: Option<PathBuf>,
+    ) -> AppResult<DownloadEntry> {
         let settings = api.config.get();
         let title_pref = settings.title_type;
         let folder_name = gallery.download_folder_name(title_pref);
-        let folder = self.allocate_folder(&folder_name, gallery.id);
+        let folder =
+            existing_folder.unwrap_or_else(|| self.allocate_folder(&folder_name, gallery.id));
         std::fs::create_dir_all(&folder).ok();
         write_id_file(&folder, gallery.id);
         write_gallery_meta(&folder, &gallery);
@@ -272,6 +289,15 @@ impl DownloadManager {
             .filter_map(|(i, p)| p.path.as_deref().map(|u| (i, u.to_string())))
             .collect::<Vec<_>>();
 
+        let done = pages
+            .iter()
+            .map(|(page_index, url)| {
+                let name = page_file_name(*page_index, url);
+                let path = folder.join(&name);
+                path.exists() && !is_corrupted(&path, &name)
+            })
+            .collect::<Vec<_>>();
+        let done_pages = done.iter().filter(|value| **value).count();
         let total = pages.len();
         let task = Arc::new(DownloadTask {
             id: gallery.id,
@@ -279,7 +305,7 @@ impl DownloadManager {
             folder: folder.clone(),
             thumbnail: gallery.thumbnail.thumbnail_or_path().map(String::from),
             pages,
-            done: Mutex::new(vec![false; total]),
+            done: Mutex::new(done),
             status: RwLock::new(DownloadStatus::Pending),
             pause_flag: AtomicBool::new(false),
             cancel_flag: AtomicBool::new(false),
@@ -293,13 +319,20 @@ impl DownloadManager {
             folder: task.folder.to_string_lossy().to_string(),
             thumbnail: task.thumbnail.clone(),
             status: DownloadStatus::Pending,
-            done_pages: 0,
+            done_pages,
             total_pages: total,
         };
 
         self.tasks.write().insert(task.id, task.clone());
         self.persist(task.id, &entry, DownloadStatus::Pending)?;
-        self.emit_progress(task.id, DownloadStatus::Pending, 0, total, None, None);
+        self.emit_progress(
+            task.id,
+            DownloadStatus::Pending,
+            done_pages,
+            total,
+            None,
+            None,
+        );
 
         let me = self.clone();
         let api = api.clone();
@@ -341,13 +374,13 @@ impl DownloadManager {
                 Err(_) => continue,
             }
         };
-        {
-            let mut s = task.status.write();
-            if *s == DownloadStatus::Canceled || *s == DownloadStatus::Paused {
-                return;
-            }
-            *s = DownloadStatus::Downloading;
+        if matches!(
+            *task.status.read(),
+            DownloadStatus::Canceled | DownloadStatus::Paused
+        ) {
+            return;
         }
+        self.set_status(&task, DownloadStatus::Downloading);
         self.emit_progress(
             task.id,
             DownloadStatus::Downloading,
@@ -496,9 +529,9 @@ impl DownloadManager {
             );
         } else if done == total {
             self.set_status(&task, DownloadStatus::Finished);
-            self.emit_progress(task.id, DownloadStatus::Finished, done, total, None, None);
             // Index finished gallery into the local library.
             self.index_finished(&task);
+            self.emit_progress(task.id, DownloadStatus::Finished, done, total, None, None);
         } else {
             // Incomplete (paused): persist status.
             self.set_status(&task, DownloadStatus::Paused);
@@ -540,6 +573,19 @@ impl DownloadManager {
     }
 
     fn index_finished(&self, task: &Arc<DownloadTask>) {
+        let completed_at = chrono::Utc::now().to_rfc3339();
+        let expected_files = task
+            .pages
+            .iter()
+            .map(|(page_index, url)| page_file_name(*page_index, url))
+            .collect::<Vec<_>>();
+        let completion = serde_json::json!({
+            "completed_at": completed_at.clone(),
+            "page_files": expected_files,
+        });
+        if let Ok(json) = serde_json::to_string_pretty(&completion) {
+            let _ = std::fs::write(task.folder.join(COMPLETED_MARKER), json);
+        }
         let page_files = list_image_files(&task.folder);
         let lg = crate::models::LocalGallery {
             id: task.id,
@@ -549,7 +595,7 @@ impl DownloadManager {
             num_pages: page_files.len(),
             page_files,
             media_id: 0,
-            scanned_at: chrono::Utc::now().to_rfc3339(),
+            scanned_at: completed_at,
             translated_title: String::new(),
         };
         let _ = self.db.local_upsert(&lg);
@@ -578,6 +624,9 @@ impl DownloadManager {
     pub fn pause(&self, id: i64) -> AppResult<()> {
         if let Some(t) = self.tasks.read().get(&id).cloned() {
             t.pause_flag.store(true, Ordering::SeqCst);
+        } else {
+            self.db
+                .download_set_status(id, DownloadStatus::Paused.db_str())?;
         }
         Ok(())
     }
@@ -604,15 +653,86 @@ impl DownloadManager {
         entry
     }
 
+    /// Restore tasks that were queued or actively downloading when the process
+    /// exited. Explicitly paused and failed tasks remain under user control.
+    pub fn restore_unfinished(self: Arc<Self>, api: ApiClient) {
+        let Ok(rows) = self.db.downloads_all() else {
+            return;
+        };
+        for row in rows {
+            if row.status == "pending" || row.status == "downloading" {
+                let _ = self.clone().tasks_resume_from_db(api.clone(), row.id);
+            }
+        }
+    }
+
     fn tasks_resume_from_db(self: Arc<Self>, api: ApiClient, id: i64) -> AppResult<()> {
+        if !self.restoring.lock().insert(id) {
+            return Ok(());
+        }
+        let rows = match self.db.downloads_all() {
+            Ok(rows) => rows,
+            Err(error) => {
+                self.restoring.lock().remove(&id);
+                return Err(error);
+            }
+        };
+        let row = rows.into_iter().find(|row| row.id == id);
+        let Some(row) = row else {
+            self.restoring.lock().remove(&id);
+            return Ok(());
+        };
+        if let Err(error) = self
+            .db
+            .download_set_status(id, DownloadStatus::Pending.db_str())
+        {
+            self.restoring.lock().remove(&id);
+            return Err(error);
+        }
         let me = self.clone();
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             match api.gallery(id).await {
                 Ok(g) => {
-                    let _ = me.clone().spawn_for_gallery(api, g, None, None);
+                    let still_pending = me
+                        .db
+                        .downloads_all()
+                        .ok()
+                        .and_then(|rows| rows.into_iter().find(|candidate| candidate.id == id))
+                        .map(|candidate| {
+                            candidate.status == "pending" || candidate.status == "downloading"
+                        })
+                        .unwrap_or(false);
+                    if !still_pending {
+                        me.restoring.lock().remove(&id);
+                        return;
+                    }
+                    if let Err(e) = me.clone().spawn_for_gallery_at(
+                        api,
+                        g,
+                        None,
+                        None,
+                        Some(PathBuf::from(row.folder.clone())),
+                    ) {
+                        log::warn!("resume failed for {}: {}", id, e);
+                        let _ = me
+                            .db
+                            .download_set_status(id, DownloadStatus::Failed.db_str());
+                        me.emit_persisted_progress(
+                            &row,
+                            DownloadStatus::Failed,
+                            Some(e.to_string()),
+                        );
+                    }
                 }
-                Err(e) => log::warn!("resume failed for {}: {}", id, e),
+                Err(e) => {
+                    log::warn!("resume failed for {}: {}", id, e);
+                    let _ = me
+                        .db
+                        .download_set_status(id, DownloadStatus::Failed.db_str());
+                    me.emit_persisted_progress(&row, DownloadStatus::Failed, Some(e.to_string()));
+                }
             }
+            me.restoring.lock().remove(&id);
         });
         Ok(())
     }
@@ -775,6 +895,32 @@ impl DownloadManager {
                     error,
                     bytes_per_second: bps,
                     total_bytes: tbytes,
+                },
+            );
+        }
+    }
+
+    fn emit_persisted_progress(
+        &self,
+        row: &DownloadRow,
+        status: DownloadStatus,
+        error: Option<String>,
+    ) {
+        let app_opt = self.app.lock();
+        if let Some(app) = app_opt.as_ref() {
+            let _ = app.emit(
+                "download:progress",
+                DownloadProgress {
+                    id: row.id,
+                    title: row.title.clone(),
+                    folder: row.folder.clone(),
+                    status,
+                    done_pages: row.done_pages,
+                    total_pages: row.total_pages,
+                    current_page: None,
+                    error,
+                    bytes_per_second: None,
+                    total_bytes: None,
                 },
             );
         }

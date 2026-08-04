@@ -88,6 +88,7 @@ const DEFAULT_SETTINGS: Settings = {
   tl_comment_target_lang: "简体中文，古典文言文风格，或诗句对联风格",
   tl_thinking: false,
   tl_auto_translate: true,
+  tl_auto_translate_gallery_titles: false,
   tl_use_proxy: false,
   app_language: "",
   theme: "system",
