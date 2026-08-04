@@ -216,6 +216,8 @@ pub struct Settings {
     #[serde(default = "tl_auto_translate_default")]
     pub tl_auto_translate: bool,
     #[serde(default)]
+    pub tl_auto_translate_gallery_titles: bool,
+    #[serde(default)]
     pub tl_use_proxy: bool,
 
     #[serde(default)]
@@ -281,6 +283,7 @@ impl Default for Settings {
             tl_comment_target_lang: tl_comment_target_lang_default(),
             tl_thinking: false,
             tl_auto_translate: true,
+            tl_auto_translate_gallery_titles: false,
             tl_use_proxy: false,
             app_language: String::new(),
             theme: theme_default(),
@@ -328,6 +331,10 @@ mod tests {
         value
             .as_object_mut()
             .unwrap()
+            .remove("tl_auto_translate_gallery_titles");
+        value
+            .as_object_mut()
+            .unwrap()
             .remove("tl_comment_target_lang");
         value.as_object_mut().unwrap().remove("tl_use_proxy");
         value.as_object_mut().unwrap().remove("app_language");
@@ -338,6 +345,7 @@ mod tests {
         assert!(!settings.privacy_screen);
         assert!(settings.clipboard_link_reader);
         assert!(settings.tl_auto_translate);
+        assert!(!settings.tl_auto_translate_gallery_titles);
         assert_eq!(
             settings.tl_comment_target_lang,
             "简体中文，古典文言文风格，或诗句对联风格"

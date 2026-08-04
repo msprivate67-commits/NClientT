@@ -462,6 +462,7 @@ onMounted(async () => {
       <div class="checkboxes">
         <label><input type="checkbox" v-model="draft.tl_thinking" /> {{ $t('settings.ai_thinking') }}</label>
         <label><input type="checkbox" v-model="draft.tl_auto_translate" /> {{ $t('settings.ai_auto_translate') }}</label>
+        <label><input type="checkbox" v-model="draft.tl_auto_translate_gallery_titles" /> {{ $t('settings.ai_auto_translate_gallery_titles') }}</label>
         <label><input type="checkbox" v-model="draft.tl_use_proxy" /> {{ $t('settings.ai_use_proxy') }}</label>
       </div>
       <div class="row" style="margin-top: 10px;">

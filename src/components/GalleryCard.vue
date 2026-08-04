@@ -10,6 +10,8 @@ import { useOverlayStore } from "@/stores/overlay";
 import { useReadProgressStore } from "@/stores/readProgress";
 import { useDownloadedStore } from "@/stores/downloaded";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useSettingsStore } from "@/stores/settings";
+import { useTitleTranslationsStore } from "@/stores/titleTranslations";
 import type { SimpleGallery } from "@/types";
 
 const props = defineProps<{
@@ -40,6 +42,8 @@ const overlay = useOverlayStore();
 const readProgress = useReadProgressStore();
 const downloaded = useDownloadedStore();
 const downloads = useDownloadsStore();
+const settings = useSettingsStore();
+const titleTranslations = useTitleTranslationsStore();
 const cardRef = ref<HTMLElement | null>(null);
 const coverVisible = useLazyVisible(cardRef);
 
@@ -49,7 +53,34 @@ const thumb = computed(
 // Title shown on the card: prefers the override (e.g. a translated title) and
 // falls back to the gallery's own title when none is supplied.
 const displayTitle = computed(
-  () => props.displayTitle ?? props.gallery.title,
+  () => props.displayTitle
+    || (!props.local ? titleTranslations.entry(props.gallery.id)?.translated : "")
+    || props.gallery.title,
+);
+
+watch(
+  [
+    () => props.gallery.id,
+    () => props.gallery.title,
+    () => props.local,
+    () => settings.settings.tl_auto_translate_gallery_titles,
+    () => settings.settings.tl_base_url,
+    () => settings.settings.tl_model,
+    () => settings.settings.tl_api_key,
+    () => settings.settings.tl_target_lang,
+    () => settings.settings.tl_thinking,
+    () => settings.settings.tl_use_proxy,
+  ],
+  () => {
+    if (
+      !props.local
+      && settings.settings.tl_auto_translate_gallery_titles
+      && settings.settings.tl_api_key.trim()
+    ) {
+      titleTranslations.enqueue(props.gallery.id, props.gallery.title);
+    }
+  },
+  { immediate: true },
 );
 const src = computed(() => {
   if (!thumb.value) return "";
